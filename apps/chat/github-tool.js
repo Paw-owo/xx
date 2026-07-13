@@ -376,9 +376,15 @@ function buildConfigView(config, onSave, onContinue) {
 }
 
 function buildTreeView(config, onBack, session) {
-  // session: { isClosed: ()=>boolean, signal?: AbortSignal } 由 openGithubToolSheet 统一管理
+  // session: { isClosed, registerAbort } 由 openGithubToolSheet 统一管理
   const isClosed = (session && typeof session.isClosed === 'function') ? session.isClosed : function() { return false; };
-  const signal = session ? session.signal : undefined;
+
+  // 独立 AbortController：tree 请求专用，登记到 session，抽屉真正关闭时被 abort
+  const treeAbort = new AbortController();
+  if (session && typeof session.registerAbort === 'function') {
+    session.registerAbort(treeAbort);
+  }
+  const signal = treeAbort.signal;
 
   const wrap = document.createElement('div');
   wrap.className = 'gh-sheet';
@@ -389,7 +395,11 @@ function buildTreeView(config, onBack, session) {
   backBtn.type = 'button';
   backBtn.className = 'gh-back-btn';
   backBtn.textContent = '← 配置';
-  backBtn.addEventListener('click', onBack);
+  // 离开 tree view 时立即 abort 旧 tree 请求，避免返回后旧请求继续写 UI
+  backBtn.addEventListener('click', function() {
+    try { treeAbort.abort(); } catch (_) {}
+    onBack();
+  });
   backRow.appendChild(backBtn);
   wrap.appendChild(backRow);
 
@@ -854,7 +864,6 @@ export function openGithubToolSheet() {
 
   const session = {
     isClosed: function() { return closed; },
-    signal: undefined, // 全局 signal 不再使用（各请求用各自 fileAbort），保留字段兼容
     registerAbort: function(ac) {
       if (closed) {
         try { ac.abort(); } catch (_) {}
