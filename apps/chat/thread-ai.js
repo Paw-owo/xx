@@ -50,6 +50,18 @@ const STREAM_RENDER_THROTTLE_MS = 80;
 
 const activeAIJobs = new Map();
 
+// 未读数 read-modify-write 串行化队列：避免多个并发 +1 因 await 交错导致覆盖回退
+// 每个 key 一条链，写操作排队执行
+const unreadWriteQueues = new Map();
+function enqueueUnreadWrite(key, writer) {
+  const prev = unreadWriteQueues.get(key) || Promise.resolve();
+  const next = prev.then(writer, writer);
+  // 写失败不阻塞后续写
+  next.catch(() => null);
+  unreadWriteQueues.set(key, next);
+  return next;
+}
+
 const DEFAULT_PROACTIVE_CONFIG = {
   proactiveMode1Enabled: false,
   proactiveMode1Minutes: 30,
@@ -343,10 +355,12 @@ export async function stopThreadAIReply(state, options = {}) {
   const key = getAIJobKey(state);
   const job = activeAIJobs.get(key);
 
-  state.aiGenerating = false;
-  state.isSending = false;
-
-  if (!job) return false;
+  if (!job) {
+    // 无活动 job：仍要复位状态，但放在返回前，避免过早清空影响后续判断
+    state.aiGenerating = false;
+    state.isSending = false;
+    return false;
+  }
 
   job.stopped = true;
   job.stoppedAt = getNow();
@@ -357,6 +371,10 @@ export async function stopThreadAIReply(state, options = {}) {
 
   await markJobPlaceholdersStopped(job, options.message || '我先停在这里了。');
 
+  // 停止操作完成后再清空状态，避免停止过程中状态错乱
+  state.aiGenerating = false;
+  state.isSending = false;
+
   if (state.mode === 'group') {
     await syncGroupState(state, state.groupId || job.groupId || '');
   } else {
@@ -365,6 +383,24 @@ export async function stopThreadAIReply(state, options = {}) {
 
   activeAIJobs.delete(key);
   return true;
+}
+
+// 卸载时清理：只 abort + 标记 placeholder 停止，不 syncState（state 即将失效）
+// 用于 unmountChatThread，避免页面切换后 activeAIJobs 积累旧 job
+export function abortActiveAIJobsForUnmount(state) {
+  if (!state) return;
+  const key = getAIJobKey(state);
+  const job = activeAIJobs.get(key);
+  if (!job) return;
+
+  job.stopped = true;
+  job.stoppedAt = getNow();
+  try { job.controller?.abort?.(); } catch (_) {}
+
+  // 标记 placeholder 停止（不 await，unmount 是同步的；markJobPlaceholdersStopped 内部 catch 容错）
+  markJobPlaceholdersStopped(job, '我先停在这里了。').catch(() => null);
+
+  activeAIJobs.delete(key);
 }
 
 export async function checkThreadProactiveMessages(state, options = {}) {
@@ -443,7 +479,7 @@ async function requestPrivateReply(state, options = {}) {
 
   if (!characterId) return null;
 
-  const job = startAIJob(state, {
+  const job = await startAIJob(state, {
     store: PRIVATE_STORE,
     characterId,
     groupId: ''
@@ -670,7 +706,7 @@ async function requestGroupReply(state, options = {}) {
 
   if (!groupId) return [];
 
-  const job = startAIJob(state, {
+  const job = await startAIJob(state, {
     store: GROUP_STORE,
     characterId: '',
     groupId
@@ -1062,6 +1098,9 @@ function enrichToolCallsBackground(toolCalls, options = {}) {
     signal: AbortSignal.timeout(8000),
     json: true
   }).then(async (result) => {
+    // 后台 then 链写 state 前必须检查 state.mounted / job 是否仍有效，避免卸载后写入
+    if (state && state.mounted === false) return;
+
     const summaries = parseToolSummaries(result);
 
     const enriched = toolCalls.map((tool, index) => {
@@ -1074,6 +1113,11 @@ function enrichToolCallsBackground(toolCalls, options = {}) {
     const existing = await getDB(store, messageId).catch(() => null);
     if (!existing) return;
 
+    // getDB 是 await，期间 state 可能已卸载，二次检查
+    if (state && state.mounted === false) return;
+    // 若消息已被停止/错误覆盖，不再用 enriched toolCalls 覆盖
+    if (existing.isStopped || existing.isError) return;
+
     const updated = cleanForDB({
       ...existing,
       toolCalls: enriched,
@@ -1083,6 +1127,7 @@ function enrichToolCallsBackground(toolCalls, options = {}) {
     await setDB(store, updated);
 
     if (state) {
+      if (state.mounted === false) return;
       if (store === PRIVATE_STORE && state.characterId) {
         await syncPrivateState(state, state.characterId);
       } else if (store === GROUP_STORE && state.groupId) {
@@ -1852,7 +1897,7 @@ function createAssistantPlaceholder({
 // 【AI任务管理】启动、停止、中止检测
 // ═══════════════════════════════════════
 
-function startAIJob(state, meta = {}) {
+async function startAIJob(state, meta = {}) {
   const key = getAIJobKey(state);
   const old = activeAIJobs.get(key);
 
@@ -1860,6 +1905,12 @@ function startAIJob(state, meta = {}) {
     old.stopped = true;
     try {
       old.controller?.abort?.();
+    } catch (_) {}
+
+    // 确保旧 placeholder 被停止/标记完成，不能留下卡住的占位消息
+    // 用 default 文案，不阻塞新 job 过久（内部已 catch 容错）
+    try {
+      await markJobPlaceholdersStopped(old, '我先停在这里了。');
     } catch (_) {}
   }
 
@@ -2328,13 +2379,14 @@ async function updateUnreadCount(characterId, delta = 0) {
   if (!characterId) return;
 
   const key = 'chat_unread_counts';
-  const counts = getData(key) || {};
-  const current = Number(counts[characterId] || 0);
-  const next = { ...counts, [characterId]: Math.max(0, current + Number(delta || 0)) };
-
-  setData(key, next);
-
-  if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  // 串行化 read-modify-write，避免多个并发 +1 覆盖回退
+  await enqueueUnreadWrite(key, () => {
+    const counts = getData(key) || {};
+    const current = Number(counts[characterId] || 0);
+    const next = { ...counts, [characterId]: Math.max(0, current + Number(delta || 0)) };
+    setData(key, next);
+    if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  });
 }
 
 // 群聊未读 +1：仅当该群聊当前未处于打开状态时才递增（避免边看边加）
@@ -2346,11 +2398,13 @@ function incrementGroupUnreadIfClosed(groupId, state) {
   if (state && state.mounted && state.mode === 'group' && String(state.groupId || '') === id) return;
 
   const key = 'chat_group_unread_counts';
-  const counts = getData(key) || {};
-  const current = Number(counts[id] || 0);
-  setData(key, { ...counts, [id]: current + 1 });
-
-  if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  // 串行化 read-modify-write，避免多个并发 +1 覆盖回退
+  enqueueUnreadWrite(key, () => {
+    const counts = getData(key) || {};
+    const current = Number(counts[id] || 0);
+    setData(key, { ...counts, [id]: current + 1 });
+    if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  });
 }
 
 // ═══════════════════════════════════════
