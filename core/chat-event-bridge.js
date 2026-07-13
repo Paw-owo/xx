@@ -57,28 +57,32 @@ async function handleShopGift(data) {
   const name = data?.characterName || data?.characterId || 'TA';
   const dir = data?.direction;
 
-  await appendExternalChatMessage({
-    sourceEventId: eventId,
-    characterId,
-    characterName: name,
-    role: dir === 'ai_to_user' ? 'assistant' : 'user',
-    type: 'gift',
-    content: dir === 'ai_to_user'
-      ? `收到 ${name} 的礼物：${itemName}${data?.note ? `，${data.note}` : ''}`
-      : `已送 ${name} 礼物：${itemName}${data?.note ? `，${data.note}` : ''}`,
-    note: String(data?.note || ''),
-    direction: dir || '',
-    title: dir === 'ai_to_user' ? `${name}送给我一件小物` : `送给${name}的小礼物`,
-    itemId: String(data?.itemId || ''),
-    itemName,
-    itemDesc: String(data?.itemDesc || data?.itemDescription || ''),
-    itemPrice: Number(data?.itemPrice || data?.price || 0),
-    itemImage: String(data?.itemImage || data?.image || ''),
-    card: data?.card || null,
-    item: data?.item || null,
-    shopItem: data?.shopItem || null,
-    incrementUnread: true
-  });
+  try {
+    await appendExternalChatMessage({
+      sourceEventId: eventId,
+      characterId,
+      characterName: name,
+      role: dir === 'ai_to_user' ? 'assistant' : 'user',
+      type: 'gift',
+      content: dir === 'ai_to_user'
+        ? `收到 ${name} 的礼物：${itemName}${data?.note ? `，${data.note}` : ''}`
+        : `已送 ${name} 礼物：${itemName}${data?.note ? `，${data.note}` : ''}`,
+      note: String(data?.note || ''),
+      direction: dir || '',
+      title: dir === 'ai_to_user' ? `${name}送给我一件小物` : `送给${name}的小礼物`,
+      itemId: String(data?.itemId || ''),
+      itemName,
+      itemDesc: String(data?.itemDesc || data?.itemDescription || ''),
+      itemPrice: Number(data?.itemPrice || data?.price || 0),
+      itemImage: String(data?.itemImage || data?.image || ''),
+      card: data?.card || null,
+      item: data?.item || null,
+      shopItem: data?.shopItem || null,
+      incrementUnread: true
+    });
+  } catch (error) {
+    console.error('[chat-event-bridge] handleShopGift 落库失败', error);
+  }
 }
 
 async function handleWalletTransfer(data) {
@@ -95,22 +99,26 @@ async function handleWalletTransfer(data) {
   const name = data?.characterName || data?.characterId || 'TA';
   const dir = data?.direction;
 
-  await appendExternalChatMessage({
-    sourceEventId: eventId,
-    characterId,
-    characterName: name,
-    role: dir === 'ai_to_user' ? 'assistant' : 'user',
-    type: 'transfer',
-    content: dir === 'ai_to_user'
-      ? `收到 ${name} 转来的 ¥${amount}${data?.note ? `，${data.note}` : ''}`
-      : `已转给 ${name} ¥${amount}${data?.note ? `，${data.note}` : ''}`,
-    amount,
-    transferAmount: amount,
-    note: String(data?.note || ''),
-    direction: dir || '',
-    title: dir === 'ai_to_user' ? `${name}转给我` : `转给${name}`,
-    incrementUnread: true
-  });
+  try {
+    await appendExternalChatMessage({
+      sourceEventId: eventId,
+      characterId,
+      characterName: name,
+      role: dir === 'ai_to_user' ? 'assistant' : 'user',
+      type: 'transfer',
+      content: dir === 'ai_to_user'
+        ? `收到 ${name} 转来的 ¥${amount}${data?.note ? `，${data.note}` : ''}`
+        : `已转给 ${name} ¥${amount}${data?.note ? `，${data.note}` : ''}`,
+      amount,
+      transferAmount: amount,
+      note: String(data?.note || ''),
+      direction: dir || '',
+      title: dir === 'ai_to_user' ? `${name}转给我` : `转给${name}`,
+      incrementUnread: true
+    });
+  } catch (error) {
+    console.error('[chat-event-bridge] handleWalletTransfer 落库失败', error);
+  }
 }
 
 // 把外部事件写入私聊消息库 + 写未读
@@ -180,9 +188,14 @@ export async function appendExternalChatMessage(payload = {}) {
 
   // 写未读：私聊用 chat_unread_counts，群聊不动 chat_group_unread_counts
   // 若用户当前正在该私聊会话，不递增未读（chat.js 会 renderRoute 刷新显示）
-  const activeThread = window.__chatActiveThread;
-  const isActivePrivate = activeThread && activeThread.mode === 'private' &&
-    String(activeThread.characterId || '') === String(characterId || '');
+  // __chatActiveThread 为跨模块全局变量，做最小防御避免读取异常打崩整条链路
+  let isActivePrivate = false;
+  try {
+    const activeThread = window.__chatActiveThread;
+    isActivePrivate = Boolean(activeThread && activeThread.mode === 'private' &&
+      String(activeThread.characterId || '') === String(characterId || ''));
+  } catch (_) {}
+
   if (!isActivePrivate) {
     try {
       const unreadMap = getData('chat_unread_counts') || {};
