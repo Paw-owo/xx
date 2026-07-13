@@ -18,7 +18,8 @@ import {
   setDB,
   getAllDB,
   deleteDB,
-  clearStoreDB
+  clearStoreDB,
+  compressImage
 } from '../core/storage.js';
 
 import {
@@ -1198,15 +1199,17 @@ async function saveWallpaperOpacity(value, live) {
   if (!live) showToast('壁纸透明度存好啦');
 }
 
-function saveWidgetBgOpacity(key, value, live) {
+async function saveWidgetBgOpacity(key, value, live) {
   const all = getData(WIDGET_BACKGROUNDS_KEY) || {};
   const current = all[key] || { key, value: '', source: '', updatedAt: getNow() };
   all[key] = { ...current, opacity: Number(value), updatedAt: getNow() };
   setData(WIDGET_BACKGROUNDS_KEY, all);
 
-  getDB('blobs', key).then((record) => {
-    if (record) setDB('blobs', key, { ...record, opacity: Number(value), updatedAt: getNow() });
-  });
+  // 先 await blobs 写入完成，再触发刷新，避免 applyAllImages 读到旧 opacity
+  const record = await getDB('blobs', key).catch(() => null);
+  if (record) {
+    await setDB('blobs', key, { ...record, opacity: Number(value), updatedAt: getNow() }).catch(() => {});
+  }
 
   emitRefresh();
   if (!live) showToast('小卡片透明度存好啦');
@@ -1245,8 +1248,10 @@ async function uploadBlobImage(key, opacityKey, msg) {
   if (!file) return;
 
   const dataUrl = await readFileAsDataUrl(file);
+  if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
   const opacity = Number(getData(opacityKey) ?? 100);
-  await setDB('blobs', key, { key, value: dataUrl, source: file.name, opacity, updatedAt: getNow() });
+  const saved = await setDB('blobs', key, { key, value: dataUrl, source: file.name, opacity, updatedAt: getNow() });
+  if (!saved) { showToast('图片保存失败，可能图片太大或存储已满'); return; }
 
   if (opacityKey && getData(opacityKey) == null) setData(opacityKey, opacity);
   showToast(msg || '图片上传好啦');
@@ -1272,13 +1277,15 @@ async function uploadWidgetBg(key) {
   if (!file) return;
 
   const dataUrl = await readFileAsDataUrl(file);
+  if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
   const all = getData(WIDGET_BACKGROUNDS_KEY) || {};
   const old = all[key] || {};
   const record = { key, value: dataUrl, source: file.name, opacity: Number(old.opacity ?? 100), updatedAt: getNow() };
 
   all[key] = record;
   setData(WIDGET_BACKGROUNDS_KEY, all);
-  await setDB('blobs', key, record);
+  const saved = await setDB('blobs', key, record);
+  if (!saved) { showToast('图片保存失败，可能图片太大或存储已满'); return; }
 
   showToast('小卡片背景换好啦');
   emitRefresh();
@@ -1399,13 +1406,15 @@ async function uploadIcon(id) {
   if (!file) return;
 
   const dataUrl = await readFileAsDataUrl(file);
+  if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
   const icons = getData(ICONS_KEY) || {};
   const current = icons[id] || {};
   const blobKey = `app_icon_${id}`;
   const opacity = Number(current.opacity ?? 100);
 
   const blobRecord = { key: blobKey, value: dataUrl, source: file.name, opacity, updatedAt: getNow() };
-  await setDB('blobs', blobKey, blobRecord);
+  const saved = await setDB('blobs', blobKey, blobRecord);
+  if (!saved) { showToast('图标保存失败，可能图片太大或存储已满'); return; }
 
   icons[id] = {
     ...current,
@@ -2086,7 +2095,16 @@ function readFileAsText(file) {
   });
 }
 
-function readFileAsDataUrl(file) {
+async function readFileAsDataUrl(file) {
+  // 图片文件走压缩，避免超大 base64 写入 IndexedDB 被拒收导致假成功
+  if (file && file.type && file.type.startsWith('image/')) {
+    try {
+      return await compressImage(file, 1800, 0.9);
+    } catch (err) {
+      // 压缩失败时回退到原始 FileReader，保证至少能读出来
+      console.warn('compressImage failed, fallback to raw readAsDataURL', err?.message || err);
+    }
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
