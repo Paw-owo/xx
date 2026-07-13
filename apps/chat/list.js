@@ -526,7 +526,7 @@ async function createGroupChat() {
   state.tab = 'group';
   state.search = '';
   await loadItems();
-  render();
+  if (state.mounted) render();
 
   showToast('群聊建好啦');
 
@@ -917,9 +917,21 @@ async function confirmDeleteCharacter(item) {
   showToast('已经把 TA 从列表里移走了');
 
   // 先发统一事件，由路由层（chat.js 监听 characters:updated）统一刷新列表，
-  // 不再本地 rerender，避免与事件触发的刷新形成两套互相打架的链路
-  try { window.AppBus?.emit('characters:updated', {}); } catch (_) {}
+  // 不再本地 rerender，避免与事件触发的刷新形成两套互相打架的链路。
+  // 但若 AppBus 不存在（路由层未接入），本地兜底刷新一次，避免半刷新。
+  let dispatched = false;
+  try {
+    if (window.AppBus && typeof window.AppBus.emit === 'function') {
+      window.AppBus.emit('characters:updated', {});
+      dispatched = true;
+    }
+  } catch (_) {}
   window.dispatchEvent(new CustomEvent('desktop:refresh'));
+
+  // AppBus 未接入时本地兜底，确保列表/当前路由一致
+  if (!dispatched && state.mounted) {
+    await rerender();
+  }
 }
 
 async function renameGroup(item) {
@@ -1321,10 +1333,6 @@ function sortListItems(a, b) {
 
 function sortByTimestamp(a, b) {
   return String(a?.timestamp || '').localeCompare(String(b?.timestamp || ''));
-}
-
-function sortByUpdatedAtDesc(a, b) {
-  return String(b?.updatedAt || b?.createdAt || '').localeCompare(String(a?.updatedAt || a?.createdAt || ''));
 }
 
 function normalizeArray(value) {

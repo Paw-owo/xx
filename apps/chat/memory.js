@@ -259,20 +259,30 @@ function createMemoryCard(memory) {
 
   const edit = smallButton('编辑', 'edit');
   edit.addEventListener('click', () => {
+    if (!state.mounted) return;
     state.editingId = memory.id;
     render();
     // 用双 rAF 作为稳定的下一帧逻辑：等渲染+布局都完成后再 focus，避免移动端时序不准
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        if (state.editingId !== memory.id) return;
-        state.rootEl?.querySelector('.chat-memory-editor textarea')?.focus();
+        // DOM 不存在或 editingId 已变更/已卸载，直接跳过，避免空引用报错
+        if (!state.mounted || state.editingId !== memory.id || !state.rootEl) return;
+        const textarea = state.rootEl.querySelector('.chat-memory-editor textarea');
+        if (textarea && document.body.contains(textarea)) {
+          textarea.focus();
+        }
       });
     });
   });
 
   const remove = smallButton('删除', 'delete');
   remove.addEventListener('click', async () => {
+    if (!state.mounted) return;
     await deleteMemory(memory);
+    // 删除后清空 editingId，避免指向已删记忆形成过期选中
+    if (state.editingId === memory.id) {
+      state.editingId = '';
+    }
   });
 
   actions.append(edit, remove);
@@ -305,6 +315,7 @@ function createEditor(memory) {
 
   const cancel = smallButton('取消', 'close');
   cancel.addEventListener('click', () => {
+    if (!state.mounted) return;
     state.editingId = '';
     render();
   });
@@ -312,6 +323,7 @@ function createEditor(memory) {
   const save = smallButton('保存', 'check');
   save.classList.add('primary');
   save.addEventListener('click', async () => {
+    if (!state.mounted) return;
     const content = textarea.value.trim();
     if (!content) {
       showToast('记忆不能空着');
@@ -325,9 +337,12 @@ function createEditor(memory) {
       updatedAt: getNow()
     });
 
-    state.editingId = '';
+    // 保存期间可能已卸载或切到别的记忆编辑，仅当仍编辑本条时清空
+    if (state.editingId === memory.id) {
+      state.editingId = '';
+    }
     await refresh();
-    showToast('记好啦');
+    if (state.mounted) showToast('记好啦');
   });
 
   row.append(cancel, save);
@@ -351,6 +366,7 @@ function createAddPanel() {
   button.append(createIcon('add', 16), el('span', '', '写进去'));
 
   button.addEventListener('click', async () => {
+    if (!state.mounted) return;
     if (!state.characterId) {
       showToast('先选一个角色');
       return;
@@ -373,9 +389,10 @@ function createAddPanel() {
     };
 
     await saveMemory(memory);
+    if (!state.mounted) return;
     input.value = '';
     await refresh();
-    showToast('已经放进小本本');
+    if (state.mounted) showToast('已经放进小本本');
   });
 
   panel.append(input, button);
@@ -392,12 +409,13 @@ function createEmpty(title, desc) {
 }
 
 async function deleteMemory(memory) {
+  if (!state.mounted) return;
   const ok = await showConfirm('要删掉这条记忆吗？');
-  if (!ok) return;
+  if (!ok || !state.mounted) return;
 
   await coreDeleteMemory(state.characterId, memory.id);
   await refresh();
-  showToast('删掉啦');
+  if (state.mounted) showToast('删掉啦');
 }
 
 async function saveMemory(memory) {
@@ -416,7 +434,10 @@ async function saveMemory(memory) {
 }
 
 async function refresh() {
+  // 防卸载后空引用：loadData 前后都校验 mounted
+  if (!state.mounted) return;
   await loadData();
+  if (!state.mounted) return;
   render();
 }
 
