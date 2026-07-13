@@ -266,10 +266,17 @@ function buildGridView(state, options, showDetail) {
   // 滑动同步圆点
   var dotEls = dots.querySelectorAll('.tools-dot');
   var ticking = false;
+  var rafId = null;
   pager.addEventListener('scroll', function() {
     if (ticking) return;
     ticking = true;
-    requestAnimationFrame(function() {
+    rafId = requestAnimationFrame(function() {
+      rafId = null;
+      // 工具箱已关闭/重建后 pager 脱离 DOM，不再写已卸载的圆点
+      if (!pager.isConnected) {
+        ticking = false;
+        return;
+      }
       var idx = Math.round(pager.scrollLeft / pager.clientWidth);
       dotEls.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
       ticking = false;
@@ -956,23 +963,32 @@ export function showToolsPanel(state, options = {}) {
   sheet.className = 'thread-tools-panel-wrap';
   sheet.style.cssText = 'display:flex;flex-direction:column;gap:0;padding:6px 20px 20px;';
 
+  // 明确构造 header，不再依赖 buildDetailView(...).querySelector 的脆弱链路
   var head = document.createElement('div');
+  head.className = 'tools-detail-header';
   head.style.cssText = 'margin-bottom:10px;';
-  head.appendChild(buildDetailView('小工具箱', document.createElement('div'), function() {
+
+  var closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'tools-back-btn';
+  closeBtn.setAttribute('aria-label', '关闭工具箱');
+  closeBtn.appendChild(createCloseIcon());
+  closeBtn.addEventListener('click', function() {
     if (typeof options.onClose === 'function') {
       options.onClose();
     } else {
       hideBottomSheet();
     }
-  }).querySelector('.tools-detail-header'));
+  });
 
-  var backBtn = head.querySelector('.tools-back-btn');
-  if (backBtn) {
-    backBtn.setAttribute('aria-label', '关闭工具箱');
-    backBtn.replaceChildren();
-    backBtn.appendChild(createCloseIcon());
-  }
+  var titleEl = document.createElement('div');
+  titleEl.className = 'tools-detail-title';
+  titleEl.textContent = '小工具箱';
 
+  var spacer = document.createElement('div');
+  spacer.className = 'tools-detail-spacer';
+
+  head.append(closeBtn, titleEl, spacer);
   sheet.appendChild(head);
 
   var grid = createThreadToolsGrid(state, options);
