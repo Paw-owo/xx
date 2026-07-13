@@ -971,9 +971,16 @@ function stripLargeImageFromCard(value) {
 async function settleRollingMessage(state, messageId) {
   await wait(680);
 
+  // 680ms 后检查当前消息/AI job 是否仍是同一轮，避免用户期间发新消息导致旧回复覆盖新状态
+  // 已卸载则不再写
+  if (state && state.mounted === false) return null;
+
   const store = getStoreName(state);
   const message = await getDB(store, messageId).catch(() => null);
   if (!message) return null;
+
+  // 若消息已被停止/错误/其他流程改写（rolling 不再是 true），不再用旧副本覆盖
+  if (message.rolling !== true) return null;
 
   const next = cleanForDB({
     ...message,
@@ -982,6 +989,9 @@ async function settleRollingMessage(state, messageId) {
   });
 
   await setDB(store, next);
+
+  // 写库后再次检查 state.mounted，避免卸载后 refreshStateMessages 写已卸载 state
+  if (state && state.mounted === false) return next;
   await refreshStateMessages(state);
 
   return next;

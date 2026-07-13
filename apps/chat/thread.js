@@ -26,7 +26,7 @@ import {
   createRelationshipLockBar,
   openRelationshipLockSheet
 } from './thread-relationship.js';
-import { checkThreadProactiveMessages } from './thread-ai.js';
+import { checkThreadProactiveMessages, abortActiveAIJobsForUnmount } from './thread-ai.js';
 import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
 
 const STYLE_ID = 'chat-thread-style';
@@ -176,6 +176,12 @@ export function unmountChatThread() {
   state.stoppingAI = false;
   state.messageQueue = [];
   window.__chatActiveThread = null;
+
+  // 卸载时清理 activeAIJobs：abort 进行中的 job + 标记 placeholder 停止
+  // 避免 unmount 后 AI job 继续后台跑、activeAIJobs 积累旧 job
+  try {
+    abortActiveAIJobsForUnmount(state);
+  } catch (_) {}
 
   stopAll();
   stopProactiveChecks();
@@ -545,7 +551,14 @@ async function handleSend(input) {
     clearDraft();
 
     try {
-      const { saveMessageOnly } = await import('./thread-actions.js').catch(() => ({}));
+      let saveMessageOnly = null;
+      try {
+        const mod = await import('./thread-actions.js');
+        saveMessageOnly = mod?.saveMessageOnly;
+      } catch (importErr) {
+        // 动态 import 失败不静默吞掉，留 warn 便于排查；UI 仍可恢复
+        console.warn('[chat-thread] dynamic import thread-actions failed (queue branch):', importErr?.message || importErr);
+      }
 
       if (typeof saveMessageOnly === 'function') {
         await saveMessageOnly(state, text, {
@@ -562,6 +575,11 @@ async function handleSend(input) {
     } catch (error) {
       console.error('[chat-thread] queue message failed', error);
       showToast('发送没成功');
+      // 失败时恢复输入内容，UI 可恢复
+      state.inputValue = text;
+      input.value = text;
+      autoResize(input);
+      render();
     }
     return;
   }
@@ -574,7 +592,14 @@ async function handleSend(input) {
   clearDraft();
 
   try {
-    const { saveMessageOnly } = await import('./thread-actions.js').catch(() => ({}));
+    let saveMessageOnly = null;
+    try {
+      const mod = await import('./thread-actions.js');
+      saveMessageOnly = mod?.saveMessageOnly;
+    } catch (importErr) {
+      // 动态 import 失败不静默吞掉，留 warn 便于排查；UI 仍可恢复
+      console.warn('[chat-thread] dynamic import thread-actions failed (send branch):', importErr?.message || importErr);
+    }
 
     if (typeof saveMessageOnly === 'function') {
       await saveMessageOnly(state, text, {
@@ -589,6 +614,11 @@ async function handleSend(input) {
   } catch (error) {
     console.error('[chat-thread] save user message failed', error);
     showToast('发送没成功');
+    // 失败时恢复输入内容，UI 可恢复
+    state.inputValue = text;
+    input.value = text;
+    autoResize(input);
+    render();
     return;
   }
 
@@ -603,16 +633,19 @@ async function handleSend(input) {
   } finally {
     state.aiGenerating = false;
 
-    // 如果有排队的消息，循环处理直到队列清空
-    while (state.messageQueue.length > 0 && state.mounted) {
-      state.messageQueue = [];
+    // 处理排队消息：用稳定消费模式，成功一条才移除一条，期间新进入队列的消息不被覆盖
+    while (state.mounted && state.messageQueue.length > 0) {
+      // 取队列首条作为本轮目标（不预先清空，避免 sendThreadMessage 抛错时丢消息）
       state.aiGenerating = true;
       render();
       try {
         await sendThreadMessage(state, '', { triggerAI: true, skipSave: true });
+        // 成功后才移除已消费的那一条；期间新 push 的消息保留在队列里下一轮处理
+        state.messageQueue.shift();
       } catch (error) {
         console.error('[chat-thread] queued AI reply failed', error);
         showToast('TA 刚刚走神了');
+        // 失败时保留队列，不再继续消费，避免丢消息；用户可手动停止或重试
         break;
       } finally {
         state.aiGenerating = false;
