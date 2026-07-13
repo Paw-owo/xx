@@ -84,6 +84,9 @@ async function loadData() {
 
   state.user = await loadUserProfile();
 
+  // 记录最初请求的 characterId，用于检测是否发生回退
+  const requestedCharacterId = state.characterId;
+
   if (!state.characterId) {
     state.characterId = state.characters[0]?.id || '';
   }
@@ -95,6 +98,12 @@ async function loadData() {
   if (!state.character && state.characters.length) {
     state.character = state.characters[0];
     state.characterId = state.character.id;
+  }
+
+  // 如果实际选中的角色与最初请求的不一致，说明发生了回退；
+  // 同步修正 fromRoute，避免 backFromMemory 返回到指向失效角色的路由
+  if (state.characterId !== requestedCharacterId) {
+    state.fromRoute = null;
   }
 
   if (!state.characterId) {
@@ -252,8 +261,12 @@ function createMemoryCard(memory) {
   edit.addEventListener('click', () => {
     state.editingId = memory.id;
     render();
+    // 用双 rAF 作为稳定的下一帧逻辑：等渲染+布局都完成后再 focus，避免移动端时序不准
     requestAnimationFrame(() => {
-      state.rootEl?.querySelector('.chat-memory-editor textarea')?.focus();
+      requestAnimationFrame(() => {
+        if (state.editingId !== memory.id) return;
+        state.rootEl?.querySelector('.chat-memory-editor textarea')?.focus();
+      });
     });
   });
 
@@ -412,28 +425,10 @@ function getFilteredMemories() {
   return state.memories.filter((item) => item.source === state.filter);
 }
 
-function normalizeMemory(memory) {
-  const createdAt = memory.createdAt || getNow();
-  const source = normalizeSource(memory.source);
-
-  return {
-    id: String(memory.id || generateId('memory')),
-    characterId: String(memory.characterId || state.characterId || ''),
-    content: String(memory.content || '').trim(),
-    source,
-    createdAt,
-    updatedAt: memory.updatedAt || createdAt
-  };
-}
-
 function normalizeSource(source) {
   if (source === 'manual') return 'manual';
   if (source === 'summary') return 'summary';
   return 'auto';
-}
-
-function sortMemory(a, b) {
-  return String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || ''));
 }
 
 function formatTime(value) {

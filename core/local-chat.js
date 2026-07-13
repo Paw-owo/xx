@@ -581,6 +581,9 @@ function pickUnique(pool, key) {
     recentReplies.set(key, []);
   }
 
+  // 防御：candidates 为空数组时不能随机出 undefined
+  if (!candidates.length) return '';
+
   const choice = candidates[Math.floor(Math.random() * candidates.length)];
   const choiceIndex = pool.indexOf(choice);
 
@@ -645,8 +648,14 @@ export function generateLocalReply(context = {}) {
   const {
     messages = [],
     userName = '小朋友',
-    characterName = '初一'
+    characterName = '初一',
+    signal
   } = context;
+
+  // 可选 signal/abort 支持：已 abort 则及时返回 null，按现有调用习惯（null 表示无回复）
+  if (signal && typeof signal.aborted === 'boolean' && signal.aborted) {
+    return null;
+  }
 
   const userMessages = messages.filter((m) => m.role === 'user');
   const lastUserMessage = userMessages[userMessages.length - 1];
@@ -891,7 +900,11 @@ export async function requestSiliconFlowReply(character, recentMessages, userNam
       signal
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // 补最小状态码日志，便于排查；不改降级策略
+      console.warn('[local-chat] siliconflow non-ok:', response.status);
+      return null;
+    }
 
     const data = await response.json();
     const raw = data?.choices?.[0]?.message?.content || '';

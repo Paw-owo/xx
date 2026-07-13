@@ -43,7 +43,9 @@ const state = {
   privateItems: [],
   groupItems: [],
   proactiveTimer: null,
-  proactiveChecking: false
+  proactiveStartTimer: null, // 首次主动消息检查的 setTimeout 句柄，unmount 时清除
+  proactiveChecking: false,
+  searchDebounce: null // 搜索输入防抖句柄
 };
 
 // ═══════════════════════════════════════
@@ -68,6 +70,11 @@ export function unmountChatList() {
   state.mounted = false;
   stopProactiveChecks();
 
+  if (state.searchDebounce) {
+    clearTimeout(state.searchDebounce);
+    state.searchDebounce = null;
+  }
+
   if (state.rootEl) {
     state.rootEl.replaceChildren();
   }
@@ -84,13 +91,21 @@ export function unmountChatList() {
 
 function startProactiveChecks() {
   stopProactiveChecks();
-  window.setTimeout(() => runProactiveChecks(), 1200);
+  // 首次主动消息检查的句柄必须保存，unmount 时清除，避免卸载后仍触发
+  state.proactiveStartTimer = window.setTimeout(() => {
+    state.proactiveStartTimer = null;
+    runProactiveChecks();
+  }, 1200);
   state.proactiveTimer = window.setInterval(runProactiveChecks, PROACTIVE_CHECK_INTERVAL);
   document.addEventListener('visibilitychange', handleProactiveVisible);
   window.addEventListener('focus', handleProactiveVisible);
 }
 
 function stopProactiveChecks() {
+  if (state.proactiveStartTimer) {
+    window.clearTimeout(state.proactiveStartTimer);
+    state.proactiveStartTimer = null;
+  }
   if (state.proactiveTimer) {
     window.clearInterval(state.proactiveTimer);
     state.proactiveTimer = null;
@@ -574,13 +589,23 @@ function createSearch() {
   input.placeholder = state.tab === 'group' ? '搜群名或群消息' : '搜名字或聊天内容';
   input.value = state.search;
 
-  input.addEventListener('input', async () => {
+  input.addEventListener('input', () => {
     state.search = input.value.trim();
-    await rerender();
+    // 轻量 debounce：避免每个字符都全量 loadItems + render
+    if (state.searchDebounce) clearTimeout(state.searchDebounce);
+    state.searchDebounce = setTimeout(() => {
+      state.searchDebounce = null;
+      if (!state.mounted) return;
+      rerender();
+    }, 200);
   });
 
   const clear = iconButton('close', '清空搜索');
   clear.addEventListener('click', async () => {
+    if (state.searchDebounce) {
+      clearTimeout(state.searchDebounce);
+      state.searchDebounce = null;
+    }
     state.search = '';
     await rerender();
   });
@@ -890,10 +915,11 @@ async function confirmDeleteCharacter(item) {
 
   await deleteCharacterEverywhere(item.id);
   showToast('已经把 TA 从列表里移走了');
-  await rerender();
 
-  window.dispatchEvent(new CustomEvent('desktop:refresh'));
+  // 先发统一事件，由路由层（chat.js 监听 characters:updated）统一刷新列表，
+  // 不再本地 rerender，避免与事件触发的刷新形成两套互相打架的链路
   try { window.AppBus?.emit('characters:updated', {}); } catch (_) {}
+  window.dispatchEvent(new CustomEvent('desktop:refresh'));
 }
 
 async function renameGroup(item) {

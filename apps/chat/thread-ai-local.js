@@ -47,7 +47,10 @@ export async function seedDefaultCharacter() {
 
     if (!hasMessages) {
       const now = getNow();
-      const welcome = WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)];
+      // 防御：WELCOME_MESSAGES 为空数组时不能随机出 undefined
+      const welcome = Array.isArray(WELCOME_MESSAGES) && WELCOME_MESSAGES.length
+        ? WELCOME_MESSAGES[Math.floor(Math.random() * WELCOME_MESSAGES.length)]
+        : '嗯？你来了啊。';
 
       const message = {
         id: generateId('msg'),
@@ -120,15 +123,18 @@ export async function tryLocalOrSiliconFlowReply(state, options = {}) {
     if (siliconResult && siliconResult.content) {
       return siliconResult;
     }
-  } catch (_) {
-    // 硅基流动失败，继续往下走
+  } catch (error) {
+    // 硅基流动失败，继续往下走；补最小日志方便排查（requestSiliconFlowReply 内部已捕获并返回 null，
+    // 走到这里说明是构建 prompt / 调用环节本身抛错，罕见但需要留痕）
+    console.warn('[thread-ai-local] siliconflow fallback failed:', error?.message || error);
   }
 
   // ── 第三层：本地关键词匹配 ──
   const localResult = generateLocalReply({
     messages,
     userName,
-    characterName: character?.name || '初一'
+    characterName: character?.name || '初一',
+    signal
   });
 
   return localResult;

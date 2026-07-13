@@ -22,6 +22,7 @@ const CHAT_HIDDEN_PRIVATE_KEY = 'chat_hidden_private_threads';
 let rootEl = null;
 let mounted = false;
 let activeView = '';
+let activeStage = null; // 实际已挂载到 rootEl 的 stage 元素
 let unsubscribeCharsUpdated = null;
 let unsubscribeChatExternalMessage = null;
 let unsubscribeAnniversaryReminder = null;
@@ -46,44 +47,55 @@ export async function mount(containerEl, options = {}) {
   // 监听全局事件
   if (window.AppBus) {
     unsubscribeCharsUpdated = window.AppBus.on('characters:updated', async () => {
-      if (currentRoute.name === 'list') {
+      if (currentRoute.name !== 'list') return;
+      try {
         await renderRoute();
+      } catch (error) {
+        console.warn('[chat] characters:updated renderRoute failed:', error?.message || error);
       }
     });
 
     // shop:gift / wallet:transfer 的落库 + 未读已由常驻层 core/chat-event-bridge.js 处理
     // chat.js 只监听 chat:external-message 做 UI 刷新和 toast，避免重复落库
-    unsubscribeChatExternalMessage = window.AppBus.on('chat:external-message', (data) => {
-      const characterId = data?.characterId;
-      const isInThread = currentRoute.name === 'thread' && currentRoute.params?.characterId === characterId;
+    unsubscribeChatExternalMessage = window.AppBus.on('chat:external-message', async (data) => {
+      try {
+        const characterId = data?.characterId;
+        const isInThread = currentRoute.name === 'thread' && currentRoute.params?.characterId === characterId;
 
-      // 当前会话就是该角色时，刷新 thread 不 toast
-      if (isInThread) {
-        renderRoute();
-        return;
+        // 当前会话就是该角色时，刷新 thread 不 toast
+        if (isInThread) {
+          await renderRoute();
+          return;
+        }
+
+        // 否则 toast 提示（落库已由常驻层完成）
+        const text = data?.message?.content || '';
+        if (text) window.showToast?.(text);
+      } catch (error) {
+        console.warn('[chat] chat:external-message handle failed:', error?.message || error);
       }
-
-      // 否则 toast 提示（落库已由常驻层完成）
-      const text = data?.message?.content || '';
-      if (text) window.showToast?.(text);
     });
 
     // 纪念日提醒：anniversary-bridge 已直接落库，这里只做 UI 通知/刷新
-    unsubscribeAnniversaryReminder = window.AppBus.on('anniversary:reminder', (data) => {
-      const characterId = data?.characterId;
-      const isInThread = currentRoute.name === 'thread' && currentRoute.params?.characterId === characterId;
+    unsubscribeAnniversaryReminder = window.AppBus.on('anniversary:reminder', async (data) => {
+      try {
+        const characterId = data?.characterId;
+        const isInThread = currentRoute.name === 'thread' && currentRoute.params?.characterId === characterId;
 
-      if (isInThread) {
-        // 正在该角色会话里：刷新 thread 展示新消息
-        renderRoute();
-        return;
-      }
+        if (isInThread) {
+          // 正在该角色会话里：刷新 thread 展示新消息
+          await renderRoute();
+          return;
+        }
 
-      // 不在该会话：toast 提示并刷新列表（展示新消息/未读）
-      const title = data?.title || '纪念日';
-      window.showToast?.(`收到一条纪念日提醒：${title}`);
-      if (currentRoute.name === 'list') {
-        renderRoute();
+        // 不在该会话：toast 提示并刷新列表（展示新消息/未读）
+        const title = data?.title || '纪念日';
+        window.showToast?.(`收到一条纪念日提醒：${title}`);
+        if (currentRoute.name === 'list') {
+          await renderRoute();
+        }
+      } catch (error) {
+        console.warn('[chat] anniversary:reminder handle failed:', error?.message || error);
       }
     });
   }
@@ -113,6 +125,7 @@ export function unmount() {
 
   rootEl = null;
   activeView = '';
+  activeStage = null;
 }
 
 // 对外暴露 chat 能力，供其他 APP 通过 appBus.getAPI('chat') 调用
@@ -283,49 +296,74 @@ async function renderRoute() {
   const stage = document.createElement('div');
   stage.className = 'chat-route-stage';
 
-  unmountActiveView();
+  // 先卸载旧视图的 JS 资源（不动 rootEl，旧 stage 仍可见，避免闪烁）
+  const previousView = activeView;
+  unmountViewByName(previousView);
 
-  if (route.name === 'thread') {
-    await mountChatThread(stage, {
-      appState,
-      mode: route.params.mode,
-      characterId: route.params.characterId,
-      groupId: route.params.groupId
-    });
-  } else if (route.name === 'memory') {
-    await mountChatMemory(stage, {
-      appState,
-      characterId: route.params.characterId,
-      fromRoute: route.params.fromRoute
-    });
-  } else {
-    await mountChatList(stage, {
-      appState,
-      tab: route.params.tab,
-      search: route.params.search
-    });
+  // 提前标记目标视图，挂载失败时也能据此清理目标视图已注册的资源
+  activeView = route.name;
+
+  try {
+    if (route.name === 'thread') {
+      await mountChatThread(stage, {
+        appState,
+        mode: route.params.mode,
+        characterId: route.params.characterId,
+        groupId: route.params.groupId
+      });
+    } else if (route.name === 'memory') {
+      await mountChatMemory(stage, {
+        appState,
+        characterId: route.params.characterId,
+        fromRoute: route.params.fromRoute
+      });
+    } else {
+      await mountChatList(stage, {
+        appState,
+        tab: route.params.tab,
+        search: route.params.search
+      });
+    }
+  } catch (error) {
+    // 挂载失败：清理目标视图可能已注册的资源，并清空舞台，
+    // 避免留下半创建的 stage / 旧 rootEl / 错误 activeView
+    try { unmountViewByName(route.name); } catch (_) {}
+    if (rootEl) rootEl.replaceChildren();
+    activeStage = null;
+    activeView = '';
+    throw error;
   }
 
-  if (!rootEl || !mounted) return;
+  // 挂载期间被 unmount：清理刚挂载的视图，不动 rootEl（unmount 已处理）
+  if (!rootEl || !mounted) {
+    try { unmountViewByName(route.name); } catch (_) {}
+    activeView = '';
+    return;
+  }
 
   rootEl.replaceChildren(stage);
-  activeView = route.name;
+  activeStage = stage;
+}
+
+function unmountViewByName(name) {
+  if (name === 'thread') {
+    try { unmountChatThread(); } catch (_) {}
+  } else if (name === 'memory') {
+    try { unmountChatMemory(); } catch (_) {}
+  } else if (name === 'list') {
+    try { unmountChatList(); } catch (_) {}
+  }
 }
 
 function unmountActiveView() {
-  if (activeView === 'thread') {
-    unmountChatThread();
-  }
-
-  if (activeView === 'memory') {
-    unmountChatMemory();
-  }
-
-  if (activeView === 'list') {
-    unmountChatList();
-  }
-
+  // 不只依赖 activeView 字符串：先按名卸载 JS 资源，再防御性清理实际挂载的 stage DOM
+  unmountViewByName(activeView);
   activeView = '';
+
+  if (activeStage && rootEl && rootEl.contains(activeStage)) {
+    rootEl.replaceChildren();
+  }
+  activeStage = null;
 }
 
 function resolveInitialRoute(options = {}) {
