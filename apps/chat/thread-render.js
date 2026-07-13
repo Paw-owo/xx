@@ -56,10 +56,21 @@ const voicePlayer = {
     this.currentMessageId = '';
   },
 
+  // 卸载/重渲染时清理：释放对已移除 DOM 的引用，避免游离节点
+  reset() {
+    this.currentCard = null;
+    this.currentMessageId = '';
+  },
+
   isPlaying(messageId) {
     return this.currentMessageId === messageId && this.currentCard?.dataset?.playing === 'true';
   }
 };
+
+// 卸载时清理：释放 voicePlayer 对已移除 DOM 的引用，避免游离节点
+export function resetVoicePlayer() {
+  voicePlayer.reset();
+}
 
 // ═══════════════════════════════════════
 // 【猫爪图标】粗线条圆头，走 --accent
@@ -533,11 +544,9 @@ function createVoiceMessageCard(state, message) {
   const transcript = el('div', 'chat-voice-transcript');
   transcript.appendChild(createTextBlock(getVoiceTranscript(message) || '这条语音还没有文字内容。'));
 
-  let isPlaying = card.dataset.playing === 'true';
-
+  // 统一以 card.dataset.playing 为单一来源，不再用闭包 isPlaying 双轨
   bar.addEventListener('click', () => {
-    if (isPlaying) {
-      isPlaying = false;
+    if (card.dataset.playing === 'true') {
       card.dataset.playing = 'false';
       voicePlayer.pause();
       stopThreadTTS();
@@ -547,16 +556,16 @@ function createVoiceMessageCard(state, message) {
     stopThreadTTS();
     voicePlayer.stop();
 
-    isPlaying = true;
     voicePlayer.play(card);
 
     playThreadTTS(state, message).catch(() => {
+      // 失败时无条件把这张卡片 UI 恢复到可点击状态，不能卡住
+      card.dataset.playing = 'false';
+      // 若 voicePlayer 仍指向本卡片才 stop；否则已被切走，不干扰新卡片
       if (voicePlayer.currentCard === card) {
-        isPlaying = false;
-        card.dataset.playing = 'false';
         voicePlayer.stop();
-        showToast('语音播放失败');
       }
+      showToast('语音播放失败');
     });
   });
 
@@ -850,14 +859,19 @@ function previewHtmlCode(code) {
 
   const frame = document.createElement('iframe');
   frame.className = 'chat-html-preview-frame';
-  frame.setAttribute('sandbox', 'allow-scripts allow-forms');
+  // sandbox 保留预览能力（forms）但去掉 allow-scripts，避免执行用户/AI 代码
+  frame.setAttribute('sandbox', 'allow-forms');
   frame.setAttribute('frameborder', '0');
   frame.srcdoc = String(code || '');
 
   overlay.append(header, frame);
   document.body.appendChild(overlay);
 
+  // 只关闭一次，避免 transitionend 与 setTimeout 重复清理、多次触发叠加
+  let closed = false;
   const closeFn = () => {
+    if (closed) return;
+    closed = true;
     overlay.classList.remove('open');
     overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
     window.setTimeout(() => { if (overlay.parentNode) overlay.remove(); }, 300);
@@ -1052,7 +1066,10 @@ function renderQuotePreview(state, pageEl) {
     createQuoteCancelButton(state, pageEl)
   );
 
-  inputBar.parentNode.insertBefore(preview, inputBar);
+  // insertBefore 前判断 parentNode 是否存在，避免空节点报错
+  if (inputBar.parentNode) {
+    inputBar.parentNode.insertBefore(preview, inputBar);
+  }
 }
 
 function createQuoteCancelButton(state, pageEl) {

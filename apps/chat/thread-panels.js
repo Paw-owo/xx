@@ -24,6 +24,7 @@ var panelState = {
   toolsSheetEl: null,
   settingsSheetEl: null,
   callMounted: false,
+  callMounting: false,
   lastState: null
 };
 
@@ -82,7 +83,11 @@ function showToolsSheet(state, options) {
       closeThreadToolsPanel();
     },
     onBackToTools: function() {
-      hideBottomSheet();
+      // 只关闭当前 tools sheet 本身，不无参调 hideBottomSheet 误关别的 sheet
+      // 若 toolsSheetEl 已脱离 DOM（被 ui 层关闭），则只清引用
+      if (panelState.toolsSheetEl && panelState.toolsSheetEl.isConnected) {
+        hideBottomSheet();
+      }
       panelState.toolsSheetEl = null;
     }
   };
@@ -98,7 +103,10 @@ function showToolsSheet(state, options) {
 
 export function closeThreadToolsPanel() {
   if (panelState.toolsSheetEl) {
-    hideBottomSheet();
+    // 仅当 tools sheet 仍连接在 DOM 时才调 hideBottomSheet，避免误关别的 sheet
+    if (panelState.toolsSheetEl.isConnected) {
+      hideBottomSheet();
+    }
     panelState.toolsSheetEl = null;
   }
 }
@@ -160,7 +168,10 @@ export function openThreadSettingsPanel(state, options) {
 export function closeThreadSettingsPanel() {
   if (panelState.settingsSheetEl) {
     unmountThreadSettings();
-    hideBottomSheet();
+    // 仅当 settings sheet 仍连接在 DOM 时才调 hideBottomSheet，避免误关别的 sheet
+    if (panelState.settingsSheetEl.isConnected) {
+      hideBottomSheet();
+    }
     panelState.settingsSheetEl = null;
   }
 }
@@ -184,9 +195,14 @@ export async function openThreadCallPanel(state, options) {
     return;
   }
 
+  // 防重复挂载：await mountThreadCall 期间若再次调用，直接返回
+  if (panelState.callMounted || panelState.callMounting) return;
+
   closeThreadToolsPanel();
   closeThreadSettingsPanel();
   closeThreadCallPanel();
+
+  panelState.callMounting = true;
 
   var target = options.containerEl || document.body;
 
@@ -205,6 +221,8 @@ export async function openThreadCallPanel(state, options) {
     panelState.callMounted = false;
     console.error('[chat-thread-panels] call mount failed', error);
     showToast('电话没接起来');
+  } finally {
+    panelState.callMounting = false;
   }
 }
 
@@ -223,6 +241,8 @@ export function closeThreadPanels() {
   closeThreadCallPanel();
   closeThreadSettingsPanel();
   closeThreadToolsPanel();
+  // 卸载时清理 lastState 引用，避免模块级单例残留旧 state
+  panelState.lastState = null;
 }
 
 // ═══════════════════════════════════════
@@ -236,13 +256,6 @@ function buttonIcon(iconName, label) {
   button.setAttribute('aria-label', label || iconName);
   button.appendChild(createIcon(iconName, 18));
   return button;
-}
-
-function el(tag, className, text) {
-  var node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined && text !== '') node.textContent = text;
-  return node;
 }
 
 // ═══════════════════════════════════════
