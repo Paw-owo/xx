@@ -17,10 +17,9 @@ const THINKING_SHEET_CARD_CLASS = 'chat-thinking-sheet-card';
 const FIXED_SUMMARY_TEXT = '想了一小会';
 const FIXED_SUMMARY_TEXT_RUNNING = '还在想想';
 const THINKING_STYLE_ID = 'chat-thinking-chain-style-v6';
-const MAX_CACHE_ENTRIES = 200;
 
-const stateCache = new Map();
-let activeSheetCloser = null;
+// 当前打开的思维链 sheet 句柄；与具体 sheet 实例绑定，关闭时成对清理 esc 监听
+let activeSheetHandle = null;
 
 export function hasThinkingChain(message) {
   if (!message) return false;
@@ -159,6 +158,9 @@ function openThinkingSheet(type, message, options = {}) {
   const oldSheetOverlay = document.querySelector('.sheet-overlay');
   const hiddenBottomSheet = oldBottomSheet || null;
   const hiddenSheetOverlay = oldSheetOverlay || null;
+  // 保存原 inline display 值，恢复时还原，避免破坏原 inline 样式
+  const savedBottomSheetDisplay = hiddenBottomSheet ? hiddenBottomSheet.style.display : '';
+  const savedSheetOverlayDisplay = hiddenSheetOverlay ? hiddenSheetOverlay.style.display : '';
 
   if (hiddenBottomSheet) hiddenBottomSheet.style.display = 'none';
   if (hiddenSheetOverlay) hiddenSheetOverlay.style.display = 'none';
@@ -188,9 +190,42 @@ function openThinkingSheet(type, message, options = {}) {
   sheet.append(handle, head, body);
   document.body.append(mask, sheet);
 
+  let closed = false;
+
   const restoreHiddenSheet = () => {
-    if (hiddenBottomSheet) hiddenBottomSheet.style.display = '';
-    if (hiddenSheetOverlay) hiddenSheetOverlay.style.display = '';
+    // 若已有新的思维链 sheet 打开，由它负责最终恢复底层 sheet，避免提前恢复导致闪现
+    if (activeSheetHandle) return;
+    if (hiddenBottomSheet) hiddenBottomSheet.style.display = savedBottomSheetDisplay;
+    if (hiddenSheetOverlay) hiddenSheetOverlay.style.display = savedSheetOverlayDisplay;
+  };
+
+  const escHandler = (event) => {
+    if (event.key === 'Escape') {
+      closeThinkingSheet();
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', escHandler);
+    // 仅当当前 handle 仍是本 sheet 时才清空，避免误清新打开的 sheet 句柄
+    if (activeSheetHandle && activeSheetHandle.closer === closer) {
+      activeSheetHandle = null;
+    }
+  };
+
+  const closer = () => {
+    if (closed) return;
+    mask.dataset.show = 'false';
+    sheet.dataset.show = 'false';
+    window.setTimeout(() => {
+      mask.remove();
+      sheet.remove();
+      restoreHiddenSheet();
+    }, 220);
+    cleanup();
   };
 
   const close = () => {
@@ -200,25 +235,7 @@ function openThinkingSheet(type, message, options = {}) {
   closeBtn.addEventListener('click', close);
   mask.addEventListener('click', close);
 
-  const escHandler = (event) => {
-    if (event.key === 'Escape') {
-      document.removeEventListener('keydown', escHandler);
-      close();
-    }
-  };
-  document.addEventListener('keydown', escHandler);
-
-  activeSheetCloser = () => {
-    mask.dataset.show = 'false';
-    sheet.dataset.show = 'false';
-    window.setTimeout(() => {
-      mask.remove();
-      sheet.remove();
-      restoreHiddenSheet();
-    }, 220);
-    document.removeEventListener('keydown', escHandler);
-    if (activeSheetCloser) activeSheetCloser = null;
-  };
+  activeSheetHandle = { closer, cleanup };
 
   requestAnimationFrame(() => {
     mask.dataset.show = 'true';
@@ -227,10 +244,10 @@ function openThinkingSheet(type, message, options = {}) {
 }
 
 function closeThinkingSheet() {
-  if (typeof activeSheetCloser === 'function') {
-    const closer = activeSheetCloser;
-    activeSheetCloser = null;
-    closer();
+  if (activeSheetHandle) {
+    const handle = activeSheetHandle;
+    activeSheetHandle = null;
+    handle.closer();
   }
 }
 
@@ -338,27 +355,6 @@ function hashString(text) {
     value = (value * 31 + text.charCodeAt(index)) % 1000000007;
   }
   return value.toString(36);
-}
-
-function getSavedCardState(key) {
-  if (!key) return null;
-  return stateCache.get(key) || null;
-}
-
-function saveCardState(key, patch) {
-  if (!key) return;
-  pruneCacheIfNeeded();
-  const current = stateCache.get(key) || {};
-  stateCache.set(key, { ...current, ...patch });
-}
-
-function pruneCacheIfNeeded() {
-  if (stateCache.size < MAX_CACHE_ENTRIES) return;
-  const keys = Array.from(stateCache.keys());
-  const removeCount = Math.max(1, Math.floor(keys.length * 0.25));
-  for (let index = 0; index < removeCount; index += 1) {
-    stateCache.delete(keys[index]);
-  }
 }
 
 function getThinkingPreviewText(message) {

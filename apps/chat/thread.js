@@ -15,7 +15,7 @@ import { getData, setData, getDB, getByIndexDB } from '../../core/storage.js';
 import { createIcon, showToast, hideBottomSheet } from '../../core/ui.js';
 import { stopAll } from '../../core/tts.js';
 
-import { renderThreadMessages } from './thread-render.js';
+import { renderThreadMessages, resetVoicePlayer } from './thread-render.js';
 import { sendThreadMessage, stopThreadAIReply } from './thread-actions.js';
 import { openStickerSheet, closeStickerSheet } from './thread-stickers.js';
 import { openThreadToolsPanel, closeThreadPanels } from './thread-panels.js';
@@ -184,6 +184,7 @@ export function unmountChatThread() {
   } catch (_) {}
 
   stopAll();
+  resetVoicePlayer();
   stopProactiveChecks();
   cleanupKeyboardViewport();
   closeStickerSheet();
