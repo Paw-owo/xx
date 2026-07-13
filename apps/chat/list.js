@@ -523,6 +523,10 @@ async function createGroupChat() {
 
   await setDB('groups', group);
 
+  // 防御：await 期间若列表已卸载，不再继续改 state / loadItems / render，
+  // 群已写入 DB，下次挂载时会自然出现
+  if (!state.mounted) return;
+
   state.tab = 'group';
   state.search = '';
   await loadItems();

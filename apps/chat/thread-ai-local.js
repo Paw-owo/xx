@@ -130,14 +130,31 @@ export async function tryLocalOrSiliconFlowReply(state, options = {}) {
   }
 
   // ── 第三层：本地关键词匹配 ──
-  const localResult = generateLocalReply({
-    messages,
-    userName,
-    characterName: character?.name || '初一',
-    signal
-  });
+  // generateLocalReply 同步函数，可能抛错或返回 null/undefined；
+  // 这里补 try/catch 和返回值兜底，避免上层 UI 拿到 undefined 文案
+  let localResult = null;
+  try {
+    localResult = generateLocalReply({
+      messages,
+      userName,
+      characterName: character?.name || '初一',
+      signal
+    });
+  } catch (err) {
+    console.warn('[thread-ai-local] generateLocalReply failed:', err?.message || err);
+  }
 
-  return localResult;
+  if (localResult && typeof localResult === 'object' && String(localResult.content || '').trim()) {
+    return localResult;
+  }
+
+  // 兜底：保证至少返回一条非空文本回复
+  return {
+    content: '嗯…我有点走神了。',
+    thinking: '刚刚出了一点小问题，我先应付一下。',
+    thinkingSummary: '走神了',
+    toolCalls: []
+  };
 }
 
 // 依赖：../../core/storage.js(getData,setData,getDB,setDB,getAllDB,generateId,getNow,getByIndexDB)；../../core/local-chat.js(DEFAULT_CHARACTER,WELCOME_MESSAGES,generateLocalReply,requestSiliconFlowReply)
