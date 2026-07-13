@@ -62,11 +62,17 @@ async function githubRequest(path, config, options) {
       fetchOpts.body = JSON.stringify(options.body);
     }
   }
+  // 透传 AbortSignal，供上层关闭抽屉/切换文件时取消请求
+  if (options && options.signal) {
+    fetchOpts.signal = options.signal;
+  }
 
   let resp;
   try {
     resp = await fetch(API_BASE + path, fetchOpts);
   } catch (err) {
+    // abort 不改写错误信息，原样抛出便于上层识别
+    if (err && err.name === 'AbortError') throw err;
     throw new Error('网络请求失败，请检查网络连接');
   }
 
@@ -113,20 +119,20 @@ function encodePathSegments(p) {
 }
 
 // 读取文件树
-async function fetchTree(config) {
+async function fetchTree(config, signal) {
   const path = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo) +
     '/git/trees/' + encodeURIComponent(config.branch) + '?recursive=1';
-  const data = await githubRequest(path, config);
+  const data = await githubRequest(path, config, signal ? { signal } : undefined);
   if (!data || !Array.isArray(data.tree)) return [];
   // 只返回 blob，目录项过滤掉
   return data.tree.filter(function(item) { return item && item.type === 'blob'; });
 }
 
 // 读取文件内容
-async function fetchFile(config, fileItem) {
+async function fetchFile(config, fileItem, signal) {
   const path = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo) +
     '/contents/' + encodePathSegments(fileItem.path) + '?ref=' + encodeURIComponent(config.branch);
-  const data = await githubRequest(path, config);
+  const data = await githubRequest(path, config, signal ? { signal } : undefined);
   return data;
 }
 
@@ -173,10 +179,10 @@ function buildBranchName(filePath) {
 }
 
 // 读取 base branch 最新 sha
-async function fetchBaseBranchSha(config) {
+async function fetchBaseBranchSha(config, signal) {
   const path = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo) +
     '/git/ref/heads/' + encodeURIComponent(config.branch);
-  const data = await githubRequest(path, config);
+  const data = await githubRequest(path, config, signal ? { signal } : undefined);
   if (!data || !data.object || !data.object.sha) {
     throw new Error('无法读取分支 ' + config.branch + ' 的最新提交');
   }
@@ -184,17 +190,18 @@ async function fetchBaseBranchSha(config) {
 }
 
 // 创建新分支，基于 baseSha
-async function createBranch(config, branchName, baseSha) {
+async function createBranch(config, branchName, baseSha, signal) {
   const path = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo) + '/git/refs';
   const data = await githubRequest(path, config, {
     method: 'POST',
-    body: { ref: 'refs/heads/' + branchName, sha: baseSha }
+    body: { ref: 'refs/heads/' + branchName, sha: baseSha },
+    ...(signal ? { signal } : {})
   });
   return data;
 }
 
 // PUT 文件内容到指定分支
-async function putFileContent(config, filePath, params) {
+async function putFileContent(config, filePath, params, signal) {
   // params: { message, content(base64), branch, sha }
   const path = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo) +
     '/contents/' + encodePathSegments(filePath);
@@ -205,13 +212,14 @@ async function putFileContent(config, filePath, params) {
       content: params.content,
       branch: params.branch,
       sha: params.sha
-    }
+    },
+    ...(signal ? { signal } : {})
   });
   return data;
 }
 
 // 创建 Pull Request
-async function createPullRequest(config, params) {
+async function createPullRequest(config, params, signal) {
   // params: { title, head, base, body }
   const path = '/repos/' + encodeURIComponent(config.owner) + '/' + encodeURIComponent(config.repo) + '/pulls';
   const data = await githubRequest(path, config, {
@@ -221,7 +229,8 @@ async function createPullRequest(config, params) {
       head: params.head,
       base: params.base,
       body: params.body || '由小手机 GitHub 工具创建'
-    }
+    },
+    ...(signal ? { signal } : {})
   });
   return data;
 }
@@ -366,7 +375,17 @@ function buildConfigView(config, onSave, onContinue) {
   return wrap;
 }
 
-function buildTreeView(config, onBack) {
+function buildTreeView(config, onBack, session) {
+  // session: { isClosed, registerAbort } 由 openGithubToolSheet 统一管理
+  const isClosed = (session && typeof session.isClosed === 'function') ? session.isClosed : function() { return false; };
+
+  // 独立 AbortController：tree 请求专用，登记到 session，抽屉真正关闭时被 abort
+  const treeAbort = new AbortController();
+  if (session && typeof session.registerAbort === 'function') {
+    session.registerAbort(treeAbort);
+  }
+  const signal = treeAbort.signal;
+
   const wrap = document.createElement('div');
   wrap.className = 'gh-sheet';
 
@@ -376,7 +395,11 @@ function buildTreeView(config, onBack) {
   backBtn.type = 'button';
   backBtn.className = 'gh-back-btn';
   backBtn.textContent = '← 配置';
-  backBtn.addEventListener('click', onBack);
+  // 离开 tree view 时立即 abort 旧 tree 请求，避免返回后旧请求继续写 UI
+  backBtn.addEventListener('click', function() {
+    try { treeAbort.abort(); } catch (_) {}
+    onBack();
+  });
   backRow.appendChild(backBtn);
   wrap.appendChild(backRow);
 
@@ -398,6 +421,7 @@ function buildTreeView(config, onBack) {
   let allFiles = [];
 
   function renderList(filter) {
+    if (isClosed()) return;
     list.replaceChildren();
     const f = (filter || '').trim().toLowerCase();
     const filtered = f ? allFiles.filter(function(item) { return item.path.toLowerCase().indexOf(f) !== -1; }) : allFiles;
@@ -420,11 +444,13 @@ function buildTreeView(config, onBack) {
       pathEl.textContent = item.path;
       btn.appendChild(pathEl);
       btn.addEventListener('click', function() {
+        if (isClosed()) return;
         showFileViewer(config, item, function() {
           // 返回文件树
           hideBottomSheet();
-          showBottomSheet(buildTreeView(config, onBack));
-        });
+          if (isClosed()) return;
+          showBottomSheet(buildTreeView(config, onBack, session));
+        }, session);
       });
       list.appendChild(btn);
     });
@@ -445,21 +471,34 @@ function buildTreeView(config, onBack) {
 
   search.addEventListener('input', function() { renderList(search.value); });
 
-  fetchTree(config).then(function(files) {
+  fetchTree(config, signal).then(function(files) {
+    // 守卫：抽屉已关闭或已 abort 时不再写 UI
+    if (isClosed() || (signal && signal.aborted)) return;
     allFiles = files;
     renderList('');
   }).catch(function(err) {
+    // abort 静默
+    if (err && err.name === 'AbortError') return;
+    if (isClosed()) return;
     list.replaceChildren();
     const errEl = document.createElement('div');
     errEl.className = 'gh-error';
     errEl.textContent = err.message || '加载失败';
     list.appendChild(errEl);
+  }).finally(function() {
+    // 若 loading 仍在，清理掉（成功路径已被 renderList replaceChildren 清掉）
+    if (isClosed()) return;
+    const stillLoading = list.querySelector('.gh-loading');
+    if (stillLoading) stillLoading.remove();
   });
 
   return wrap;
 }
 
-function showFileViewer(config, fileItem, onBack) {
+function showFileViewer(config, fileItem, onBack, session) {
+  // session: { isClosed, signal } 由 openGithubToolSheet 统一管理
+  const isClosed = (session && typeof session.isClosed === 'function') ? session.isClosed : function() { return false; };
+
   const wrap = document.createElement('div');
   wrap.className = 'gh-sheet';
 
@@ -498,7 +537,21 @@ function showFileViewer(config, fileItem, onBack) {
     binary: isBinaryPath(fileItem.path)
   };
 
-  fetchFile(config, { path: fileItem.path }).then(function(data) {
+  // 每个文件查看器实例持有自己的 abort controller，关闭/返回时由 session cleanup 触发；
+  // 同时登记到 session，让 openGithubToolSheet 的统一 cleanup 能取消它
+  const fileAbort = new AbortController();
+  if (session && typeof session.registerAbort === 'function') {
+    session.registerAbort(fileAbort);
+  }
+
+  // 请求序列号：防止旧 fetchFile 返回覆盖新文件内容（快速切换文件时）
+  const reqSeq = { current: 0 };
+  const mySeq = ++reqSeq.current;
+
+  fetchFile(config, { path: fileItem.path }, fileAbort.signal).then(function(data) {
+    // 守卫：抽屉已关闭、请求已被新请求取代、或已 abort 时不再写 UI
+    if (isClosed() || reqSeq.current !== mySeq || fileAbort.signal.aborted) return;
+
     viewer.replaceChildren();
     fileState.sha = data && data.sha ? data.sha : null;
 
@@ -585,15 +638,26 @@ function showFileViewer(config, fileItem, onBack) {
     submitBtn.addEventListener('click', function() {
       if (submitBtn.disabled) return;
       const message = commitInput.value.trim() || ('更新 ' + fileState.path.split('/').pop() + ' ～');
-      commitAndCreatePR(config, fileState, ta.value, message, submitBtn, statusEl, commitInput);
+      // 提交链路接入 isClosed 守卫与 fileAbort.signal（关闭抽屉后忽略过期结果）
+      commitAndCreatePR(config, fileState, ta.value, message, submitBtn, statusEl, commitInput, {
+        isClosed: isClosed,
+        signal: fileAbort.signal
+      });
     });
 
   }).catch(function(err) {
+    // abort 静默
+    if (err && err.name === 'AbortError') return;
+    if (isClosed() || reqSeq.current !== mySeq) return;
     viewer.replaceChildren();
     const errEl = document.createElement('div');
     errEl.className = 'gh-error';
     errEl.textContent = err.message || '读取失败';
     viewer.appendChild(errEl);
+  }).finally(function() {
+    if (isClosed()) return;
+    const stillLoading = viewer.querySelector('.gh-loading');
+    if (stillLoading) stillLoading.remove();
   });
 }
 
@@ -601,18 +665,26 @@ function showFileViewer(config, fileItem, onBack) {
 // 【提交流程】创建分支 → 提交文件 → 创建 PR
 // ═══════════════════════════════════════
 
-async function commitAndCreatePR(config, fileState, newText, message, submitBtn, statusEl, commitInput) {
+async function commitAndCreatePR(config, fileState, newText, message, submitBtn, statusEl, commitInput, ctx) {
+  // ctx: { isClosed: ()=>boolean, signal?: AbortSignal }
+  // 关闭抽屉后所有 UI 写入都被忽略；能取消的请求传 signal，不能取消的请求返回后用 isClosed 守卫忽略结果
+  const isClosed = (ctx && typeof ctx.isClosed === 'function') ? ctx.isClosed : function() { return false; };
+  const signal = ctx ? ctx.signal : undefined;
+  const aborted = function() { return !!(signal && signal.aborted); };
+
   // 防重复提交
   submitBtn.disabled = true;
   commitInput.disabled = true;
 
   function showStatus(text, type) {
+    if (isClosed() || aborted()) return;
     statusEl.style.display = 'block';
     statusEl.className = 'gh-status' + (type === 'error' ? ' gh-status-error' : type === 'success' ? ' gh-status-success' : '');
     statusEl.textContent = text;
   }
 
   function fail(err) {
+    if (isClosed() || aborted()) return;
     showStatus(err.message || '提交失败', 'error');
     submitBtn.disabled = false;
     commitInput.disabled = false;
@@ -621,25 +693,38 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
   try {
     // 步骤 1: 读取 base branch 最新 sha
     showStatus('正在读取分支信息…');
-    const baseSha = await fetchBaseBranchSha(config);
+    const baseSha = await fetchBaseBranchSha(config, signal);
+    if (aborted() || isClosed()) return; // 请求返回后忽略过期结果
 
-    // 步骤 2: 创建新分支
+    // 步骤 2: 创建新分支（分支名冲突有限循环重试，最多 5 次）
     showStatus('正在创建新分支…');
     let branchName = buildBranchName(fileState.path);
-    let branchCreated = false;
-    try {
-      await createBranch(config, branchName, baseSha);
-      branchCreated = true;
-    } catch (err) {
-      // 分支已存在，加随机后缀重试一次
-      if (String(err.message).indexOf('already exists') !== -1 || String(err.message).indexOf('422') !== -1) {
-        branchName = branchName + '-' + Math.random().toString(36).slice(2, 6);
-        await createBranch(config, branchName, baseSha);
-        branchCreated = true;
-      } else {
+    const MAX_BRANCH_RETRY = 5;
+    let branchOk = false;
+    for (let attempt = 0; attempt < MAX_BRANCH_RETRY; attempt++) {
+      if (aborted() || isClosed()) return;
+      try {
+        await createBranch(config, branchName, baseSha, signal);
+        branchOk = true;
+        break;
+      } catch (err) {
+        // abort 直接退出，不重试
+        if (err && err.name === 'AbortError') return;
+        // 分支已存在：加随机后缀重试（GitHub 422 + "already exists"）
+        const msg = String(err.message || '');
+        if (msg.indexOf('already exists') !== -1 || msg.indexOf('422') !== -1) {
+          branchName = buildBranchName(fileState.path) + '-' + Math.random().toString(36).slice(2, 6);
+          continue;
+        }
+        // 其他错误直接抛出
         throw err;
       }
     }
+    if (!branchOk) {
+      // 5 次仍冲突，给清晰错误提示
+      throw new Error('分支名持续冲突，已重试 ' + MAX_BRANCH_RETRY + ' 次，请稍后重试或手动创建分支');
+    }
+    if (aborted() || isClosed()) return;
 
     // 步骤 3: PUT 文件内容到新分支
     showStatus('正在提交文件…');
@@ -649,7 +734,8 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
       content: contentBase64,
       branch: branchName,
       sha: fileState.sha
-    });
+    }, signal);
+    if (aborted() || isClosed()) return;
 
     // 更新 sha
     if (putResult && putResult.content && putResult.content.sha) {
@@ -659,17 +745,18 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
     // 步骤 4: 创建 PR
     showStatus('正在创建 Pull Request…');
     let prUrl = null;
-    let prFailed = false;
     try {
       const pr = await createPullRequest(config, {
         title: message,
         head: branchName,
         base: config.branch,
         body: '由小手机 GitHub 工具创建'
-      });
+      }, signal);
+      if (aborted() || isClosed()) return;
       prUrl = pr && pr.html_url ? pr.html_url : null;
     } catch (prErr) {
-      prFailed = true;
+      if (prErr && prErr.name === 'AbortError') return;
+      if (aborted() || isClosed()) return;
       // PR 创建失败但提交成功，提示用户手动开 PR
       showStatus('文件已提交到分支 ' + branchName + '，但 PR 创建失败：' + (prErr.message || '未知错误') + '。请去 GitHub 手动创建 PR。', 'error');
       const branchInfo = document.createElement('div');
@@ -702,6 +789,8 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
     commitInput.disabled = false;
 
   } catch (err) {
+    // abort 静默退出，不写 UI
+    if (err && err.name === 'AbortError') return;
     fail(err);
   }
 }
@@ -713,22 +802,104 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
 export function openGithubToolSheet() {
   injectStyle();
 
+  // ── 集中 session 管理 ──
+  // 统一管理本次打开 GitHub 工具的 closed 标记、abort controller 池、sheet 失活监听，
+  // 确保 showConfig/showTree/showFileViewer 互相切换时不残留旧资源，
+  // 仅在抽屉真正关闭（非内部切换）时触发 cleanup。
+  const abortControllers = new Set();
+  let closed = false;
+  let switching = false; // 页内切换（config↔tree↔viewer）期间为 true，避免误判关闭
+  let currentSheetEl = null;
+  let sheetObserver = null;
+
+  function cleanup() {
+    if (closed) return;
+    closed = true;
+    // abort 所有进行中的请求
+    abortControllers.forEach(function(ac) { try { ac.abort(); } catch (_) {} });
+    abortControllers.clear();
+    // 断开 sheet 观察器
+    if (sheetObserver) {
+      try { sheetObserver.disconnect(); } catch (_) {}
+      sheetObserver = null;
+    }
+    currentSheetEl = null;
+  }
+
+  // 监听当前 sheet 元素：从 DOM 移除且非内部切换时，视为抽屉已关闭，触发 cleanup
+  function watchSheet(sheetEl) {
+    if (sheetObserver) {
+      try { sheetObserver.disconnect(); } catch (_) {}
+    }
+    currentSheetEl = sheetEl;
+    if (!sheetEl || typeof MutationObserver === 'undefined') return;
+    sheetObserver = new MutationObserver(function() {
+      // 当前 sheet 已不在 DOM，且不是内部切换 → 真正关闭
+      if (currentSheetEl === sheetEl && !sheetEl.isConnected && !switching) {
+        cleanup();
+      }
+    });
+    // 监听 body 子节点变化（sheet 被 remove 时触发）
+    sheetObserver.observe(document.body, { childList: true });
+  }
+
+  // 内部切换辅助：切换期间设 switching=true，避免 showBottomSheet 内部的 hideBottomSheet
+  // 把旧 sheet 移除时误判为关闭
+  function withSwitch(fn) {
+    switching = true;
+    try {
+      const sheetEl = fn();
+      return sheetEl;
+    } finally {
+      // 用微任务延迟复位，确保 showBottomSheet 内部的 hideBottomSheet + setTimeout remove 走完
+      Promise.resolve().then(function() {
+        switching = false;
+        // 切换完成后，若当前 sheet 已不在 DOM（极端情况），仍触发关闭判定
+        if (currentSheetEl && !currentSheetEl.isConnected && !switching) {
+          cleanup();
+        }
+      });
+    }
+  }
+
+  const session = {
+    isClosed: function() { return closed; },
+    registerAbort: function(ac) {
+      if (closed) {
+        try { ac.abort(); } catch (_) {}
+        return;
+      }
+      abortControllers.add(ac);
+    }
+  };
+
   // 用命名函数互相引用，避免深层嵌套和 arguments.callee
   function showConfig() {
-    const sheet = buildConfigView(getConfig(), null, function(newConfig) {
-      // onContinue: 加载文件树
-      hideBottomSheet();
-      showTree(newConfig);
+    const sheet = withSwitch(function() {
+      const sheetEl = showBottomSheet(buildConfigView(getConfig(), null, function(newConfig) {
+        // onContinue: 加载文件树（内部切换）
+        withSwitch(function() {
+          return showTree(newConfig);
+        });
+      }));
+      watchSheet(sheetEl);
+      return sheetEl;
     });
-    showBottomSheet(sheet);
+    return sheet;
   }
 
   function showTree(cfg) {
-    showBottomSheet(buildTreeView(cfg, function() {
-      // 返回配置页
-      hideBottomSheet();
-      showConfig();
-    }));
+    const sheet = withSwitch(function() {
+      const sheetEl = showBottomSheet(buildTreeView(cfg, function() {
+        // 返回配置页（内部切换）
+        withSwitch(function() {
+          return showConfig();
+        });
+      }, session));
+      watchSheet(sheetEl);
+      return sheetEl;
+    });
+    return sheet;
   }
 
   showConfig();
