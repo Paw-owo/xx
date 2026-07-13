@@ -294,7 +294,8 @@ function createWallpaperSection() {
   const section = card('聊天壁纸', '给这个聊天单独换一张背景图');
   const blobKey = getWallpaperBlobKey();
   const opacityKey = getWallpaperOpacityKey();
-  const opacity = Number(getData(opacityKey) ?? 100);
+  // Number(getData(...) ?? 100) 在存储被篡改/写入非数字时可能得到 NaN，兜底为 100
+  const opacity = resolveOpacity(getData(opacityKey));
 
   const previewBox = el('div', 'thread-settings-wallpaper-preview');
   const previewInner = el('span', 'settings-image-preview');
@@ -305,7 +306,8 @@ function createWallpaperSection() {
 
   section.append(previewBox);
   section.append(labelBlock('壁纸透明度', rangeBlock(opacity, 15, 100, 1, async (value, live) => {
-    const num = Number(value);
+    // rangeBlock 已限定 min=15/max=100，value 正常是合法数字；这里再兜底一次防止异常
+    const num = Number.isFinite(Number(value)) ? Math.max(15, Math.min(100, Math.round(Number(value)))) : 100;
     setData(opacityKey, num);
     const record = await getDB('blobs', blobKey).catch(() => null);
     if (record) {
@@ -319,7 +321,7 @@ function createWallpaperSection() {
       const file = await pickFile('image/*');
       if (!file) return;
       const dataUrl = await readFileAsDataUrl(file);
-      const op = Number(getData(opacityKey) ?? 100);
+      const op = resolveOpacity(getData(opacityKey));
       await setDB('blobs', blobKey, { key: blobKey, value: dataUrl, source: file.name, opacity: op, updatedAt: getNow() });
       setData(opacityKey, op);
       showToast('聊天壁纸换好啦');
@@ -524,18 +526,26 @@ function openApiDetailSheet() {
 
     const own = { ...DEFAULT_API_CONFIG, ...(state.character?.apiConfig || {}) };
 
-    if (mode === 'global') {
-      await updateCharacter({
-        apiConfig: { ...own, useGlobal: true, poolGroup: 'all', endpointId: '', model: '' }
-      });
-    } else {
-      await updateCharacter({
-        apiConfig: { ...own, useGlobal: false, poolGroup, endpointId: '', model }
-      });
-    }
+    try {
+      if (mode === 'global') {
+        await updateCharacter({
+          apiConfig: { ...own, useGlobal: true, poolGroup: 'all', endpointId: '', model: '' }
+        });
+      } else {
+        await updateCharacter({
+          apiConfig: { ...own, useGlobal: false, poolGroup, endpointId: '', model }
+        });
+      }
 
-    overlay.remove();
-    render();
+      overlay.remove();
+      render();
+    } catch (error) {
+      console.error('[thread-settings] save apiConfig failed', error);
+      showToast('保存失败，再试一次');
+      // 恢复按钮可点击状态，允许重试或取消，overlay 不关闭
+      confirm.disabled = false;
+      confirm.textContent = '保存';
+    }
   });
 
   actions.append(cancel, confirm);
@@ -979,7 +989,13 @@ function openClearMessagesConfirm() {
   confirm.addEventListener('click', async () => {
     confirm.disabled = true;
     confirm.textContent = '清空中...';
-    await clearCurrentMessages();
+    try {
+      await clearCurrentMessages();
+    } catch (error) {
+      console.error('[thread-settings] clearCurrentMessages failed', error);
+      showToast('清空出了点问题，部分消息可能没删干净');
+    }
+    // 无论成功失败都关闭 overlay，避免卡死
     overlay.remove();
   });
 
@@ -1067,8 +1083,13 @@ async function clearCurrentMessages() {
 
   const messages = normalizeArray(await getByIndexDB('messages', 'characterId', state.characterId).catch(() => []));
 
+  // 单条删除失败不阻断整体流程，记录失败数供后续提示
+  let failedCount = 0;
   await Promise.all(
-    messages.map((message) => deleteDB('messages', message.id).catch(() => null))
+    messages.map((message) => deleteDB('messages', message.id).catch(() => {
+      failedCount += 1;
+      return null;
+    }))
   );
 
   const counts = getData('chat_unread_counts') || {};
@@ -1076,7 +1097,12 @@ async function clearCurrentMessages() {
   setData('chat_unread_counts', counts);
   window.refreshDesktopBadges?.();
 
-  showToast('聊天清空啦');
+  if (failedCount > 0) {
+    console.warn(`[thread-settings] clearCurrentMessages: ${failedCount}/${messages.length} 条删除失败`);
+    showToast(failedCount === messages.length ? '没删掉，再试一次' : `删了大部分，${failedCount} 条没删掉`);
+  } else {
+    showToast('聊天清空啦');
+  }
 }
 
 // ═══════════════════════════════════════
@@ -1096,8 +1122,19 @@ function pickFile(accept) {
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      resolve(String(reader.result || ''));
+      // 读取完成后清理引用，避免悬挂
+      reader.onload = null;
+      reader.onerror = null;
+    };
+    reader.onerror = () => {
+      const error = reader.error || new Error('读取文件失败');
+      // reject 前先清理回调，避免悬挂引用
+      reader.onload = null;
+      reader.onerror = null;
+      reject(error);
+    };
     reader.readAsDataURL(file);
   });
 }
@@ -1130,6 +1167,13 @@ function clampChance(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.max(0, Math.min(1, number));
+}
+
+// 壁纸透明度兜底：存储被篡改或写入非数字时返回合法默认值 100，避免 NaN 进入 UI/样式
+function resolveOpacity(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 100;
+  return Math.max(0, Math.min(100, Math.round(number)));
 }
 
 function normalizeArray(value) {

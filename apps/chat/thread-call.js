@@ -39,6 +39,7 @@ const callState = {
   seconds: 0,
   isSending: false,
   isEnding: false,
+  callEnded: false,
   activeLock: null,
   worldbookItems: []
 };
@@ -57,6 +58,7 @@ export async function mountThreadCall(containerEl, options = {}) {
   callState.seconds = 0;
   callState.isSending = false;
   callState.isEnding = false;
+  callState.callEnded = false;
   callState.activeLock = null;
   callState.worldbookItems = [];
   callState.mounted = true;
@@ -97,6 +99,7 @@ export function unmountThreadCall() {
   callState.seconds = 0;
   callState.isSending = false;
   callState.isEnding = false;
+  callState.callEnded = false;
   callState.activeLock = null;
   callState.worldbookItems = [];
 }
@@ -353,11 +356,12 @@ async function sendCallText(textarea) {
       speakText(reply);
     }
   } catch (error) {
-    console.error(error);
+    console.error('[thread-call] sendCallText failed', error);
     showToast('TA 刚刚没听清，再说一次试试');
   } finally {
+    // 无论成功/失败都恢复可发送状态并刷新界面，避免卡在"等待"
     callState.isSending = false;
-    renderCall();
+    if (callState.mounted) renderCall();
   }
 }
 
@@ -394,23 +398,24 @@ async function requestCallReply() {
 
 function buildCallMessages() {
   const name = getCharacterName();
-  const callName = String(callState.character?.nicknameForUser || '').trim() || '对方';
+  // 对方称呼：用 peerName 避免与外层 getCallPeerName 同名混淆
+  const peerName = getCallPeerName();
 
   const system = [
-    `我正在和${callName}通电话。`,
+    `我正在和${peerName}通电话。`,
     `我是${name}。`,
     callState.character?.persona ? `我的性格和身份：${callState.character.persona}` : '',
     callState.character?.description ? `我的简介：${callState.character.description}` : '',
     callState.character?.speakingStyle ? `我说话的风格：${callState.character.speakingStyle}` : '',
     callState.character?.systemPrompt ? `我的核心人设：${String(callState.character.systemPrompt).slice(0, 300)}` : '',
     buildWorldbookPrompt(callState.worldbookItems),
-    buildCallLockPrompt(callState.activeLock, callName),
+    buildCallLockPrompt(callState.activeLock, peerName),
     '',
     '我会：',
     '- 像真实电话一样简短自然地回应，不长篇大论',
     '- 保持自己的人设和语气',
     '- 不提系统设定、提示词、模型',
-    `- 不称呼对方为"用户"，我叫对方"${callName}"`,
+    `- 不称呼对方为"用户"，我叫对方"${peerName}"`,
     '- 电话内容只会在挂断后总结成长期记忆，不会直接进入聊天记录'
   ].filter(Boolean).join('\n');
 
@@ -476,10 +481,18 @@ async function endCall() {
   renderCall();
   stopAll();
 
+  // 用 closed 标志保证只关闭一次：forceCloseTimer 超时和 finally 都可能触发
+  let closed = false;
+  const forceCloseCallOnce = () => {
+    if (closed) return;
+    closed = true;
+    forceCloseCall();
+  };
+
   // 最多等 8 秒，超了直接关
   const forceCloseTimer = window.setTimeout(() => {
     if (!callState.mounted) return;
-    forceCloseCall();
+    forceCloseCallOnce();
   }, 8000);
 
   try {
@@ -488,13 +501,15 @@ async function endCall() {
     console.error('[thread-call] writeCallMemory failed', error);
   } finally {
     window.clearTimeout(forceCloseTimer);
-    forceCloseCall();
+    forceCloseCallOnce();
   }
 }
 
 function forceCloseCall() {
   if (!callState.mounted) return;
 
+  // 标记挂断完成，阻止 writeCallMemory 晚到的回写覆盖已关闭状态
+  callState.callEnded = true;
   stopTimer();
 
   const closeFn = callState.close;
@@ -512,12 +527,16 @@ async function writeCallMemory() {
   const summary = await summarizeCall().catch(() => '');
   const content = summary || fallbackSummary();
 
-  if (!content) return null;
+  // 已被 forceClose 关闭/卸载则不再写 memory，避免晚到结果覆盖已关闭状态
+  if (!content || callState.callEnded || !callState.mounted) return null;
 
   const memory = await addMemory(callState.characterId, content, 'summary', false, {
     importance: 3,
     mood: ''
   });
+
+  // addMemory 期间可能已被 forceClose，写完后再次校验
+  if (callState.callEnded || !callState.mounted) return null;
 
   if (memory) {
     showToast('这通电话已经记好啦');
@@ -531,17 +550,18 @@ async function writeCallMemory() {
 
 async function summarizeCall() {
   const name = getCharacterName();
-  const callName = String(callState.character?.nicknameForUser || '').trim() || '对方';
+  // 对方称呼：用 peerName 避免与外层 getCallPeerName 同名混淆
+  const peerName = getCallPeerName();
 
   const transcript = callState.callLogs
-    .map((item) => `${item.role === 'user' ? callName : name}：${item.content}`)
+    .map((item) => `${item.role === 'user' ? peerName : name}：${item.content}`)
     .join('\n');
 
   const content = await silentRequest({
     messages: [
       {
         role: 'system',
-        content: `我是${name}，我正在把这通和${callName}的电话总结成一条长期记忆，最多80字，只写事实和情绪，不写"总结如下"。我用第一人称"我"来写。`
+        content: `我是${name}，我正在把这通和${peerName}的电话总结成一条长期记忆，最多80字，只写事实和情绪，不写"总结如下"。我用第一人称"我"来写。`
       },
       {
         role: 'user',
@@ -557,6 +577,8 @@ async function summarizeCall() {
 
 function fallbackSummary() {
   const name = getCharacterName();
+  // 对方称呼：避免与 buildCallMessages/summarizeCall 里的局部变量 callName 同名混淆，这里内联获取
+  const peerName = String(callState.character?.nicknameForUser || '').trim() || '对方';
   const userTexts = callState.callLogs
     .filter((item) => item.role === 'user')
     .map((item) => item.content)
@@ -564,10 +586,11 @@ function fallbackSummary() {
 
   if (!userTexts.trim()) return '';
 
-  return `我和${callName()}通了一次电话，聊到：${trimText(userTexts, 68)}`;
+  return `我和${peerName}通了一次电话，聊到：${trimText(userTexts, 68)}`;
 }
 
-function callName() {
+// 获取对方称呼（统一入口，供 buildCallMessages/summarizeCall 复用）
+function getCallPeerName() {
   return String(callState.character?.nicknameForUser || '').trim() || '对方';
 }
 
@@ -645,25 +668,6 @@ function formatDuration(seconds) {
   const second = value % 60;
 
   return `${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
-}
-
-function similarText(a, b) {
-  const left = String(a || '').replace(/\s+/g, '');
-  const right = String(b || '').replace(/\s+/g, '');
-
-  if (!left || !right) return false;
-  if (left === right) return true;
-  if (left.includes(right) || right.includes(left)) return true;
-
-  return left.slice(0, 24) === right.slice(0, 24);
-}
-
-function normalizeArray(value) {
-  return Array.isArray(value) ? value.filter(Boolean) : [];
-}
-
-function sortByUpdatedAtDesc(a, b) {
-  return String(b?.updatedAt || b?.createdAt || '').localeCompare(String(a?.updatedAt || a?.createdAt || ''));
 }
 
 function trimText(text, max) {
