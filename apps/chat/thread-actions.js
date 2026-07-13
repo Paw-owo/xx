@@ -193,17 +193,33 @@ export async function deleteThreadMessage(state, messageId) {
   const message = await getDB(store, id).catch(() => null);
 
   // 如果这条消息有版本组，连带删除同组所有版本
+  let failedCount = 0;
   if (message?.versionGroupId) {
     const list = getStateList(state);
     const siblings = list.filter((item) => item.versionGroupId === message.versionGroupId);
     for (const sibling of siblings) {
-      await deleteDB(store, sibling.id);
+      // 单个删除失败不能中断整组删除，记录失败数继续往下走
+      try {
+        await deleteDB(store, sibling.id);
+      } catch (err) {
+        failedCount += 1;
+        console.warn('[thread-actions] delete sibling message failed', sibling.id, err?.message || err);
+      }
     }
   } else {
-    await deleteDB(store, id);
+    try {
+      await deleteDB(store, id);
+    } catch (err) {
+      failedCount += 1;
+      console.warn('[thread-actions] delete message failed', id, err?.message || err);
+    }
   }
 
   await refreshStateMessages(state);
+
+  if (failedCount > 0) {
+    showToast(`有 ${failedCount} 条没删干净，稍后再试`);
+  }
 
   if (state.quotedMessageId === id) {
     clearQuote(state);
@@ -265,6 +281,7 @@ export async function regenerateThreadMessage(state, messageId) {
   const store = getStoreName(state);
 
   // 如果目标还没有版本组，先给它打上
+  let archiveFailed = false;
   if (!target.versionGroupId) {
     const updated = cleanForDB({
       ...target,
@@ -272,7 +289,12 @@ export async function regenerateThreadMessage(state, messageId) {
       versionStatus: 'archived',
       updatedAt: getNow()
     });
-    await setDB(store, updated);
+    try {
+      await setDB(store, updated);
+    } catch (err) {
+      archiveFailed = true;
+      console.warn('[thread-actions] archive target (new group) failed', err?.message || err);
+    }
   } else {
     // 已有版本组，标记当前为 archived
     const updated = cleanForDB({
@@ -280,10 +302,21 @@ export async function regenerateThreadMessage(state, messageId) {
       versionStatus: 'archived',
       updatedAt: getNow()
     });
-    await setDB(store, updated);
+    try {
+      await setDB(store, updated);
+    } catch (err) {
+      archiveFailed = true;
+      console.warn('[thread-actions] archive target (existing group) failed', err?.message || err);
+    }
   }
 
+  // 无论 archived 标记是否写入成功，都刷新 state 让 UI 与数据库对齐，
+  // 避免版本组状态半更新（数据库部分写入但 state 未刷新）
   await refreshStateMessages(state);
+
+  if (archiveFailed) {
+    showToast('旧版本没归档好，但新回复还是会生成');
+  }
 
   // 请求新回复，传入 versionGroupId
   await requestAIReplySafely(state, { regenerate: true, versionGroupId });
