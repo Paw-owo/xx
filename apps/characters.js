@@ -13,7 +13,8 @@ import {
   setDB,
   deleteDB,
   getByIndexDB,
-  compressImage
+  compressImage,
+  verifyImageDataUrl
 } from '../core/storage.js';
 
 import {
@@ -513,6 +514,8 @@ async function openEditor(characterId = '') {
 
     try {
       const image = await compressImage(file, 420, 0.86);
+      const valid = await verifyImageDataUrl(image);
+      if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
       const saved = await saveBlobImage(getCharacterAvatarKey(draft.id), image, file);
       if (!saved) { showToast('头像保存失败，可能图片太大'); return; }
       draft.avatar = image;
@@ -678,6 +681,8 @@ async function openProfileEditor(profileId = '') {
 
     try {
       const image = await compressImage(file, 420, 0.86);
+      const valid = await verifyImageDataUrl(image);
+      if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
       const saved = await saveBlobImage(getProfileAvatarKey(draft.id), image, file);
       if (!saved) { showToast('头像保存失败，可能图片太大'); return; }
       draft.avatar = image;
@@ -793,6 +798,8 @@ function renderBackgroundEditor(draft) {
 
       try {
         const image = await compressImage(file, 1400, 0.86);
+        const valid = await verifyImageDataUrl(image);
+        if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
         const saved = await saveBlobImage(getCharacterBgKey(draft.id), image, file, draft.chatBackground.opacity ?? 100);
         if (!saved) { showToast('背景保存失败，可能图片太大'); return; }
         draft.chatBackground.type = 'image';

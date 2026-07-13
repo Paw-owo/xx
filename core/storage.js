@@ -483,6 +483,17 @@ export async function compressImage(file, maxSize = 800, quality = 0.8) {
         return;
       }
 
+      // GIF 原样保留：canvas 只能取首帧，动图经 canvas 会丢失动画
+      // SVG 原样保留：canvas 光栅化会丢失矢量特性
+      const mimeType = file.type.toLowerCase();
+      if (mimeType === 'image/gif' || mimeType === 'image/svg+xml') {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('图片读取失败'));
+        reader.readAsDataURL(file);
+        return;
+      }
+
       const reader = new FileReader();
 
       reader.onload = () => {
@@ -498,6 +509,11 @@ export async function compressImage(file, maxSize = 800, quality = 0.8) {
           canvas.height = height;
 
           const context = canvas.getContext('2d');
+          // PNG/webp 透明通道转 jpeg 时会变黑底，先填白底
+          if (mimeType === 'image/png' || mimeType === 'image/webp') {
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, width, height);
+          }
           context.drawImage(image, 0, 0, width, height);
 
           resolve(canvas.toDataURL('image/jpeg', quality));
@@ -518,6 +534,20 @@ export async function compressImage(file, maxSize = 800, quality = 0.8) {
     } catch (error) {
       reject(error);
     }
+  });
+}
+
+// 验证 base64 图片数据是否可被浏览器解码显示（上传成功判定的最后一道关卡）
+export function verifyImageDataUrl(dataUrl) {
+  return new Promise((resolve) => {
+    if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+      resolve(false);
+      return;
+    }
+    const image = new Image();
+    image.onload = () => resolve(true);
+    image.onerror = () => resolve(false);
+    image.src = dataUrl;
   });
 }
 
