@@ -86,7 +86,7 @@ function renderEditableSheet(state, options, config) {
     const backBtn = el('button', 'thread-sheet-back-btn');
     backBtn.type = 'button';
     backBtn.setAttribute('aria-label', '返回消息');
-    backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+    backBtn.appendChild(createBackIconSvg());
     backBtn.addEventListener('click', options.onBackToTools);
     head.appendChild(backBtn);
   }
@@ -109,11 +109,16 @@ function renderEditableSheet(state, options, config) {
   let items = loadList(storageKey);
 
   function rerender() {
-    renderEditableSheet(state, options, config);
+    // 受控单次刷新：只重建列表与工具栏状态，不递归重建整个 sheet，
+    // 避免反复 renderEditableSheet 产生旧实例残留/重复绑定
+    mode = 'view';
+    refreshToolbar();
+    refreshList();
   }
 
   function refreshList() {
-    listWrap.innerHTML = '';
+    // 用 replaceChildren 替代 innerHTML=''，更稳妥地清理旧子节点
+    listWrap.replaceChildren();
     if (!items.length) {
       listWrap.append(createEmptyTip(emptyTip));
       return;
@@ -126,7 +131,7 @@ function renderEditableSheet(state, options, config) {
 
       if (mode === 'delete') {
         const delBtn = el('button', 'editable-card-del');
-        delBtn.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="4" x2="12" y2="12"/><line x1="12" y1="4" x2="4" y2="12"/></svg>';
+        delBtn.appendChild(createDeleteIconSvg());
         delBtn.addEventListener('click', function() {
           items.splice(index, 1);
           saveList(storageKey, items);
@@ -276,8 +281,8 @@ function openAddItemSheet(state, options, config, items, rerender) {
   addSheet.append(form);
 
   if (options.containerEl) {
-    options.containerEl.innerHTML = '';
-    options.containerEl.appendChild(addSheet);
+    // 用 replaceChildren 替代 innerHTML=''，只清本弹层内容，不粗暴清掉事件监听与状态
+    options.containerEl.replaceChildren(addSheet);
     return;
   }
 
@@ -355,8 +360,8 @@ function openEditItemSheet(state, options, config, items, index, rerender) {
   editSheet.append(form);
 
   if (options.containerEl) {
-    options.containerEl.innerHTML = '';
-    options.containerEl.appendChild(editSheet);
+    // 用 replaceChildren 替代 innerHTML=''，只清本弹层内容，不粗暴清掉事件监听与状态
+    options.containerEl.replaceChildren(editSheet);
     return;
   }
 
@@ -618,7 +623,7 @@ function createSheetHead(title, desc, sheetOptions) {
     const backBtn = el('button', 'thread-sheet-back-btn');
     backBtn.type = 'button';
     backBtn.setAttribute('aria-label', '返回消息');
-    backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+    backBtn.appendChild(createBackIconSvg());
     backBtn.addEventListener('click', sheetOptions.onBackToTools);
     head.appendChild(backBtn);
   }
@@ -738,6 +743,45 @@ function el(tag, className = '', text = '') {
   if (className) node.className = className;
   if (text !== '') node.textContent = text;
   return node;
+}
+
+// 用 DOM 创建替代 innerHTML 注入返回箭头 SVG，视觉结构不变
+function createBackIconSvg() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.5');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', 'M15 18l-6-6 6-6');
+  svg.appendChild(path);
+  return svg;
+}
+
+// 用 DOM 创建替代 innerHTML 注入删除 X 图标 SVG，视觉结构不变
+function createDeleteIconSvg() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  const l1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l1.setAttribute('x1', '4');
+  l1.setAttribute('y1', '4');
+  l1.setAttribute('x2', '12');
+  l1.setAttribute('y2', '12');
+  const l2 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  l2.setAttribute('x1', '12');
+  l2.setAttribute('y1', '4');
+  l2.setAttribute('x2', '4');
+  l2.setAttribute('y2', '12');
+  svg.append(l1, l2);
+  return svg;
 }
 // ═══════════════════════════════════════
 // 【样式】底部抽屉、卡片、按钮、编辑列表
