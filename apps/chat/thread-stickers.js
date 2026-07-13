@@ -18,41 +18,41 @@ const MAX_RECENT = 30;
 const STYLE_ID = 'thread-stickers-style';
 
 // ═══════════════════════════════════════
-// 【内部状态】
+// 【内部状态】与当前打开实例绑定，避免多实例共享/旧状态残留
 // ═══════════════════════════════════════
 
-let activeState = null;
-let activeOptions = null;
-let currentTab = 'all';
-let deleteMode = false;
-let selectedIds = new Set();
-let allStickers = [];
+let picker = null;
+
+function createPicker(state, options) {
+  return {
+    activeState: state,
+    activeOptions: options,
+    currentTab: 'all',
+    deleteMode: false,
+    selectedIds: new Set(),
+    allStickers: [],
+    sheetEl: null
+  };
+}
+
+function resetPicker() {
+  picker = null;
+}
 
 // ═══════════════════════════════════════
 // 【公开接口】打开和关闭
 // ═══════════════════════════════════════
 
 export function openStickerSheet(state, options = {}) {
-  activeState = state;
-  activeOptions = options;
-  currentTab = 'all';
-  deleteMode = false;
-  selectedIds = new Set();
+  // 关闭旧实例，避免残留状态
+  if (picker) closeStickerSheet();
+  picker = createPicker(state, options);
   renderPicker(true);
 }
 
 export function closeStickerSheet() {
   hideBottomSheet();
-  resetState();
-}
-
-function resetState() {
-  activeState = null;
-  activeOptions = null;
-  currentTab = 'all';
-  deleteMode = false;
-  selectedIds = new Set();
-  allStickers = [];
+  resetPicker();
 }
 
 // ═══════════════════════════════════════
@@ -61,7 +61,8 @@ function resetState() {
 
 async function renderPicker(isNew = false) {
   ensureStyle();
-  allStickers = await loadStickers();
+  if (!picker) return;
+  picker.allStickers = await loadStickers();
 
   if (!isNew) {
     refreshUI();
@@ -74,14 +75,18 @@ async function renderPicker(isNew = false) {
   sheet.appendChild(createTabBar());
   sheet.appendChild(createGridArea());
 
+  picker.sheetEl = sheet;
   showBottomSheet(sheet);
   renderDeleteBar();
 }
 
 function refreshUI() {
+  if (!picker || !picker.sheetEl || !picker.sheetEl.isConnected) return;
+
   syncTabButtons();
 
-  const area = document.querySelector('.ss-grid-area');
+  // 基于当前实例容器查询，避免多弹层时命中错误的 .ss-grid-area
+  const area = picker.sheetEl.querySelector('.ss-grid-area');
   if (area) renderGridContent(area);
 
   renderDeleteBar();
@@ -107,7 +112,9 @@ function createSearchBar() {
   input.spellcheck = false;
 
   input.addEventListener('input', () => {
-    const area = document.querySelector('.ss-grid-area');
+    if (!picker || !picker.sheetEl) return;
+    // 基于当前实例容器查询
+    const area = picker.sheetEl.querySelector('.ss-grid-area');
     if (area) renderGridContent(area);
   });
 
@@ -122,19 +129,21 @@ function createSearchBar() {
 function createTabBar() {
   const bar = el('div', 'ss-tab-bar');
 
-  const recentBtn = createTabButton('最近', currentTab === 'recent');
+  const recentBtn = createTabButton('最近', picker?.currentTab === 'recent');
   recentBtn.addEventListener('click', () => {
-    currentTab = currentTab === 'recent' ? 'all' : 'recent';
-    deleteMode = false;
-    selectedIds = new Set();
+    if (!picker) return;
+    picker.currentTab = picker.currentTab === 'recent' ? 'all' : 'recent';
+    picker.deleteMode = false;
+    picker.selectedIds = new Set();
     renderPicker(false);
   });
 
-  const deleteBtn = createTabButton('删除', deleteMode);
+  const deleteBtn = createTabButton('删除', picker?.deleteMode);
   deleteBtn.addEventListener('click', () => {
-    currentTab = 'all';
-    deleteMode = !deleteMode;
-    selectedIds = new Set();
+    if (!picker) return;
+    picker.currentTab = 'all';
+    picker.deleteMode = !picker.deleteMode;
+    picker.selectedIds = new Set();
     renderPicker(false);
   });
 
@@ -152,9 +161,11 @@ function createTabButton(text, isActive) {
 }
 
 function syncTabButtons() {
-  const btns = document.querySelectorAll('.ss-sheet .ss-tab-btn');
-  if (btns[0]) btns[0].classList.toggle('is-active', currentTab === 'recent');
-  if (btns[1]) btns[1].classList.toggle('is-active', deleteMode);
+  if (!picker || !picker.sheetEl) return;
+  // 基于当前实例容器查询
+  const btns = picker.sheetEl.querySelectorAll('.ss-tab-btn');
+  if (btns[0]) btns[0].classList.toggle('is-active', picker.currentTab === 'recent');
+  if (btns[1]) btns[1].classList.toggle('is-active', picker.deleteMode);
 }
 
 // ═══════════════════════════════════════
@@ -168,7 +179,7 @@ function createGridArea() {
 }
 
 function renderGridContent(area) {
-  if (!area) return;
+  if (!area || !picker) return;
   area.replaceChildren();
 
   const filtered = getFilteredStickers();
@@ -180,11 +191,11 @@ function renderGridContent(area) {
     area.appendChild(createStickerCell(sticker));
   });
 
-  if (!filtered.length && allStickers.length) {
+  if (!filtered.length && picker.allStickers.length) {
     area.appendChild(el('div', 'ss-grid-hint', '没有找到匹配的表情包'));
   }
 
-  if (!allStickers.length) {
+  if (!picker.allStickers.length) {
     area.appendChild(el('div', 'ss-grid-hint', '还没有表情包，点 + 上传吧'));
   }
 }
@@ -229,9 +240,9 @@ function createStickerCell(sticker) {
   });
   cell.appendChild(img);
 
-  if (deleteMode) {
+  if (picker?.deleteMode) {
     cell.classList.add('is-deletable');
-    const isChecked = selectedIds.has(sticker.id);
+    const isChecked = picker.selectedIds.has(sticker.id);
     if (isChecked) cell.classList.add('is-selected');
 
     const check = el('div', `ss-cell-check${isChecked ? ' is-checked' : ''}`);
@@ -244,29 +255,32 @@ function createStickerCell(sticker) {
 
     cell.addEventListener('click', (event) => {
       event.stopPropagation();
-      if (selectedIds.has(sticker.id)) {
-        selectedIds.delete(sticker.id);
+      if (!picker) return;
+      if (picker.selectedIds.has(sticker.id)) {
+        picker.selectedIds.delete(sticker.id);
       } else {
-        selectedIds.add(sticker.id);
+        picker.selectedIds.add(sticker.id);
       }
       renderPicker(false);
     });
   } else {
     cell.addEventListener('click', async (event) => {
       event.stopPropagation();
-      if (!activeState) return;
+      if (!picker || !picker.activeState) return;
 
+      // 保存到局部变量，防止 await 期间 picker 被重置
+      const currentPicker = picker;
       trackRecent(sticker.id);
       hideBottomSheet();
 
       try {
-        await sendStickerMessage(activeState, sticker.id);
+        await sendStickerMessage(currentPicker.activeState, sticker.id);
       } catch (_) {
         showToast('发送失败');
       }
 
-      activeOptions?.onRefresh?.();
-      resetState();
+      currentPicker.activeOptions?.onRefresh?.();
+      resetPicker();
     });
   }
 
@@ -278,40 +292,58 @@ function createStickerCell(sticker) {
 // ═══════════════════════════════════════
 
 function renderDeleteBar() {
-  const sheet = document.querySelector('.ss-sheet');
-  if (!sheet) return;
+  if (!picker || !picker.sheetEl) return;
+  // 基于当前实例容器查询
+  const sheet = picker.sheetEl;
 
   const old = sheet.querySelector('.ss-delete-bar');
   if (old) old.remove();
 
-  if (!deleteMode) return;
+  if (!picker.deleteMode) return;
 
   const bar = el('div', 'ss-delete-bar');
-  const count = selectedIds.size;
+  const count = picker.selectedIds.size;
 
   const delBtn = el('button', `ss-delete-btn${count ? '' : ' is-disabled'}`, count ? `删除 (${count})` : '删除');
   delBtn.type = 'button';
   delBtn.disabled = !count;
 
   delBtn.addEventListener('click', async () => {
-    if (!selectedIds.size) return;
+    if (!picker || !picker.selectedIds.size) return;
 
-    const ok = await showLocalConfirm(`确定删除 ${selectedIds.size} 个表情包？`);
+    const ok = await showLocalConfirm(`确定删除 ${picker.selectedIds.size} 个表情包？`);
     if (!ok) return;
 
+    // 删除期间 picker 可能被关闭，先保存待删 id 列表
+    const idsToDelete = Array.from(picker.selectedIds);
     let deleted = 0;
-    for (const id of selectedIds) {
-      await deleteDB('stickers', id).catch(() => {});
-      deleted++;
+    let failed = 0;
+
+    for (const id of idsToDelete) {
+      try {
+        await deleteDB('stickers', id);
+        deleted++;
+      } catch (error) {
+        failed++;
+        console.warn('[thread-stickers] delete sticker failed', id, error);
+      }
     }
 
-    const recent = getRecentIds().filter((id) => !selectedIds.has(id));
+    const recent = getRecentIds().filter((id) => !idsToDelete.includes(id));
     setData(RECENT_KEY, recent);
 
-    showToast(`删掉了 ${deleted} 个`);
-    selectedIds = new Set();
-    allStickers = await loadStickers();
-    renderPicker(true);
+    if (failed > 0) {
+      showToast(failed === idsToDelete.length ? '没删掉，再试一次' : `删了 ${deleted} 个，${failed} 个没删掉`);
+    } else {
+      showToast(`删掉了 ${deleted} 个`);
+    }
+
+    // picker 可能在 await 期间被关闭，仍存活才刷新
+    if (picker) {
+      picker.selectedIds = new Set();
+      picker.allStickers = await loadStickers();
+      renderPicker(true);
+    }
   });
 
   bar.appendChild(delBtn);
@@ -326,21 +358,37 @@ function openSinglePicker() {
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = 'image/png,image/jpeg,image/gif,image/webp';
+  // 部分浏览器要求 input 挂载到 DOM 才能稳定触发 change；用最小可见度挂载，用后清理
+  input.style.position = 'fixed';
+  input.style.top = '-9999px';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+
+  const cleanup = () => {
+    input.value = '';
+    if (input.parentNode) input.parentNode.removeChild(input);
+  };
 
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
-    if (!file) return;
+    if (!file) {
+      cleanup();
+      return;
+    }
 
     if (file.size > MAX_FILE_SIZE) {
       showToast('图片太大了，换张小一点的');
+      cleanup();
       return;
     }
 
     try {
       const base64 = await readFileAsBase64(file);
+      cleanup();
       showUploadSheet(base64);
     } catch (_) {
       showToast('图片读取失败');
+      cleanup();
     }
   });
 
@@ -389,8 +437,10 @@ function showUploadSheet(base64) {
     });
 
     showToast('上传好啦');
-    allStickers = await loadStickers();
-    renderPicker(true);
+    if (picker) {
+      picker.allStickers = await loadStickers();
+      renderPicker(true);
+    }
   });
 
   sheet.appendChild(saveBtn);
@@ -407,20 +457,37 @@ function openBulkPicker() {
   input.type = 'file';
   input.accept = 'image/png,image/jpeg,image/gif,image/webp';
   input.multiple = true;
+  // 部分浏览器要求 input 挂载到 DOM 才能稳定触发 change；用最小可见度挂载，用后清理
+  input.style.position = 'fixed';
+  input.style.top = '-9999px';
+  input.style.opacity = '0';
+  document.body.appendChild(input);
+
+  const cleanup = () => {
+    input.value = '';
+    if (input.parentNode) input.parentNode.removeChild(input);
+  };
 
   input.addEventListener('change', async () => {
     const files = Array.from(input.files || []);
-    if (!files.length) return;
+    if (!files.length) {
+      cleanup();
+      return;
+    }
 
     const valid = files.filter((f) => f.size <= MAX_FILE_SIZE);
     if (valid.length < files.length) {
       showToast(`${files.length - valid.length} 张太大，已跳过`);
     }
-    if (!valid.length) return;
+    if (!valid.length) {
+      cleanup();
+      return;
+    }
 
     showToast(`正在保存 ${valid.length} 张...`);
 
     let saved = 0;
+    let failed = 0;
     for (const file of valid) {
       try {
         const base64 = await readFileAsBase64(file);
@@ -434,14 +501,24 @@ function openBulkPicker() {
           updatedAt: now
         });
         saved++;
-      } catch (_) {
-        // 跳过
+      } catch (error) {
+        failed++;
+        console.warn('[thread-stickers] bulk save sticker failed', file.name, error);
       }
     }
 
-    showToast(`保存了 ${saved} 个`);
-    allStickers = await loadStickers();
-    renderPicker(true);
+    cleanup();
+
+    if (failed > 0) {
+      showToast(saved > 0 ? `保存了 ${saved} 个，${failed} 个失败` : '保存失败了，再试一次');
+    } else {
+      showToast(`保存了 ${saved} 个`);
+    }
+
+    if (picker) {
+      picker.allStickers = await loadStickers();
+      renderPicker(true);
+    }
   });
 
   input.click();
@@ -452,15 +529,17 @@ function openBulkPicker() {
 // ═══════════════════════════════════════
 
 function getFilteredStickers() {
-  let list = [...allStickers];
+  if (!picker) return [];
+  let list = [...picker.allStickers];
 
-  if (currentTab === 'recent') {
+  if (picker.currentTab === 'recent') {
     const recentIds = getRecentIds();
     const map = new Map(list.map((s) => [s.id, s]));
     list = recentIds.map((id) => map.get(id)).filter(Boolean);
   }
 
-  const input = document.querySelector('.ss-sheet .ss-search-input');
+  // 基于当前实例容器查询搜索框
+  const input = picker.sheetEl?.querySelector('.ss-search-input');
   const query = (input?.value || '').trim().toLowerCase();
 
   if (query) {
@@ -525,21 +604,41 @@ function showLocalConfirm(message) {
 
     const actions = el('div', 'ss-confirm-actions');
 
+    // 只关闭一次：resolved 标志防止 ESC / overlay / 按钮重复触发
+    let resolved = false;
+    const close = (value) => {
+      if (resolved) return;
+      resolved = true;
+      backdrop.classList.remove('is-open');
+      document.removeEventListener('keydown', onKeydown);
+      window.setTimeout(() => {
+        if (backdrop.parentNode) backdrop.remove();
+      }, 220);
+      resolve(value);
+    };
+
     const cancel = el('button', 'ss-confirm-cancel', '取消');
     cancel.type = 'button';
-    cancel.addEventListener('click', () => {
-      backdrop.classList.remove('is-open');
-      window.setTimeout(() => backdrop.remove(), 220);
-      resolve(false);
-    });
+    cancel.addEventListener('click', () => close(false));
 
     const ok = el('button', 'ss-confirm-ok', '确定删除');
     ok.type = 'button';
-    ok.addEventListener('click', () => {
-      backdrop.classList.remove('is-open');
-      window.setTimeout(() => backdrop.remove(), 220);
-      resolve(true);
+    ok.addEventListener('click', () => close(true));
+
+    // ESC 关闭
+    const onKeydown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(false);
+      }
+    };
+
+    // overlay 点击关闭（点击 backdrop 空白处，不点 card）
+    backdrop.addEventListener('click', (event) => {
+      if (event.target === backdrop) close(false);
     });
+
+    document.addEventListener('keydown', onKeydown);
 
     actions.append(cancel, ok);
     card.appendChild(actions);
