@@ -34,6 +34,9 @@ const PAGE_SIZE = 50;
 const PROACTIVE_CHECK_INTERVAL = 10 * 60 * 1000;
 const DRAFT_KEY = 'chat_draft_map';
 
+// 壁纸变更监听取消句柄（mount 时注册，unmount 时移除）
+let offWallpaperListener = null;
+
 const state = {
   rootEl: null,
   appState: null,
@@ -162,6 +165,15 @@ export async function mountChatThread(containerEl, options = {}) {
   await loadThreadData();
   await loadWallpaperCache();
 
+  // 监听聊天壁纸变更（来自 thread-settings 上传/清除/改透明度），实时刷新背景
+  offWallpaperListener = window.AppEvents?.on?.('chat-wallpaper-updated', (detail) => {
+    if (!state.mounted) return;
+    // 私聊会话只处理自己的角色，群聊只处理自己的群
+    if (detail?.characterId && detail.characterId !== state.characterId) return;
+    if (detail?.groupId && detail.groupId !== state.groupId) return;
+    loadWallpaperCache().then(() => { if (state.mounted) render(); });
+  });
+
   if (state.mode === 'private') {
     await loadRelationshipState(state);
   }
@@ -176,6 +188,10 @@ export function unmountChatThread() {
   state.stoppingAI = false;
   state.messageQueue = [];
   window.__chatActiveThread = null;
+
+  // 移除壁纸变更监听，避免卸载后异步回写旧 state
+  try { if (typeof offWallpaperListener === 'function') offWallpaperListener(); } catch (_) {}
+  offWallpaperListener = null;
 
   // 卸载时清理 activeAIJobs：abort 进行中的 job + 标记 placeholder 停止
   // 避免 unmount 后 AI job 继续后台跑、activeAIJobs 积累旧 job

@@ -313,6 +313,7 @@ function createWallpaperSection() {
     if (record) {
       await setDB('blobs', blobKey, { ...record, opacity: num, updatedAt: getNow() }).catch(() => {});
     }
+    window.AppEvents?.emit?.('chat-wallpaper-updated', { characterId: state?.characterId, groupId: state?.groupId });
     if (!live) showToast('壁纸透明度保存啦');
   })));
 
@@ -321,10 +322,13 @@ function createWallpaperSection() {
       const file = await pickFile('image/*');
       if (!file) return;
       const dataUrl = await readFileAsDataUrl(file);
+      if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
       const op = resolveOpacity(getData(opacityKey));
-      await setDB('blobs', blobKey, { key: blobKey, value: dataUrl, source: file.name, opacity: op, updatedAt: getNow() });
+      const saved = await setDB('blobs', blobKey, { key: blobKey, value: dataUrl, source: file.name, opacity: op, updatedAt: getNow() });
+      if (!saved) { showToast('壁纸保存失败，可能图片太大'); return; }
       setData(opacityKey, op);
       showToast('聊天壁纸换好啦');
+      window.AppEvents?.emit?.('chat-wallpaper-updated', { characterId: state?.characterId, groupId: state?.groupId });
       render();
     }),
     actionBtn('delete', '清除壁纸', async () => {
@@ -333,6 +337,7 @@ function createWallpaperSection() {
       await deleteDB('blobs', blobKey).catch(() => {});
       removeData(opacityKey);
       showToast('壁纸清掉啦');
+      window.AppEvents?.emit?.('chat-wallpaper-updated', { characterId: state?.characterId, groupId: state?.groupId });
       render();
     })
   ]));

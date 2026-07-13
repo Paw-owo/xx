@@ -513,10 +513,11 @@ async function openEditor(characterId = '') {
 
     try {
       const image = await compressImage(file, 420, 0.86);
+      const saved = await saveBlobImage(getCharacterAvatarKey(draft.id), image, file);
+      if (!saved) { showToast('头像保存失败，可能图片太大'); return; }
       draft.avatar = image;
       draft.avatarSource = image;
       draft.avatarKey = getCharacterAvatarKey(draft.id);
-      await saveBlobImage(draft.avatarKey, image, file);
       renderAvatarButton(avatarButton, draft.avatar);
       showToast('头像换好啦');
     } catch (_) {
@@ -677,10 +678,11 @@ async function openProfileEditor(profileId = '') {
 
     try {
       const image = await compressImage(file, 420, 0.86);
+      const saved = await saveBlobImage(getProfileAvatarKey(draft.id), image, file);
+      if (!saved) { showToast('头像保存失败，可能图片太大'); return; }
       draft.avatar = image;
       draft.avatarSource = image;
       draft.avatarKey = getProfileAvatarKey(draft.id);
-      await saveBlobImage(draft.avatarKey, image, file);
       renderAvatarButton(avatarButton, draft.avatar);
       showToast('头像换好啦');
     } catch (_) {
@@ -791,11 +793,12 @@ function renderBackgroundEditor(draft) {
 
       try {
         const image = await compressImage(file, 1400, 0.86);
+        const saved = await saveBlobImage(getCharacterBgKey(draft.id), image, file, draft.chatBackground.opacity ?? 100);
+        if (!saved) { showToast('背景保存失败，可能图片太大'); return; }
         draft.chatBackground.type = 'image';
         draft.chatBackground.value = image;
         draft.chatBackground.blobKey = getCharacterBgKey(draft.id);
         draft.chatBackground.opacity = draft.chatBackground.opacity ?? 100;
-        await saveBlobImage(draft.chatBackground.blobKey, image, file, draft.chatBackground.opacity);
         showToast('聊天背景换好啦');
         renderPanelAgain(box, () => renderBackgroundEditor(draft));
       } catch (_) {
@@ -1305,27 +1308,12 @@ async function saveCharacter(character) {
     updatedAt: now
   });
 
-  if (normalized.avatar && normalized.avatarKey) {
-    await setDB('blobs', normalized.avatarKey, {
-      key: normalized.avatarKey,
-      value: normalized.avatar,
-      source: normalized.avatarSource || normalized.avatar,
-      opacity: 100,
-      updatedAt: now
-    }).catch(() => {});
-  }
+  // 注意：编辑流程中 saveBlobImage 已把头像/聊天背景写入 blobs（含完整字段 name/type/source）
+  // 这里不再重复覆盖写 blobs，避免二次写入字段不全 + catch 吞异常导致的不一致
+  // 导入场景由 persistCharacterImagesFromImport 独立处理 blobs 写入
 
-  if (normalized.chatBackground?.type === 'image' && normalized.chatBackground.value && normalized.chatBackground.blobKey) {
-    await setDB('blobs', normalized.chatBackground.blobKey, {
-      key: normalized.chatBackground.blobKey,
-      value: normalized.chatBackground.value,
-      source: normalized.chatBackground.value,
-      opacity: Number(normalized.chatBackground.opacity ?? 100),
-      updatedAt: now
-    }).catch(() => {});
-  }
-
-  await setDB('characters', normalized.id, normalized);
+  const saved = await setDB('characters', normalized.id, normalized);
+  if (!saved) { showToast('角色保存失败，存储可能已满'); return; }
   await loadData();
   renderList();
   emitCharacterUpdates();
@@ -1368,13 +1356,14 @@ async function saveUserProfile(profile) {
   });
 
   if (next.avatar && next.avatarKey) {
-    await setDB('blobs', next.avatarKey, {
+    const saved = await setDB('blobs', next.avatarKey, {
       key: next.avatarKey,
       value: next.avatar,
       source: next.avatarSource || next.avatar,
       opacity: 100,
       updatedAt: now
-    }).catch(() => {});
+    });
+    if (!saved) console.warn('profile avatar blob save failed:', next.avatarKey);
   }
 
   if (next.isDefault) {
@@ -1525,13 +1514,14 @@ async function importUserProfile(data) {
     profile.avatar = avatar;
     profile.avatarSource = avatar;
     profile.avatarKey = getProfileAvatarKey(profile.id);
-    await setDB('blobs', profile.avatarKey, {
+    const saved = await setDB('blobs', profile.avatarKey, {
       key: profile.avatarKey,
       value: avatar,
       source: avatar,
       opacity: 100,
       updatedAt: getNow()
-    }).catch(() => {});
+    });
+    if (!saved) console.warn('import profile avatar blob save failed:', profile.avatarKey);
   }
 
   await saveUserProfile(profile);
@@ -1576,26 +1566,28 @@ async function persistCharacterImagesFromImport(character, data) {
     character.avatarSource = avatar;
     character.avatarKey = getCharacterAvatarKey(character.id);
 
-    await setDB('blobs', character.avatarKey, {
+    const saved = await setDB('blobs', character.avatarKey, {
       key: character.avatarKey,
       value: avatar,
       source: avatar,
       opacity: 100,
       updatedAt: getNow()
-    }).catch(() => {});
+    });
+    if (!saved) console.warn('import avatar blob save failed:', character.avatarKey);
   }
 
   if (bg && character.chatBackground?.type === 'image') {
     character.chatBackground.value = bg;
     character.chatBackground.blobKey = getCharacterBgKey(character.id);
 
-    await setDB('blobs', character.chatBackground.blobKey, {
+    const saved = await setDB('blobs', character.chatBackground.blobKey, {
       key: character.chatBackground.blobKey,
       value: bg,
       source: bg,
       opacity: Number(character.chatBackground.opacity ?? 100),
       updatedAt: getNow()
-    }).catch(() => {});
+    });
+    if (!saved) console.warn('import chatBackground blob save failed:', character.chatBackground.blobKey);
   }
 }
 
@@ -1858,9 +1850,9 @@ function getProfileAvatarKey(profileId) {
 }
 
 async function saveBlobImage(key, value, file = null, opacity = 100) {
-  if (!key || !value) return;
+  if (!key || !value) return null;
 
-  await setDB('blobs', key, {
+  const saved = await setDB('blobs', key, {
     key,
     value,
     source: value,
@@ -1869,6 +1861,7 @@ async function saveBlobImage(key, value, file = null, opacity = 100) {
     opacity: Number(opacity) || 100,
     updatedAt: getNow()
   });
+  return saved;
 }
 
 function getImageFromRecord(record) {
