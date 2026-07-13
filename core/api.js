@@ -892,39 +892,60 @@ async function readStream(response, callbacks) {
   let fullContent = '';
   let fullThinking = '';
   let completed = false;
-  while (!completed) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const eventBlocks = buffer.split('\n\n');
-    buffer = eventBlocks.pop() || '';
-    for (const event of eventBlocks) {
-      const dataLines = event.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('data:')).map((l) => l.replace(/^data:\s*/, ''));
-      if (!dataLines.length) continue;
-      const chunk = parseStreamPayload(dataLines.join('\n'));
-      fullContent += chunk.content || '';
-      fullThinking = appendValue(fullThinking, chunk.thinking);
-      if (chunk.content || chunk.thinking) callbacks.onChunk?.({ content: chunk.content, thinking: chunk.thinking, raw: chunk.raw, done: false });
-      if (chunk.done) { completed = true; break; }
-    }
-  }
-  if (buffer.trim()) {
-    const dataLines = buffer.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('data:')).map((l) => l.replace(/^data:\s*/, ''));
-    if (dataLines.length) {
-      const chunk = parseStreamPayload(dataLines.join('\n'));
-      fullContent += chunk.content || '';
-      fullThinking = appendValue(fullThinking, chunk.thinking);
-      if (chunk.content || chunk.thinking) callbacks.onChunk?.({ content: chunk.content, thinking: chunk.thinking, raw: chunk.raw, done: false });
-    }
-  }
-  if (!fullContent && buffer.trim()) {
+
+  const safeOnChunk = (data) => {
+    if (typeof callbacks.onChunk !== 'function') return;
     try {
-      const parsed = JSON.parse(buffer.trim());
-      const extracted = extractContentFromData(parsed);
-      if (extracted.content) { fullContent = extracted.content; fullThinking = appendValue(fullThinking, extracted.thinking); }
-    } catch {}
+      callbacks.onChunk(data);
+    } catch (error) {
+      // onChunk 抛错时不能让读取循环无控继续跑，标记完成并抛出终止循环
+      completed = true;
+      throw error;
+    }
+  };
+
+  try {
+    while (!completed) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const eventBlocks = buffer.split('\n\n');
+      buffer = eventBlocks.pop() || '';
+      for (const event of eventBlocks) {
+        const dataLines = event.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('data:')).map((l) => l.replace(/^data:\s*/, ''));
+        if (!dataLines.length) continue;
+        const chunk = parseStreamPayload(dataLines.join('\n'));
+        fullContent += chunk.content || '';
+        fullThinking = appendValue(fullThinking, chunk.thinking);
+        if (chunk.content || chunk.thinking) safeOnChunk({ content: chunk.content, thinking: chunk.thinking, raw: chunk.raw, done: false });
+        if (chunk.done) { completed = true; break; }
+      }
+    }
+    if (buffer.trim()) {
+      const dataLines = buffer.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('data:')).map((l) => l.replace(/^data:\s*/, ''));
+      if (dataLines.length) {
+        const chunk = parseStreamPayload(dataLines.join('\n'));
+        fullContent += chunk.content || '';
+        fullThinking = appendValue(fullThinking, chunk.thinking);
+        if (chunk.content || chunk.thinking) safeOnChunk({ content: chunk.content, thinking: chunk.thinking, raw: chunk.raw, done: false });
+      }
+    }
+    if (!fullContent && buffer.trim()) {
+      // 流结束但未收到标准 SSE 内容，尝试整体 JSON 解析；解析失败给最小排查日志（不刷屏：仅此一处）
+      try {
+        const parsed = JSON.parse(buffer.trim());
+        const extracted = extractContentFromData(parsed);
+        if (extracted.content) { fullContent = extracted.content; fullThinking = appendValue(fullThinking, extracted.thinking); }
+      } catch (error) {
+        console.warn('[api] readStream: buffer 末尾 JSON.parse 失败（可能是半包或非标准响应）', String(buffer).slice(0, 120));
+      }
+    }
+    callbacks.onDone?.({ content: fullContent, thinking: fullThinking });
+  } catch (error) {
+    // reader.read() 抛错或 onChunk 抛错：cancel reader 释放流，避免悬挂读取状态
+    try { await reader.cancel(); } catch (_) {}
+    throw error;
   }
-  callbacks.onDone?.({ content: fullContent, thinking: fullThinking });
 }
 
 function parseJsonFromText(text) {

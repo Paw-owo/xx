@@ -35,11 +35,16 @@ export async function loadRelationshipState(state) {
     const endsAt = new Date(lock.endsAt || 0).getTime();
 
     if (endsAt && endsAt <= now) {
-      await setDB('relationship_locks', {
-        ...lock,
-        status: 'expired',
-        updatedAt: getNow()
-      });
+      // 单条过期标记写入失败不中断整轮，仅记日志
+      try {
+        await setDB('relationship_locks', {
+          ...lock,
+          status: 'expired',
+          updatedAt: getNow()
+        });
+      } catch (error) {
+        console.warn('[thread-relationship] 标记过期锁失败', lock?.id, error);
+      }
       continue;
     }
 
@@ -175,7 +180,13 @@ export function openRelationshipLockSheet(state, options = {}) {
   injectStyle();
 
   const lock = state?.relationshipLock || {};
-  const punishment = state?.relationshipPunishment || {};
+  // punishment 可能为 null/undefined，补安全默认结构避免 undefined 链
+  const rawPunishment = state?.relationshipPunishment || {};
+  const punishment = {
+    title: String(rawPunishment.title || ''),
+    description: String(rawPunishment.description || ''),
+    ...rawPunishment
+  };
   const sheet = el('div', 'chat-lock-sheet');
 
   const head = createMiniHead(
@@ -202,13 +213,17 @@ export function openRelationshipLockSheet(state, options = {}) {
   refresh.addEventListener('click', async () => {
     hideBottomSheet();
 
-    if (typeof options.onRefresh === 'function') {
-      await options.onRefresh();
-      return;
-    }
+    try {
+      if (typeof options.onRefresh === 'function') {
+        await options.onRefresh();
+        return;
+      }
 
-    if (typeof state?.reloadAndRender === 'function') {
-      await state.reloadAndRender();
+      if (typeof state?.reloadAndRender === 'function') {
+        await state.reloadAndRender();
+      }
+    } catch (error) {
+      console.error('[thread-relationship] 刷新关系锁状态失败', error);
     }
   });
 
@@ -239,7 +254,18 @@ function createMiniHead(title, subtitle, sheetOptions) {
     const backBtn = el('button', 'chat-sheet-back-btn');
     backBtn.type = 'button';
     backBtn.setAttribute('aria-label', '返回小工具箱');
-    backBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>';
+    // 用 DOM 创建替代 innerHTML 注入静态 SVG，视觉结构不变
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.5');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M15 18l-6-6 6-6');
+    svg.appendChild(path);
+    backBtn.appendChild(svg);
     backBtn.addEventListener('click', sheetOptions.onBackToTools);
     head.appendChild(backBtn);
   }
