@@ -28,7 +28,7 @@ import {
 
 import { getIdentityCore } from './identity-core.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
-import { buildMcpToolsContext } from '../../core/mcp.js';
+import { buildMcpToolsContext, getUsableMcpTools, callMcpTool } from '../../core/mcp.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
 
@@ -551,6 +551,41 @@ async function requestPrivateReply(state, options = {}) {
       });
       state.renderOnly?.();
 
+      // MCP 工具调用闭环：检测初次回复是否为工具请求 JSON
+      //   是 → 调 callMcpTool → 工具结果作为 context 再请求一次（非流式）
+      //   工具 JSON 不落气泡（清空 acc + placeholder.content，避免流式残留显示）
+      //   失败降级为 null，走普通回复兜底
+      if (result && result.content) {
+        const mcpHandled = await handleMcpToolRequest(result, {
+          promptMessages, character, signal: job.controller.signal
+        });
+        if (mcpHandled.handled) {
+          // 清空流式残留，避免工具 JSON 显示到气泡
+          acc.rawContent = '';
+          acc.rawThinking = '';
+          const ph = state.messages.find((m) => m.id === placeholder.id);
+          if (ph) { ph.content = ''; ph.thinking = ''; ph.isStreaming = false; }
+          if (mcpHandled.finalResult && mcpHandled.finalResult.content) {
+            result = mcpHandled.finalResult;
+          } else {
+            // 工具请求但失败：降级为普通回复（重新请求一次，不带工具协议）
+            try {
+              result = await requestAITextDirect(promptMessages, {
+                signal: job.controller.signal,
+                character,
+                onChunk: (chunk) => {
+                  acc.append(chunk);
+                  const msg = state.messages.find((m) => m.id === placeholder.id);
+                  acc.applyTo(msg);
+                  if (acc.shouldRender()) state.renderOnly?.();
+                }
+              });
+            } catch (_) { result = null; }
+          }
+          state.renderOnly?.();
+        }
+      }
+
       const hasContent = result && (result.content || result.thinking);
       if (!hasContent && character?.useLocalChat) {
         result = await tryLocalOrSiliconFlowReply(state, {
@@ -791,6 +826,36 @@ async function requestGroupReply(state, options = {}) {
             }
           });
           state.renderOnly?.();
+
+          // MCP 工具调用闭环：检测初次回复是否为工具请求 JSON
+          if (result && result.content) {
+            const mcpHandled = await handleMcpToolRequest(result, {
+              promptMessages, character, signal: job.controller.signal
+            });
+            if (mcpHandled.handled) {
+              acc.rawContent = '';
+              acc.rawThinking = '';
+              const ph = state.groupMessages.find((m) => m.id === placeholder.id);
+              if (ph) { ph.content = ''; ph.thinking = ''; ph.isStreaming = false; }
+              if (mcpHandled.finalResult && mcpHandled.finalResult.content) {
+                result = mcpHandled.finalResult;
+              } else {
+                try {
+                  result = await requestAITextDirect(promptMessages, {
+                    signal: job.controller.signal,
+                    character,
+                    onChunk: (chunk) => {
+                      acc.append(chunk);
+                      const msg = state.groupMessages.find((m) => m.id === placeholder.id);
+                      acc.applyTo(msg);
+                      if (acc.shouldRender()) state.renderOnly?.();
+                    }
+                  });
+                } catch (_) { result = null; }
+              }
+              state.renderOnly?.();
+            }
+          }
 
           const hasContent = result && (result.content || result.thinking);
           if (!hasContent && character?.useLocalChat) {
@@ -1257,6 +1322,11 @@ async function buildPrompt({
     mcpToolsPrompt = await buildMcpToolsContext();
   } catch (_) { mcpToolsPrompt = ''; }
 
+  // 工具调用协议规则（只在有可用工具时追加，避免无工具时误导 AI）
+  const mcpToolProtocol = mcpToolsPrompt
+    ? '【MCP工具调用协议】如果我需要调用上面列出的 MCP 工具来辅助回答，必须只输出严格 JSON（不要夹任何其他文字、不要 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。调用后我会把工具结果给你，你再用角色口吻简短回答用户。如果不需要工具，直接正常回复即可。'
+    : '';
+
   const system = [
     buildIdentityPrompt(activeCharacter, userName, userProfile),
     buildCharacterPrompt(activeCharacter, userName),
@@ -1270,6 +1340,7 @@ async function buildPrompt({
     `当前时间：${currentTime}`,
     buildModePrompt(mode, group, activeCharacter, options, userName, userProfile),
     mcpToolsPrompt,
+    mcpToolProtocol,
     options.proactive ? buildProactivePrompt(options.proactiveReason, messages, userName, activeCharacter) : ''
   ].filter(Boolean).join('\n\n');
 
@@ -1639,6 +1710,106 @@ function formatMessageForPrompt(message, mode, userName = '你') {
   }
 
   return `${prefix}${message.content || ''}`.trim();
+}
+
+// ═══════════════════════════════════════
+// 【MCP 工具调用闭环】文本协议：检测 AI 回复是否为工具请求 JSON
+//   是 → 调 callMcpTool → 工具结果作为 context 再请求一次（非流式，禁止再次工具调用）
+//   否 → 原样返回，让调用方按原流程处理
+// 工具 JSON 不落气泡，失败降级为 null（调用方按普通回复处理）
+// ═══════════════════════════════════════
+
+const MCP_TOOL_CALL_TYPE = 'mcp_tool_call';
+
+// 尝试解析 AI 回复是否为严格工具调用 JSON
+// 容错：允许前后有少量空白；不要求整段唯一 JSON（部分模型会包 markdown 代码块）
+function parseMcpToolCall(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+
+  // 直接尝试解析整段
+  let candidates = [trimmed];
+  // 兜底：从 ```json ... ``` 或 ``` ... ``` 里提取
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch && fenceMatch[1]) candidates.push(fenceMatch[1].trim());
+
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && parsed.type === MCP_TOOL_CALL_TYPE
+        && typeof parsed.tool === 'string' && parsed.tool) {
+        return {
+          tool: parsed.tool,
+          arguments: (parsed.arguments && typeof parsed.arguments === 'object') ? parsed.arguments : {}
+        };
+      }
+    } catch (_) { /* 继续下一个候选 */ }
+  }
+  return null;
+}
+
+// 执行一轮 MCP 工具调用闭环
+//   firstResult: requestAITextDirect 的初次结果 {content, thinking}
+//   返回：
+//     { handled: true, finalResult: {content, thinking} }  已走完工具闭环，用 finalResult 作最终回复
+//     { handled: false }                                    不是工具请求，调用方按原流程处理
+//     { handled: true, finalResult: null }                  工具请求但失败，调用方降级为普通回复
+async function handleMcpToolRequest(firstResult, ctx) {
+  if (!firstResult || !firstResult.content) return { handled: false };
+  const toolCall = parseMcpToolCall(firstResult.content);
+  if (!toolCall) return { handled: false };
+
+  const { promptMessages, character, signal } = ctx;
+
+  // 查可用工具列表，找到 toolName 对应的 serverId
+  let usableTools = [];
+  try {
+    usableTools = await getUsableMcpTools();
+  } catch (_) { usableTools = []; }
+  const matched = usableTools.find((t) => t.name === toolCall.tool);
+  if (!matched) {
+    // 工具不存在或已被禁用/需审批：不暴露 JSON，降级为普通回复
+    return { handled: true, finalResult: null };
+  }
+
+  // 调用工具（callMcpTool 内部会二次校验 enabled/requireApproval）
+  let toolResult = null;
+  try {
+    toolResult = await callMcpTool(matched.serverId, matched.tool, toolCall.arguments);
+  } catch (_) { toolResult = null; }
+
+  // 被禁用/需审批/失败：不暴露 JSON，降级为普通回复
+  if (!toolResult || toolResult.blocked || toolResult.blockedByApproval || toolResult.isError) {
+    return { handled: true, finalResult: null };
+  }
+
+  // 工具成功：把结果作为 context 再请求一次 AI（非流式，禁止再次工具调用）
+  // 截断超长工具结果，避免刷上下文
+  const toolText = String(toolResult.text || '').slice(0, 2000);
+  const followUpMessages = [
+    ...promptMessages,
+    { role: 'assistant', content: firstResult.content },
+    {
+      role: 'user',
+      content: `【MCP工具结果 - ${matched.tool}】\n${toolText}\n\n请基于这个结果，用你的角色口吻简短回答我上一句话。不要再调用工具，直接回复。`
+    }
+  ];
+
+  try {
+    const finalResult = await requestAITextDirect(followUpMessages, {
+      character,
+      signal,
+      stream: false,
+      onChunk: null
+    });
+    if (finalResult && finalResult.content) {
+      return { handled: true, finalResult };
+    }
+    return { handled: true, finalResult: null };
+  } catch (_) {
+    return { handled: true, finalResult: null };
+  }
 }
 
 // ═══════════════════════════════════════

@@ -483,36 +483,60 @@ export async function callMcpTool(serverId, toolName, params) {
 }
 
 /**
+ * 获取所有可用工具的扁平列表（enabled:true 且 requireApproval:false）
+ * 供 thread-ai 查找 toolName → serverId 映射
+ * @returns {Promise<Array<{serverId,serverName,name,description,params}>>}
+ */
+export async function getUsableMcpTools() {
+  const servers = getMcpServers();
+  if (!servers.length) return [];
+
+  const result = [];
+  for (const server of servers) {
+    let tools = [];
+    try {
+      tools = await listMcpTools(server.id);
+    } catch (_) { continue; }
+    const usable = tools.filter((t) => t.enabled !== false && t.requireApproval !== true);
+    usable.forEach((tool) => {
+      result.push({
+        serverId: server.id,
+        serverName: server.name || 'MCP',
+        name: tool.name || '',
+        description: tool.description || '',
+        params: getToolParamNames(tool)
+      });
+    });
+  }
+  return result;
+}
+
+/**
  * 构建给 AI 的可用工具上下文（只包含 enabled:true 且 requireApproval:false 的工具）
  * 遍历所有已启用服务器，聚合工具说明，不写死工具名。
  * 任何失败都静默返回空串，不阻塞主聊天流程。
  * @returns {Promise<string>}
  */
 export async function buildMcpToolsContext() {
-  const servers = getMcpServers();
-  if (!servers.length) return '';
+  const tools = await getUsableMcpTools();
+  if (!tools.length) return '';
 
-  const sections = [];
-  for (const server of servers) {
-    let tools = [];
-    try {
-      tools = await listMcpTools(server.id);
-    } catch (_) { continue; }
-    // 只暴露 enabled:true 且 requireApproval:false 的工具给 AI
-    const usable = tools.filter((t) => t.enabled !== false && t.requireApproval !== true);
-    if (!usable.length) continue;
-
-    const lines = usable.map((tool) => {
-      const name = tool.name || '未命名';
-      const desc = tool.description || '暂无描述';
-      const params = getToolParamNames(tool);
-      const paramHint = params.length ? `（参数：${params.join('、')}）` : '';
-      return `- ${name}${paramHint}：${desc}`;
-    });
-    sections.push(`【${server.name || 'MCP'} 工具】\n${lines.join('\n')}`);
+  // 按 serverName 分组
+  const groups = new Map();
+  for (const t of tools) {
+    if (!groups.has(t.serverName)) groups.set(t.serverName, []);
+    groups.get(t.serverName).push(t);
   }
 
-  if (!sections.length) return '';
+  const sections = [];
+  for (const [serverName, list] of groups) {
+    const lines = list.map((tool) => {
+      const paramHint = tool.params.length ? `（参数：${tool.params.join('、')}）` : '';
+      return `- ${tool.name}${paramHint}：${tool.description}`;
+    });
+    sections.push(`【${serverName} 工具】\n${lines.join('\n')}`);
+  }
+
   return `我可以使用以下 MCP 工具辅助回答（工具名和参数如下，需要时在回复里说明调用了哪个工具）：\n${sections.join('\n\n')}`;
 }
 
