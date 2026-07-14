@@ -1191,6 +1191,11 @@ function openMcpEditor(server) {
   );
 
   showBottomSheet(sheet.root);
+  // 给 bottom-sheet 一个确定高度，让 flex:1 子元素能正确撑满
+  // 与 core/ui.js 中 bottom-sheet 的 max-height 保持一致
+  if (sheet.root.parentElement?.classList.contains('bottom-sheet')) {
+    sheet.root.parentElement.style.height = 'min(74vh, 680px)';
+  }
 }
 
 // 单个 MCP 工具卡片：名字 + 描述 + 参数标签 + 主开关 + 需要审批开关
@@ -3490,8 +3495,9 @@ function injectStyle() {
     .settings-mcp-editor-sheet {
       display: flex;
       flex-direction: column;
-      /* 撑满父级 .bottom-sheet 的高度，而不是只占内容高度 */
-      height: 100%;
+      /* 撑满父级 .bottom-sheet（flex column），不依赖 height:100% */
+      flex: 1;
+      min-height: 0;
       max-height: min(80vh, 720px);
       overflow: hidden;
     }
@@ -3501,7 +3507,7 @@ function injectStyle() {
     }
 
     .settings-mcp-editor-sheet .settings-sheet-body {
-      flex: 1 1 auto;
+      flex: 1 1 0;
       min-height: 0;
       overflow: hidden;
       display: flex;
@@ -3520,9 +3526,8 @@ function injectStyle() {
 
     /* 工具 tab 与基础设置 tab 共用的高度规则，保证两 tab 视觉高度一致 */
     .settings-mcp-panel {
-      flex: 1 1 auto;
-      /* 内容少时也保持与基础设置相近的最小高度 */
-      min-height: 240px;
+      flex: 1 1 0;
+      min-height: 0;
       display: flex;
       flex-direction: column;
     }

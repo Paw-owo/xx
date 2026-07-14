@@ -90,6 +90,21 @@ function attachToolStatus(rawTools, toolSettings) {
   });
 }
 
+/**
+ * 从持久化 server.tools + toolSettings 读取工具列表（不依赖网络）
+ * 用于 AI 调用链：getUsableMcpTools / callMcpTool 二次校验
+ * 数据源：app_settings.mcpServers[serverId].tools + .toolSettings
+ * @param {string} serverId
+ * @returns {Array<{name,description,inputSchema,enabled,requireApproval,blockedByApproval}>}
+ */
+export function getPersistedTools(serverId) {
+  const server = findServer(serverId);
+  if (!server) return [];
+  const rawTools = server.tools || [];
+  const toolSettings = getToolSettings(serverId);
+  return attachToolStatus(rawTools, toolSettings);
+}
+
 // ═══════════════════════════════════════
 // 【URL 规范化】用户填的地址可能是：
 //   https://kiss.eoty.cn
@@ -670,12 +685,10 @@ export async function listMcpToolsWithDraft(draftServer) {
  *   requireApproval:true → 返回 { isError:true, blockedByApproval:true }（本轮不自动调用）
  */
 export async function callMcpTool(serverId, toolName, params) {
-  // 二次校验：先拉工具列表确认状态，避免绕过 toolSettings
-  let toolMeta = null;
-  try {
-    const tools = await listMcpTools(serverId);
-    toolMeta = tools.find((t) => t.name === toolName) || null;
-  } catch (_) { /* 拉取失败时让 RPC 自己报错，不阻塞 */ }
+  // 二次校验：从持久化数据读取工具状态，避免绕过 toolSettings
+  // 不依赖网络，直接读 app_settings.mcpServers[serverId].tools + .toolSettings
+  const tools = getPersistedTools(serverId);
+  const toolMeta = tools.find((t) => t.name === toolName) || null;
 
   if (toolMeta && toolMeta.enabled === false) {
     return {
@@ -725,10 +738,8 @@ export async function getUsableMcpTools() {
 
   const result = [];
   for (const server of servers) {
-    let tools = [];
-    try {
-      tools = await listMcpTools(server.id);
-    } catch (_) { continue; }
+    // 从持久化数据读取，不依赖网络：app_settings.mcpServers[serverId].tools + .toolSettings
+    const tools = getPersistedTools(server.id);
     const usable = tools.filter((t) => t.enabled !== false && t.requireApproval !== true);
     usable.forEach((tool) => {
       result.push({
