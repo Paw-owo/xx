@@ -315,7 +315,8 @@ function render() {
 
   if (state.wallpaperImage) {
     const bg = el('div', 'chat-thread-wallpaper');
-    bg.style.backgroundImage = `url(${state.wallpaperImage})`;
+    // 转义 base64 中的引号，避免 background-image 解析失败导致静默空白
+    bg.style.backgroundImage = `url("${String(state.wallpaperImage).replace(/"/g, '\\"')}")`;
     bg.style.opacity = String(state.wallpaperOpacity);
     page.append(bg);
   }

@@ -1,4 +1,6 @@
 // core/mcp.js
+// MCP 客户端：支持 MCP SSE 传输模式
+// 流程：GET /mcp/sse 建流 → 解析 endpoint → POST /mcp/messages?sessionId=xxx 发 JSON-RPC → 从 SSE 流读响应
 // imports: getData from './storage.js'
 
 import { getData } from './storage.js';
@@ -43,84 +45,50 @@ function findServer(serverId) {
 }
 
 // ═══════════════════════════════════════
-// 【请求头】构建 headers，支持 apiKey 认证
+// 【URL 规范化】用户填的地址可能是：
+//   https://kiss.eoty.cn
+//   https://kiss.eoty.cn/mcp
+//   https://kiss.eoty.cn/mcp/sse
+// 统一归一化为 SSE 端点 URL
 // ═══════════════════════════════════════
 
-function buildHeaders(sessionId, apiKey) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json, text/event-stream'
-  };
-  if (sessionId) {
-    headers['Mcp-Session-Id'] = sessionId;
-  }
-  if (apiKey) {
-    headers['Authorization'] = `Bearer ${apiKey}`;
-  }
-  return headers;
+function normalizeSseUrl(rawUrl) {
+  let url = String(rawUrl || '').trim();
+  if (!url) return '';
+  // 去掉末尾 /
+  url = url.replace(/\/+$/, '');
+  // 已明确以 /mcp/sse 结尾，原样使用
+  if (/\/mcp\/sse$/i.test(url)) return url;
+  // 以 /mcp 结尾，补 /sse
+  if (/\/mcp$/i.test(url)) return url + '/sse';
+  // 其他情况（裸域名或带其他路径），补 /mcp/sse
+  return url + '/mcp/sse';
 }
 
-async function fetchWithTimeout(url, options, timeout = MCP_TIMEOUT) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
+function resolveMessageUrl(sseUrl, endpoint) {
+  // endpoint 可能是相对路径 /mcp/messages?sessionId=xxx 或绝对 URL
+  if (!endpoint) return '';
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(timer);
-    return response;
-  } catch (error) {
-    clearTimeout(timer);
-    throw error;
+    const origin = new URL(sseUrl).origin;
+    if (/^https?:\/\//i.test(endpoint)) return endpoint;
+    return origin + (endpoint.startsWith('/') ? endpoint : '/' + endpoint);
+  } catch (_) {
+    return '';
   }
 }
 
-/**
- * 解析响应体，兼容 application/json 和 text/event-stream
- * SSE 格式从 data: 行中提取最后一条带 id 的 JSON-RPC 响应
- */
-async function parseResponseBody(response) {
-  const contentType = response.headers.get('Content-Type') || '';
+// ═══════════════════════════════════════
+// 【请求头】支持 apiKey 认证，不写死 token
+// ═══════════════════════════════════════
 
-  if (contentType.includes('text/event-stream')) {
-    const text = await response.text();
-    const lines = text.split('\n');
-    let lastRpc = null;
-
-    for (const line of lines) {
-      if (!line.startsWith('data:')) continue;
-      const jsonStr = line.slice(5).trim();
-      if (!jsonStr || jsonStr === '[DONE]') continue;
-
-      try {
-        const parsed = JSON.parse(jsonStr);
-        if (parsed.jsonrpc && parsed.id !== undefined) {
-          lastRpc = parsed;
-        }
-      } catch (_) {
-        /* 跳过非 JSON 行 */
-      }
-    }
-
-    if (!lastRpc) {
-      return { ok: false, error: 'SSE 响应中未找到有效结果', result: null };
-    }
-    return parseRpcResult(lastRpc);
-  }
-
-  const data = await response.json();
-  return parseRpcResult(data);
-}
-
-function parseRpcResult(data) {
-  if (data.error) {
-    const code = data.error.code || '';
-    const message = data.error.message || '未知错误';
-    return { ok: false, error: `[${code}] ${message}`, result: null };
-  }
-  return { ok: true, error: null, result: data.result };
+function buildHeaders(sessionId, apiKey, accept) {
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  if (accept) headers['Accept'] = accept;
+  if (sessionId) headers['Mcp-Session-Id'] = sessionId;
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  return headers;
 }
 
 function extractTextFromContent(content) {
@@ -131,8 +99,22 @@ function extractTextFromContent(content) {
     .join('\n');
 }
 
+function parseRpcResult(data) {
+  if (!data || data.jsonrpc !== '2.0') {
+    return { ok: false, error: '响应不是合法 JSON-RPC', result: null };
+  }
+  if (data.error) {
+    const code = data.error.code || '';
+    const message = data.error.message || '未知错误';
+    return { ok: false, error: `[${code}] ${message}`, result: null };
+  }
+  return { ok: true, error: null, result: data.result };
+}
+
 // ═══════════════════════════════════════
-// 【会话初始化】发送 initialize 请求，带认证头
+// 【SSE 会话】每个 serverId 维护一条 SSE 长连接
+// session 结构：
+//   { ready, sseUrl, messageUrl, sessionId, apiKey, abortController, reader, pending: Map<id, {resolve, reject, timer}> }
 // ═══════════════════════════════════════
 
 async function ensureSession(serverId) {
@@ -142,52 +124,212 @@ async function ensureSession(serverId) {
   const server = findServer(serverId);
   if (!server) return null;
 
-  const session = { ready: false, sessionId: null, serverInfo: null, capabilities: null };
-  const serverApiKey = server.apiKey || '';
+  const sseUrl = normalizeSseUrl(server.url);
+  if (!sseUrl) return null;
+  const apiKey = server.apiKey || '';
+
+  const session = {
+    ready: false,
+    sseUrl,
+    messageUrl: '',
+    sessionId: '',
+    apiKey,
+    abortController: null,
+    reader: null,
+    pending: new Map()
+  };
 
   try {
+    // 建立 SSE 流：用 fetch GET + ReadableStream 手动解析（避免 EventSource 不支持自定义头）
+    const controller = new AbortController();
+    session.abortController = controller;
+
+    const response = await fetch(sseUrl, {
+      method: 'GET',
+      headers: buildHeaders(null, apiKey, 'text/event-stream'),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      toast(`MCP SSE 连接失败 (${response.status})`);
+      return null;
+    }
+
+    const reader = response.body.getReader();
+    session.reader = reader;
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    // 等待 endpoint 事件，同时启动后台读取循环处理后续 message 事件
+    const endpointPromise = new Promise((resolve, reject) => {
+      const endpointTimer = setTimeout(() => {
+        reject(new Error('等待 endpoint 超时'));
+      }, MCP_TIMEOUT);
+
+      const pump = () => {
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            clearTimeout(endpointTimer);
+            // 流正常结束但未拿到 endpoint
+            if (!session.messageUrl) {
+              reject(new Error('SSE 流关闭，未收到 endpoint'));
+            }
+            return;
+          }
+          buffer += decoder.decode(value, { stream: true });
+
+          // 按空行分割 SSE 事件块
+          const blocks = buffer.split('\n\n');
+          buffer = blocks.pop() || '';
+
+          for (const block of blocks) {
+            const lines = block.split('\n');
+            let eventType = '';
+            let dataLines = [];
+            for (const line of lines) {
+              if (line.startsWith('event:')) {
+                eventType = line.slice(6).trim();
+              } else if (line.startsWith('data:')) {
+                dataLines.push(line.slice(5).trim());
+              }
+            }
+            const dataStr = dataLines.join('\n');
+
+            if (eventType === 'endpoint' && dataStr) {
+              const messageUrl = resolveMessageUrl(sseUrl, dataStr);
+              if (messageUrl) {
+                session.messageUrl = messageUrl;
+                // 从 query 提取 sessionId 备用（实际认证靠 messageUrl 里的 sessionId query）
+                const sidMatch = messageUrl.match(/[?&]sessionId=([^&]+)/);
+                if (sidMatch) session.sessionId = decodeURIComponent(sidMatch[1]);
+                clearTimeout(endpointTimer);
+                resolve();
+              }
+            } else if (eventType === 'message' && dataStr) {
+              handleSseMessage(session, dataStr);
+            }
+          }
+
+          pump();
+        }).catch((err) => {
+          clearTimeout(endpointTimer);
+          if (session.messageUrl) {
+            // endpoint 已拿到，流异常但已有 messageUrl：清理 session 让下次重连
+            cleanupSession(serverId);
+          } else {
+            reject(err);
+          }
+        });
+      };
+
+      pump();
+    });
+
+    await endpointPromise;
+
+    // endpoint 已拿到，发送 initialize（POST 到 messageUrl）
     const initBody = buildRpc('initialize', {
       protocolVersion: PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: CLIENT_INFO
     });
 
-    const response = await fetchWithTimeout(server.url, {
-      method: 'POST',
-      headers: buildHeaders(null, serverApiKey),
-      body: JSON.stringify(initBody)
-    });
-
-    if (response.ok) {
-      session.sessionId = response.headers.get('Mcp-Session-Id') || null;
-
-      const parsed = await parseResponseBody(response);
-      if (parsed.ok && parsed.result) {
-        session.serverInfo = parsed.result.serverInfo || null;
-        session.capabilities = parsed.result.capabilities || null;
-      }
-
-      try {
-        await fetchWithTimeout(server.url, {
-          method: 'POST',
-          headers: buildHeaders(session.sessionId, serverApiKey),
-          body: JSON.stringify(buildNotification('initialized'))
-        }, 5000);
-      } catch (_) {
-        /* initialized 通知失败不阻塞 */
-      }
+    const initResult = await rpcPostAndWait(session, serverId, initBody);
+    if (initResult && initResult.ok) {
+      session.serverInfo = initResult.result?.serverInfo || null;
+      session.capabilities = initResult.result?.capabilities || null;
     }
-  } catch (_) {
-    /* 初始化失败，仍允许后续请求（兼容不要求初始化的服务器） */
-  }
+    // initialize 失败不阻塞，兼容不要求初始化的服务器
 
-  session.ready = true;
-  sessions.set(serverId, session);
-  return session;
+    session.ready = true;
+    sessions.set(serverId, session);
+    return session;
+  } catch (error) {
+    cleanupSession(serverId);
+    if (error.name === 'AbortError') {
+      toast('MCP SSE 连接超时');
+    } else {
+      toast('MCP SSE 连接失败');
+    }
+    return null;
+  }
+}
+
+// 处理 SSE 流里的 message 事件，匹配 pending 请求并 resolve
+function handleSseMessage(session, dataStr) {
+  let parsed;
+  try {
+    parsed = JSON.parse(dataStr);
+  } catch (_) {
+    return;
+  }
+  if (!parsed || parsed.jsonrpc !== '2.0' || parsed.id === undefined) return;
+
+  const pending = session.pending.get(parsed.id);
+  if (!pending) return;
+
+  clearTimeout(pending.timer);
+  session.pending.delete(parsed.id);
+  pending.resolve(parseRpcResult(parsed));
+}
+
+// 清理 session：abort 流、reject 所有 pending、从 sessions 表移除
+function cleanupSession(serverId) {
+  const session = sessions.get(serverId);
+  if (!session) return;
+
+  try { session.abortController?.abort(); } catch (_) {}
+  try { session.reader?.cancel?.(); } catch (_) {}
+
+  for (const [id, pending] of session.pending) {
+    clearTimeout(pending.timer);
+    try { pending.reject(new Error('会话已关闭')); } catch (_) {}
+  }
+  session.pending.clear();
+  sessions.delete(serverId);
+}
+
+// POST JSON-RPC 到 messageUrl，等 SSE 流里同 id 的响应
+function rpcPostAndWait(session, serverId, rpcBody, timeout = MCP_TIMEOUT) {
+  return new Promise((resolve, reject) => {
+    if (!session.messageUrl) {
+      reject(new Error('会话未就绪，无 messageUrl'));
+      return;
+    }
+
+    const id = rpcBody.id;
+    const timer = setTimeout(() => {
+      session.pending.delete(id);
+      // 超时后清理 session，让下次重连
+      cleanupSession(serverId);
+      reject(new Error('MCP 请求超时'));
+    }, timeout);
+
+    session.pending.set(id, { resolve, reject, timer });
+
+    fetch(session.messageUrl, {
+      method: 'POST',
+      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream'),
+      body: JSON.stringify(rpcBody)
+    }).then((response) => {
+      // POST 到 messages 端点正常返回 202 Accepted，响应体无 result
+      // 真正的响应通过 SSE 流的 message 事件返回，由 handleSseMessage 处理
+      if (!response.ok && response.status !== 202) {
+        session.pending.delete(id);
+        clearTimeout(timer);
+        reject(new Error(`MCP POST 失败 (${response.status})`));
+      }
+      // 202 或其他 ok：不 resolve，等 SSE message 事件
+    }).catch((err) => {
+      session.pending.delete(id);
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
 }
 
 // ═══════════════════════════════════════
-// 【通用 RPC】发送 JSON-RPC 请求，带认证头
+// 【通用 RPC】ensureSession → POST messageUrl → 等 SSE 响应
 // ═══════════════════════════════════════
 
 async function rpcCall(serverId, method, params, isRetry = false) {
@@ -198,38 +340,24 @@ async function rpcCall(serverId, method, params, isRetry = false) {
   }
 
   const session = await ensureSession(serverId);
-  const sessionId = session?.sessionId || null;
-  const serverApiKey = server.apiKey || '';
+  if (!session || !session.ready || !session.messageUrl) {
+    if (!isRetry) {
+      // 会话建立失败，清理后重试一次
+      cleanupSession(serverId);
+    }
+    return null;
+  }
 
   try {
     const body = buildRpc(method, params);
-    const response = await fetchWithTimeout(server.url, {
-      method: 'POST',
-      headers: buildHeaders(sessionId, serverApiKey),
-      body: JSON.stringify(body)
-    });
-
-    /* 会话过期：清除缓存并重试一次 */
-    if (response.status === 404 && sessionId && !isRetry) {
-      sessions.delete(serverId);
+    return await rpcPostAndWait(session, serverId, body);
+  } catch (error) {
+    if (!isRetry) {
+      // 流可能断开，清理后重试一次
+      cleanupSession(serverId);
       return rpcCall(serverId, method, params, true);
     }
-
-    if (!response.ok) {
-      const status = response.status;
-      if (status === 404) {
-        toast('MCP 端点不存在，请检查 URL');
-      } else if (status === 405) {
-        toast('MCP 服务器不支持该请求方式');
-      } else {
-        toast(`MCP 请求失败 (${status})`);
-      }
-      return null;
-    }
-
-    return await parseResponseBody(response);
-  } catch (error) {
-    if (error.name === 'AbortError') {
+    if (error.name === 'AbortError' || /超时/.test(error.message || '')) {
       toast('MCP 请求超时');
     } else if (error.message?.includes('Failed to fetch')) {
       toast('MCP 连接失败，请检查服务器地址或 CORS 配置');
@@ -316,9 +444,11 @@ export function buildMcpContext(serverId, toolName, result) {
  */
 export function resetSession(serverId) {
   if (serverId) {
-    sessions.delete(serverId);
+    cleanupSession(serverId);
   } else {
-    sessions.clear();
+    for (const id of Array.from(sessions.keys())) {
+      cleanupSession(id);
+    }
   }
 }
 

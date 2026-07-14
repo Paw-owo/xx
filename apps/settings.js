@@ -19,7 +19,8 @@ import {
   getAllDB,
   deleteDB,
   clearStoreDB,
-  compressImage
+  compressImage,
+  verifyImageDataUrl
 } from '../core/storage.js';
 
 import {
@@ -746,7 +747,7 @@ async function testMcpServer(id) {
   showToast('正在连接 MCP 服务器...');
   try {
     await resetSession();
-    const tools = await listMcpTools(server);
+    const tools = await listMcpTools(server.id);
     if (Array.isArray(tools)) {
       showToast(`连上啦，找到 ${tools.length} 个工具`);
     } else {
@@ -1247,8 +1248,14 @@ async function uploadBlobImage(key, opacityKey, msg) {
   const file = await pickFile('image/*');
   if (!file) return;
 
-  const dataUrl = await readFileAsDataUrl(file);
+  let dataUrl;
+  try { dataUrl = await readFileAsDataUrl(file); }
+  catch (_) { showToast('图片读取失败，可能格式损坏或不支持'); return; }
   if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
+  // 验证生成的 base64 可被浏览器解码显示，避免"写入成功但无法显示"的假成功
+  const valid = await verifyImageDataUrl(dataUrl);
+  if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
+
   const opacity = Number(getData(opacityKey) ?? 100);
   const saved = await setDB('blobs', key, { key, value: dataUrl, source: file.name, opacity, updatedAt: getNow() });
   if (!saved) { showToast('图片保存失败，可能图片太大或存储已满'); return; }
@@ -1276,8 +1283,13 @@ async function uploadWidgetBg(key) {
   const file = await pickFile('image/*');
   if (!file) return;
 
-  const dataUrl = await readFileAsDataUrl(file);
+  let dataUrl;
+  try { dataUrl = await readFileAsDataUrl(file); }
+  catch (_) { showToast('图片读取失败，可能格式损坏或不支持'); return; }
   if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
+  const valid = await verifyImageDataUrl(dataUrl);
+  if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
+
   const all = getData(WIDGET_BACKGROUNDS_KEY) || {};
   const old = all[key] || {};
   const record = { key, value: dataUrl, source: file.name, opacity: Number(old.opacity ?? 100), updatedAt: getNow() };
@@ -1405,8 +1417,13 @@ async function uploadIcon(id) {
   const file = await pickFile('image/*');
   if (!file) return;
 
-  const dataUrl = await readFileAsDataUrl(file);
+  let dataUrl;
+  try { dataUrl = await readFileAsDataUrl(file); }
+  catch (_) { showToast('图片读取失败，可能格式损坏或不支持'); return; }
   if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
+  const valid = await verifyImageDataUrl(dataUrl);
+  if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
+
   const icons = getData(ICONS_KEY) || {};
   const current = icons[id] || {};
   const blobKey = `app_icon_${id}`;
@@ -2096,15 +2113,13 @@ function readFileAsText(file) {
 }
 
 async function readFileAsDataUrl(file) {
-  // 图片文件走压缩，避免超大 base64 写入 IndexedDB 被拒收导致假成功
+  // 图片文件走压缩（GIF/SVG 会在 compressImage 内部原样保留）
+  // 压缩失败（图片损坏/格式不支持解码）直接抛错，不回退原始读取——
+  // 回退会绕过图片有效性验证，导致"读出 base64 但无法显示"的假成功
   if (file && file.type && file.type.startsWith('image/')) {
-    try {
-      return await compressImage(file, 1800, 0.9);
-    } catch (err) {
-      // 压缩失败时回退到原始 FileReader，保证至少能读出来
-      console.warn('compressImage failed, fallback to raw readAsDataURL', err?.message || err);
-    }
+    return await compressImage(file, 1800, 0.9);
   }
+  // 非图片（如字体）走原始 FileReader
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));

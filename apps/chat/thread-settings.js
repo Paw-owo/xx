@@ -12,7 +12,9 @@ import {
   getAllDB,
   getByIndexDB,
   deleteDB,
-  getNow
+  getNow,
+  compressImage,
+  verifyImageDataUrl
 } from '../../core/storage.js';
 
 import { createIcon, showToast } from '../../core/ui.js';
@@ -321,8 +323,12 @@ function createWallpaperSection() {
     actionBtn('upload', '上传壁纸', async () => {
       const file = await pickFile('image/*');
       if (!file) return;
-      const dataUrl = await readFileAsDataUrl(file);
+      let dataUrl;
+      try { dataUrl = await readFileAsDataUrl(file); }
+      catch (_) { showToast('图片读取失败，可能格式损坏或不支持'); return; }
       if (!dataUrl) { showToast('图片读取失败，换一张试试'); return; }
+      const valid = await verifyImageDataUrl(dataUrl);
+      if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
       const op = resolveOpacity(getData(opacityKey));
       const saved = await setDB('blobs', blobKey, { key: blobKey, value: dataUrl, source: file.name, opacity: op, updatedAt: getNow() });
       if (!saved) { showToast('壁纸保存失败，可能图片太大'); return; }
@@ -1124,18 +1130,21 @@ function pickFile(accept) {
   });
 }
 
-function readFileAsDataUrl(file) {
+async function readFileAsDataUrl(file) {
+  // 图片走 compressImage（GIF/SVG 内部原样保留，PNG 透明填白底，其他压缩）
+  // 压缩失败（图片损坏/格式不支持解码）直接抛错，不回退原始读取，避免假成功
+  if (file && file.type && file.type.startsWith('image/')) {
+    return await compressImage(file, 1800, 0.9);
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       resolve(String(reader.result || ''));
-      // 读取完成后清理引用，避免悬挂
       reader.onload = null;
       reader.onerror = null;
     };
     reader.onerror = () => {
       const error = reader.error || new Error('读取文件失败');
-      // reject 前先清理回调，避免悬挂引用
       reader.onload = null;
       reader.onerror = null;
       reject(error);
