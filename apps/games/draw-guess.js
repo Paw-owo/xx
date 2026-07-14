@@ -894,7 +894,7 @@ async function generateSvgStrokes(word, category, artist) {
 
 async function askAI(messages, temperature = 0.8) {
   try {
-    const result = await silentRequest({ messages, temperature, max_tokens: 1200 });
+    const result = await silentRequest({ messages, temperature, maxTokens: 1200 });
     if (typeof result === 'string') return result;
     return result?.content || result?.text || result?.message || '';
   } catch (_) {

@@ -4,7 +4,7 @@
 // 推送失败只 console.warn，不影响任何业务流程
 // 启动时由 index.html 调用 initPushBridge() 初始化一次
 
-import { getData } from './storage.js';
+import { getData, setData } from './storage.js';
 import { on } from './app-bus.js';
 
 const CLOUD_KEY = 'app_cloud_server';
@@ -47,8 +47,8 @@ async function sendPush(path, payload) {
 
   const url = `${endpoint}${path}`;
   const headers = { 'Content-Type': 'application/json' };
-  // token 走请求头，不写死到代码，也不打印
-  if (apiKey) headers['X-Phone-Token'] = apiKey;
+  // token 走请求头，与 storage-manager.js 的 cloudFetch 统一用 x-api-key，不写死到代码，也不打印
+  if (apiKey) headers['x-api-key'] = apiKey;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUSH_TIMEOUT);
@@ -117,6 +117,60 @@ export async function pushCharacterState(stateOrEvent) {
 }
 
 // ═══════════════════════════════════════
+// 【聊天记录批量推送】会话切出时把 watermark 之后的新消息批量推上去
+// ═══════════════════════════════════════
+
+const WATERMARK_PREFIX = 'push_msg_watermark_';
+
+function readWatermark(characterId) {
+  const key = WATERMARK_PREFIX + String(characterId || '');
+  const raw = getData(key);
+  // 存的是 timestamp 字符串/数字，统一转 number
+  const ts = Number(raw);
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function writeWatermark(characterId, timestamp) {
+  const key = WATERMARK_PREFIX + String(characterId || '');
+  setData(key, timestamp);
+}
+
+export async function pushMessages(characterId, characterName, messages) {
+  if (!characterId) return;
+  if (!Array.isArray(messages) || messages.length === 0) return;
+
+  // 只推 watermark 之后的新消息，避免重复推
+  const watermark = readWatermark(characterId);
+  const newMessages = messages
+    .filter((msg) => {
+      const ts = new Date(msg.timestamp || 0).getTime();
+      return Number.isFinite(ts) && ts > watermark;
+    })
+    .map((msg) => ({
+      id: String(msg.id || ''),
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      content: truncate(msg.content, 2000),
+      timestamp: msg.timestamp || ''
+    }));
+
+  if (newMessages.length === 0) return;
+
+  const payload = {
+    characterId: String(characterId),
+    characterName: String(characterName || ''),
+    messages: newMessages
+  };
+
+  await sendPush('/push/messages', payload);
+
+  // 推送成功后更新 watermark 到最后一条消息的 timestamp
+  const lastTs = new Date(newMessages[newMessages.length - 1].timestamp || 0).getTime();
+  if (Number.isFinite(lastTs)) {
+    writeWatermark(characterId, lastTs);
+  }
+}
+
+// ═══════════════════════════════════════
 // 【事件桥接】订阅 AppBus 事件，fire-and-forget
 // ═══════════════════════════════════════
 
@@ -137,4 +191,4 @@ export function initPushBridge() {
   });
 }
 
-// depends: core/storage.js -> getData; core/app-bus.js -> on
+// depends: core/storage.js -> getData, setData; core/app-bus.js -> on

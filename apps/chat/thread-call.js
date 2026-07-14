@@ -14,7 +14,7 @@ import {
 
 import { createIcon, showToast } from '../../core/ui.js';
 import { silentRequest } from '../../core/api.js';
-import { playTTS, stopAll } from '../../core/tts.js';
+import { playTTS, stopAll, buildCharacterTtsOverride } from '../../core/tts.js';
 import { addMemory } from '../../core/memory.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
@@ -371,13 +371,18 @@ async function sendCallText(textarea) {
 
 async function requestCallReply() {
   const messages = buildCallMessages();
+  const apiConfig = callState.character?.apiConfig;
+  const useCharApi = apiConfig && apiConfig.useGlobal === false;
 
   let content = '';
 
   try {
     content = await silentRequest({
       messages,
-      temperature: 0.85,
+      endpointId: useCharApi ? (apiConfig.endpointId || '') : '',
+      model: useCharApi ? (apiConfig.model || '') : '',
+      temperature: apiConfig?.temperature ?? 0.85,
+      maxTokens: apiConfig?.maxTokens,
       signal: AbortSignal.timeout(15000)
     });
   } catch (error) {
@@ -557,6 +562,9 @@ async function summarizeCall() {
     .map((item) => `${item.role === 'user' ? peerName : name}：${item.content}`)
     .join('\n');
 
+  const apiConfig = callState.character?.apiConfig;
+  const useCharApi = apiConfig && apiConfig.useGlobal === false;
+
   const content = await silentRequest({
     messages: [
       {
@@ -568,7 +576,10 @@ async function summarizeCall() {
         content: transcript
       }
     ],
+    endpointId: useCharApi ? (apiConfig.endpointId || '') : '',
+    model: useCharApi ? (apiConfig.model || '') : '',
     temperature: 0.4,
+    maxTokens: apiConfig?.maxTokens,
     signal: AbortSignal.timeout(5000)
   });
 
@@ -610,7 +621,13 @@ function speakText(text) {
   const content = String(text || '').trim();
   if (!content) return;
 
-  playTTS(content).catch(() => {
+  // 角色 TTS 配置：enabled:false 时跳过播放，否则作为 override 传入
+  const ttsOverride = buildCharacterTtsOverride(callState.character);
+  if (ttsOverride === null && callState.character?.ttsConfig && callState.character.ttsConfig.enabled === false) {
+    return;
+  }
+
+  playTTS(content, ttsOverride || undefined).catch(() => {
     // TTS 失败不影响通话文字
   });
 }

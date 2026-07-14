@@ -121,6 +121,22 @@ function cleanTextForSpeech(text) {
 // 【配置解析】合并全局 TTS 配置和角色覆盖
 // ═══════════════════════════════════════
 
+// 统一把角色 ttsConfig 转成 playTTS 第二参数 configOverride
+// enabled:false 或无配置 → 返回 null（调用方应跳过播放）
+// 字段映射：ttsConfig.{provider,voice,apiKey,endpoint,model} → override 同名
+//          ttsConfig 无 voiceId/language，留给全局兜底
+export function buildCharacterTtsOverride(character) {
+  const cfg = character?.ttsConfig;
+  if (!cfg || cfg.enabled === false) return null;
+  return {
+    provider: cfg.provider || '',
+    voice: cfg.voice || '',
+    apiKey: cfg.apiKey || '',
+    endpoint: cfg.endpoint || '',
+    model: cfg.model || ''
+  };
+}
+
 function resolveConfig(configOverride = {}) {
   const settings = getData('app_settings') || {};
   const globalTts = settings.ttsGlobal || {};

@@ -527,6 +527,46 @@ function getAvailableSources(endpointId = '') {
 }
 
 // ═══════════════════════════════════════
+// 【统一数据源解析】silentRequest / streamMessage 与 callAPI 共用同一入口
+//   优先走新轮换池（IndexedDB api_pool + app_api_pool_groups）
+//   池空时回退旧 app_settings.apiEndpoints（保留兼容，不删旧逻辑）
+// ═══════════════════════════════════════
+
+async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['paid', 'free'] } = {}) {
+  await ensureApiPoolMigrated();
+  const poolItems = await getApiPoolItems();
+
+  // 1. 若指定 endpointId，先在 pool 里精确命中（角色级 endpointId / dream / memory 场景）
+  if (endpointId) {
+    const matched = poolItems.find((item) => String(item.id) === String(endpointId));
+    if (matched) {
+      const matchedGroupType = matched.groupType === 'free' ? 'free' : 'paid';
+      const sources = buildPoolCandidateSources([matched], { model, groupTypes: [matchedGroupType] });
+      if (sources.length) return { sources, fromPool: true };
+    }
+  }
+
+  // 2. 否则按 groupTypes 走池（默认 paid+free，行为与 callAPI 一致）
+  const groups = getPoolGroups();
+  const paidEnabled = groups.paid?.enabled !== false;
+  const freeEnabled = groups.free?.enabled !== false;
+  const paidWanted = groupTypes.includes('paid') || groupTypes.includes('all');
+  const freeWanted = groupTypes.includes('free') || groupTypes.includes('all');
+
+  const paidItems = paidWanted && paidEnabled ? poolItems.filter((item) => item.groupType !== 'free') : [];
+  const freeItems = freeWanted && freeEnabled ? poolItems.filter((item) => item.groupType === 'free') : [];
+
+  const paidSources = buildPoolCandidateSources(paidItems, { model, groupTypes: ['paid'] });
+  const freeSources = buildPoolCandidateSources(freeItems, { model, groupTypes: ['free'] });
+
+  const poolSources = [...paidSources, ...freeSources];
+  if (poolSources.length) return { sources: poolSources, fromPool: true };
+
+  // 3. 池空 → 回退旧 apiEndpoints（保留兼容）
+  return { sources: getAvailableSources(endpointId), fromPool: false };
+}
+
+// ═══════════════════════════════════════
 // 【错误分类】
 // ═══════════════════════════════════════
 
@@ -1184,17 +1224,30 @@ async function callLegacyFallback({
 
 export async function streamMessage({
   messages = [], systemPrompt = '', endpointId = '', model = '',
-  onChunk, onDone, onError, onReset, timeout = DEFAULT_TIMEOUT, temperature, maxTokens
+  onChunk, onDone, onError, onReset, timeout = DEFAULT_TIMEOUT, temperature, maxTokens, signal
 } = {}) {
-  const sources = getAvailableSources(endpointId);
+  const { sources, fromPool } = await resolveApiSources({ endpointId, model });
   let currentTimer = null;
   const hasKeyedSource = sources.some((s) => Boolean(s.apiKey));
-  try {
-    const result = await tryWithFallback({
-      sources, onSwitch: notifyRetry, onReset,
-      buildFn: async (source) => {
+
+  const buildFn = fromPool
+    ? async (source) => {
+        try {
+          const result = await requestOnce({
+            source, messages, systemPrompt,
+            model: model || source.model, stream: true,
+            timeout, temperature, maxTokens, onChunk, signal
+          });
+          await markPoolSourceSuccess(source, result.latencyMs || 0);
+          return result;
+        } catch (error) {
+          if (source?.poolId) await markPoolSourceError(source, String(error?.message || ''), 0);
+          throw error;
+        }
+      }
+    : async (source) => {
         if (currentTimer) { clearTimeout(currentTimer); currentTimer = null; }
-        const { controller, timer } = createTimeoutController(timeout);
+        const { controller, timer } = createTimeoutController(timeout, signal);
         currentTimer = timer;
         try {
           const provider = source.provider || detectProvider(source.endpoint);
@@ -1221,11 +1274,14 @@ export async function streamMessage({
             }).catch(reject);
           });
         } finally { clearTimeout(timer); currentTimer = null; }
-      }
-    });
+      };
+
+  try {
+    const result = await tryWithFallback({ sources, buildFn, onSwitch: notifyRetry, onReset });
     onDone?.(result);
     return true;
   } catch (error) {
+    if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return false; }
     const message = normalizeApiError(error, 'AI 请求失败啦');
     if (hasKeyedSource || error?.isNetworkError || error?.isHttpError) notifyApiError(message);
     onError?.({ message, raw: error, status: getStatusFromError(error) });
@@ -1237,23 +1293,39 @@ export async function streamMessage({
 
 export async function silentRequest({
   prompt = '', messages = [], systemPrompt = '', endpointId = '', model = '',
-  timeout = DEFAULT_TIMEOUT, temperature, maxTokens, json = false
+  timeout = DEFAULT_TIMEOUT, temperature, maxTokens, json = false, signal
 } = {}) {
-  const sources = getAvailableSources(endpointId);
+  const { sources, fromPool } = await resolveApiSources({ endpointId, model });
   let currentTimer = null;
   const hasKeyedSource = sources.some((s) => Boolean(s.apiKey));
-  try {
-    const result = await tryWithFallback({
-      sources, onSwitch: notifyRetry, onReset: null,
-      buildFn: async (source) => {
+  const finalMessages = Array.isArray(messages) && messages.length
+    ? messages
+    : (prompt ? [{ role: 'user', content: prompt }] : []);
+
+  const buildFn = fromPool
+    ? async (source) => {
+        try {
+          const result = await requestOnce({
+            source, messages: finalMessages, systemPrompt,
+            model: model || source.model, stream: false,
+            timeout, temperature, maxTokens, signal
+          });
+          await markPoolSourceSuccess(source, result.latencyMs || 0);
+          return result;
+        } catch (error) {
+          if (source?.poolId) await markPoolSourceError(source, String(error?.message || ''), 0);
+          throw error;
+        }
+      }
+    : async (source) => {
         if (currentTimer) { clearTimeout(currentTimer); currentTimer = null; }
-        const { controller, timer } = createTimeoutController(timeout);
+        const { controller, timer } = createTimeoutController(timeout, signal);
         currentTimer = timer;
         try {
           const provider = source.provider || detectProvider(source.endpoint);
           const requestContext = buildRequestContext({
             endpointConfig: { ...source, provider }, model: model || source.model,
-            systemPrompt, messages: Array.isArray(messages) && messages.length ? messages : [{ role: 'user', content: prompt }],
+            systemPrompt, messages: finalMessages,
             stream: false, temperature, maxTokens
           });
           const hasMessages = requestContext.provider === 'gemini'
@@ -1269,13 +1341,16 @@ export async function silentRequest({
             : await readTextResponse(response, requestContext.provider);
           return { content: String(content || '').trim(), thinking: String(thinking || '').trim() };
         } finally { clearTimeout(timer); currentTimer = null; }
-      }
-    });
+      };
+
+  try {
+    const result = await tryWithFallback({ sources, buildFn, onSwitch: notifyRetry, onReset: null });
     const finalContent = result?.content || '';
     const finalThinking = result?.thinking || '';
     if (json) return parseJsonFromText(finalContent || finalThinking);
     return finalContent || finalThinking;
   } catch (error) {
+    if (signal?.aborted) return json ? null : '';
     const message = normalizeApiError(error, '后台请求失败啦');
     if (hasKeyedSource || error?.isNetworkError || error?.isHttpError) notifyApiError(message);
     return json ? null : '';

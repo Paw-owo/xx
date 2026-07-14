@@ -44,6 +44,41 @@ function findServer(serverId) {
   return servers.find(s => s.id === serverId) || null;
 }
 
+// 读取某个服务器的工具开关配置（按 server.id 隔离）
+// 返回 { [toolName]: { enabled, requireApproval } }，未配置的工具不包含在内
+function getToolSettings(serverId) {
+  const server = findServer(serverId);
+  const raw = server?.toolSettings;
+  if (!raw || typeof raw !== 'object') return {};
+  const result = {};
+  for (const [name, cfg] of Object.entries(raw)) {
+    if (!name || !cfg || typeof cfg !== 'object') continue;
+    result[name] = {
+      enabled: cfg.enabled !== false,
+      requireApproval: cfg.requireApproval === true
+    };
+  }
+  return result;
+}
+
+// 合并工具原始定义与 toolSettings，给每个工具注入状态字段
+//   enabled：是否启用（默认 true）
+//   requireApproval：是否需要审批（默认 false）
+//   blockedByApproval：enabled && requireApproval（本轮禁止自动调用）
+function attachToolStatus(rawTools, toolSettings) {
+  if (!Array.isArray(rawTools)) return [];
+  return rawTools.map((tool) => {
+    const name = tool?.name || '';
+    const cfg = toolSettings[name] || { enabled: true, requireApproval: false };
+    return {
+      ...tool,
+      enabled: cfg.enabled !== false,
+      requireApproval: cfg.requireApproval === true,
+      blockedByApproval: cfg.enabled !== false && cfg.requireApproval === true
+    };
+  });
+}
+
 // ═══════════════════════════════════════
 // 【URL 规范化】用户填的地址可能是：
 //   https://kiss.eoty.cn
@@ -381,24 +416,49 @@ export function getMcpServers() {
 }
 
 /**
- * 获取指定服务器的工具列表
+ * 获取指定服务器的工具列表（带开关状态）
  * @param {string} serverId
- * @returns {Promise<Array<{name,description,inputSchema}>>}
+ * @returns {Promise<Array<{name,description,inputSchema,enabled,requireApproval,blockedByApproval}>>}
+ *   enabled:false 的工具仍会返回（让设置页能看到并重新启用），但不会进入 AI 上下文
  */
 export async function listMcpTools(serverId) {
   const rpc = await rpcCall(serverId, 'tools/list');
   if (!rpc || !rpc.ok) return [];
-  return rpc.result?.tools || [];
+  const toolSettings = getToolSettings(serverId);
+  return attachToolStatus(rpc.result?.tools || [], toolSettings);
 }
 
 /**
- * 调用 MCP 工具
+ * 调用 MCP 工具（调用前二次校验 toolSettings，兜底防止绕过开关）
  * @param {string} serverId
  * @param {string} toolName
  * @param {object} params - 工具参数
- * @returns {Promise<{content:Array, isError:boolean, text:string}|null>}
+ * @returns {Promise<{content:Array, isError:boolean, text:string, blocked?:boolean, blockedByApproval?:boolean}|null>}
+ *   工具不存在 / enabled:false → 返回 { isError:true, blocked:true }
+ *   requireApproval:true → 返回 { isError:true, blockedByApproval:true }（本轮不自动调用）
  */
 export async function callMcpTool(serverId, toolName, params) {
+  // 二次校验：先拉工具列表确认状态，避免绕过 toolSettings
+  let toolMeta = null;
+  try {
+    const tools = await listMcpTools(serverId);
+    toolMeta = tools.find((t) => t.name === toolName) || null;
+  } catch (_) { /* 拉取失败时让 RPC 自己报错，不阻塞 */ }
+
+  if (toolMeta && toolMeta.enabled === false) {
+    return {
+      content: [], isError: true, text: `工具 ${toolName} 已停用`,
+      blocked: true
+    };
+  }
+  if (toolMeta && toolMeta.requireApproval === true) {
+    return {
+      content: [], isError: true,
+      text: `工具 ${toolName} 需要确认才能调用，本轮已阻止自动执行`,
+      blockedByApproval: true
+    };
+  }
+
   const rpc = await rpcCall(serverId, 'tools/call', {
     name: toolName,
     arguments: params || {}
@@ -423,7 +483,71 @@ export async function callMcpTool(serverId, toolName, params) {
 }
 
 /**
- * 将 MCP 工具结果格式化为可注入上下文的字符串
+ * 获取所有可用工具的扁平列表（enabled:true 且 requireApproval:false）
+ * 供 thread-ai 查找 toolName → serverId 映射
+ * @returns {Promise<Array<{serverId,serverName,name,description,params}>>}
+ */
+export async function getUsableMcpTools() {
+  const servers = getMcpServers();
+  if (!servers.length) return [];
+
+  const result = [];
+  for (const server of servers) {
+    let tools = [];
+    try {
+      tools = await listMcpTools(server.id);
+    } catch (_) { continue; }
+    const usable = tools.filter((t) => t.enabled !== false && t.requireApproval !== true);
+    usable.forEach((tool) => {
+      result.push({
+        serverId: server.id,
+        serverName: server.name || 'MCP',
+        name: tool.name || '',
+        description: tool.description || '',
+        params: getToolParamNames(tool)
+      });
+    });
+  }
+  return result;
+}
+
+/**
+ * 构建给 AI 的可用工具上下文（只包含 enabled:true 且 requireApproval:false 的工具）
+ * 遍历所有已启用服务器，聚合工具说明，不写死工具名。
+ * 任何失败都静默返回空串，不阻塞主聊天流程。
+ * @returns {Promise<string>}
+ */
+export async function buildMcpToolsContext() {
+  const tools = await getUsableMcpTools();
+  if (!tools.length) return '';
+
+  // 按 serverName 分组
+  const groups = new Map();
+  for (const t of tools) {
+    if (!groups.has(t.serverName)) groups.set(t.serverName, []);
+    groups.get(t.serverName).push(t);
+  }
+
+  const sections = [];
+  for (const [serverName, list] of groups) {
+    const lines = list.map((tool) => {
+      const paramHint = tool.params.length ? `（参数：${tool.params.join('、')}）` : '';
+      return `- ${tool.name}${paramHint}：${tool.description}`;
+    });
+    sections.push(`【${serverName} 工具】\n${lines.join('\n')}`);
+  }
+
+  return `我可以使用以下 MCP 工具辅助回答（工具名和参数如下，需要时在回复里说明调用了哪个工具）：\n${sections.join('\n\n')}`;
+}
+
+// 从工具 inputSchema 提取参数名（最多 8 个）
+function getToolParamNames(tool) {
+  const props = tool?.inputSchema?.properties || {};
+  return Object.keys(props).slice(0, 8);
+}
+
+/**
+ * 将 MCP 工具结果格式化为可注入上下文的字符串（单次结果格式化，向后兼容）
  * @param {string} serverId
  * @param {string} toolName
  * @param {object} result - callMcpTool 的返回值

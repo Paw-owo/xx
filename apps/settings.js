@@ -746,7 +746,7 @@ async function testMcpServer(id) {
 
   showToast('正在连接 MCP 服务器...');
   try {
-    await resetSession();
+    await resetSession(server.id);
     const tools = await listMcpTools(server.id);
     if (Array.isArray(tools)) {
       showToast(`连上啦，找到 ${tools.length} 个工具`);
@@ -791,19 +791,118 @@ function openMcpEditor(server) {
     sseEndpoint: server?.sseEndpoint || '/sse',
     messageEndpoint: server?.messageEndpoint || '/message',
     enabled: server?.enabled !== false,
+    // 按 server.id 隔离的工具开关配置；已保存的不会被刷新覆盖
+    toolSettings: { ...(server?.toolSettings || {}) },
     updatedAt: getNow()
   };
 
   const sheet = sheetBox(editing ? '编辑 MCP 服务器' : '新增 MCP 服务器');
 
+  // 分段 tab：基础设置 / 工具
+  const seg = el('div', 'settings-segment');
+  let activeTab = 'basic';
+  const basicTabBtn = segment('基础设置', true, () => switchTab('basic'));
+  const toolsTabBtn = segment('工具', false, () => switchTab('tools'));
+  seg.append(basicTabBtn, toolsTabBtn);
+
+  // 基础设置面板
+  const basicPanel = el('div', 'settings-mcp-panel');
   const name = inputRow('名字', current.name || '', '比如：我的世界百科');
   const url = inputRow('服务器地址', current.url || '', 'https://example.com/mcp');
   const sse = inputRow('SSE 地址', current.sseEndpoint || '/sse', '/sse');
   const message = inputRow('消息地址', current.messageEndpoint || '/message', '/message');
   const apiKey = inputRow('API Key', current.apiKey || '', '可选');
   const apiKeyHeader = inputRow('Key 字段名', current.apiKeyHeader || '', '例如 Authorization');
+  basicPanel.append(name.wrap, url.wrap, sse.wrap, message.wrap, apiKey.wrap, apiKeyHeader.wrap);
 
-  sheet.body.append(name.wrap, url.wrap, sse.wrap, message.wrap, apiKey.wrap, apiKeyHeader.wrap);
+  // 工具面板（抽屉式折叠）
+  const toolsPanel = el('div', 'settings-mcp-panel hidden');
+  let toolsCache = [];
+  let toolsLoading = false;
+  let toolsLoaded = false;
+
+  function switchTab(tab) {
+    activeTab = tab;
+    basicTabBtn.classList.toggle('active', tab === 'basic');
+    toolsTabBtn.classList.toggle('active', tab === 'tools');
+    basicPanel.classList.toggle('hidden', tab !== 'basic');
+    toolsPanel.classList.toggle('hidden', tab !== 'tools');
+    // 切到工具 tab 且未拉取过时自动拉取
+    if (tab === 'tools' && !toolsLoaded && !toolsLoading) loadTools();
+  }
+
+  function renderToolsPanel() {
+    toolsPanel.innerHTML = '';
+    const drawer = el('div', 'settings-mcp-tools-drawer expanded');
+
+    const header = el('button', 'settings-mcp-drawer-header');
+    header.type = 'button';
+    const titleEl = el('span', 'settings-mcp-drawer-title', `工具 (${toolsCache.length})`);
+    const hint = el('span', 'settings-mcp-drawer-hint', toolsLoading ? '加载中…' : '点击收起');
+    const arrow = el('span', 'settings-mcp-drawer-arrow');
+    arrow.append(safeIcon('settings', 16));
+    header.append(titleEl, hint, arrow);
+
+    const body = el('div', 'settings-mcp-drawer-body');
+
+    if (toolsLoading) {
+      body.append(el('p', 'settings-note', '正在拉取工具列表…'));
+    } else if (!toolsCache.length) {
+      body.append(el('p', 'settings-note', '还没有工具，先点下面按钮拉取一下'));
+      body.append(actionBtn('check', '拉取工具', loadTools));
+    } else {
+      toolsCache.forEach((tool) => {
+        body.append(renderMcpToolCard(tool, current.toolSettings));
+      });
+    }
+
+    header.addEventListener('click', () => {
+      drawer.classList.toggle('expanded');
+      hint.textContent = drawer.classList.contains('expanded')
+        ? (toolsLoading ? '加载中…' : '点击收起')
+        : '点击展开';
+    });
+
+    drawer.append(header, body);
+    toolsPanel.append(drawer);
+
+    // 顶部刷新按钮
+    if (toolsLoaded && !toolsLoading) {
+      const refreshRow = el('div', 'settings-mcp-tools-refresh');
+      refreshRow.append(actionBtn('check', '重新拉取工具', loadTools));
+      toolsPanel.append(refreshRow);
+    }
+  }
+
+  async function loadTools() {
+    if (toolsLoading) return;
+    toolsLoading = true;
+    renderToolsPanel();
+    try {
+      await resetSession(current.id);
+      const tools = await listMcpTools(current.id);
+      toolsCache = Array.isArray(tools) ? tools : [];
+      // 合并 toolSettings：新发现的工具填默认值，已保存的不覆盖
+      toolsCache.forEach((tool) => {
+        const name = tool?.name;
+        if (!name) return;
+        if (!current.toolSettings[name]) {
+          current.toolSettings[name] = { enabled: true, requireApproval: false };
+        }
+      });
+      toolsLoaded = true;
+      showToast(`找到 ${toolsCache.length} 个工具`);
+    } catch (error) {
+      showToast(String(error?.message || '工具拉取失败'));
+    } finally {
+      toolsLoading = false;
+      renderToolsPanel();
+    }
+  }
+
+  renderToolsPanel();
+
+  sheet.body.append(seg, basicPanel, toolsPanel);
 
   sheet.actions.append(
     actionBtn('check', editing ? '保存' : '添加', () => {
@@ -817,6 +916,7 @@ function openMcpEditor(server) {
         sseEndpoint: sse.input.value.trim() || '/sse',
         messageEndpoint: message.input.value.trim() || '/message',
         enabled: current.enabled,
+        toolSettings: current.toolSettings,
         updatedAt: getNow()
       };
 
@@ -832,6 +932,72 @@ function openMcpEditor(server) {
   );
 
   showBottomSheet(sheet.root);
+}
+
+// 单个 MCP 工具卡片：名字 + 描述 + 参数标签 + 主开关 + 需要审批开关
+// 初始状态优先用 listMcpTools 返回的 tool 对象字段（它已和 toolSettings 同步），
+// 写入仍回 toolSettings，保持单一真实数据源。
+function renderMcpToolCard(tool, toolSettings) {
+  const toolName = tool?.name || '未命名工具';
+  // tool 对象已带 enabled/requireApproval/blockedByApproval（由 core/mcp.js 注入）
+  const initialEnabled = tool?.enabled !== false;
+  const initialApproval = tool?.requireApproval === true;
+
+  const cardEl = el('div', `settings-mcp-tool-card ${initialEnabled ? '' : 'disabled'}`);
+
+  // 顶部：工具名 + 主开关
+  const top = el('div', 'settings-mcp-tool-top');
+  const nameWrap = el('div', 'settings-mcp-tool-name-wrap');
+  nameWrap.append(el('strong', 'settings-mcp-tool-name', toolName));
+  top.append(nameWrap);
+
+  const enableSwitch = switchRow('', initialEnabled, (next) => {
+    toolSettings[toolName] = { ...toolSettings[toolName], enabled: next };
+    cardEl.classList.toggle('disabled', !next);
+  });
+  enableSwitch.classList.add('settings-mcp-tool-switch');
+  top.append(enableSwitch);
+
+  // 描述
+  const desc = el('p', 'settings-mcp-tool-desc', tool?.description || '暂无描述');
+
+  cardEl.append(top, desc);
+
+  // 参数小标签
+  const paramNames = getToolParamNames(tool);
+  if (paramNames.length) {
+    const paramRow = el('div', 'settings-mcp-tool-params');
+    paramNames.forEach((p) => {
+      paramRow.append(el('span', 'settings-mcp-param-chip', p));
+    });
+    cardEl.append(paramRow);
+  }
+
+  // 需要审批开关 + blockedByApproval 提示
+  const approvalRow = el('div', 'settings-mcp-tool-approval');
+  const approvalLabel = el('div', 'settings-mcp-tool-approval-text');
+  approvalLabel.append(
+    el('span', 'settings-mcp-tool-approval-label', '需要审批'),
+    el('span', 'settings-mcp-tool-approval-hint',
+      initialApproval ? '已阻止自动调用' : '调用前问我一句')
+  );
+  const approvalSwitch = switchRow('', initialApproval, (next) => {
+    toolSettings[toolName] = { ...toolSettings[toolName], requireApproval: next };
+    // 同步提示文案
+    const hintEl = approvalLabel.querySelector('.settings-mcp-tool-approval-hint');
+    if (hintEl) hintEl.textContent = next ? '已阻止自动调用' : '调用前问我一句';
+  });
+  approvalSwitch.classList.add('settings-mcp-tool-switch');
+  approvalRow.append(approvalLabel, approvalSwitch);
+  cardEl.append(approvalRow);
+
+  return cardEl;
+}
+
+// 从工具 inputSchema 提取参数名（最多 8 个，避免卡片过长）
+function getToolParamNames(tool) {
+  const props = tool?.inputSchema?.properties || {};
+  return Object.keys(props).slice(0, 8);
 }
 
 // ═══════════════════════════════════════
@@ -2955,6 +3121,181 @@ function injectStyle() {
       .settings-api-top-buttons > .settings-api-top-btn:last-child {
         flex: 1 1 100%;
       }
+    }
+
+    /* ═══ MCP 工具抽屉 + 工具卡片 ═══ */
+    .settings-mcp-panel.hidden { display: none; }
+
+    .settings-mcp-tools-drawer {
+      border-radius: var(--radius-md);
+      background: var(--surface-muted);
+      overflow: hidden;
+    }
+
+    .settings-mcp-drawer-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 16px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--motion);
+    }
+
+    .settings-mcp-drawer-header:active { transform: scale(0.99); }
+
+    .settings-mcp-drawer-title {
+      flex: 0 0 auto;
+      text-align: left;
+      word-break: break-all;
+    }
+
+    .settings-mcp-drawer-hint {
+      flex: 1;
+      color: var(--text-hint);
+      font-size: var(--font-size-small);
+      font-weight: 400;
+      text-align: right;
+    }
+
+    .settings-mcp-drawer-arrow {
+      flex: 0 0 auto;
+      color: var(--text-hint);
+      transition: transform 0.25s ease;
+      display: inline-flex;
+    }
+
+    .settings-mcp-tools-drawer.expanded .settings-mcp-drawer-arrow {
+      transform: rotate(90deg);
+    }
+
+    .settings-mcp-drawer-body {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 0 12px;
+      transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.2s ease;
+    }
+
+    .settings-mcp-tools-drawer.expanded .settings-mcp-drawer-body {
+      max-height: 2400px;
+      opacity: 1;
+      padding-bottom: 12px;
+    }
+
+    .settings-mcp-tools-refresh {
+      display: flex;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .settings-mcp-tool-card {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: var(--motion);
+    }
+
+    .settings-mcp-tool-card.disabled {
+      opacity: 0.55;
+    }
+
+    .settings-mcp-tool-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .settings-mcp-tool-name-wrap {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .settings-mcp-tool-name {
+      display: block;
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      line-height: 1.35;
+      word-break: break-all;
+    }
+
+    .settings-mcp-tool-desc {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: var(--font-size-small);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .settings-mcp-tool-params {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .settings-mcp-param-chip {
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--surface-muted);
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      line-height: 1.4;
+      word-break: break-all;
+    }
+
+    .settings-mcp-tool-approval {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-top: 10px;
+      border-top: 1px solid color-mix(in srgb, var(--text-hint) 12%, transparent);
+    }
+
+    .settings-mcp-tool-approval-text {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .settings-mcp-tool-approval-label {
+      color: var(--text-primary);
+      font-size: var(--font-size-small);
+      font-weight: 500;
+    }
+
+    .settings-mcp-tool-approval-hint {
+      color: var(--text-hint);
+      font-size: 12px;
+    }
+
+    /* 工具卡片内的开关只显示圆点，隐藏空 label span */
+    .settings-mcp-tool-switch {
+      flex: 0 0 auto;
+      padding: 0;
+      min-height: auto;
+      background: transparent;
+    }
+
+    .settings-mcp-tool-switch > span:empty {
+      display: none;
     }
   `;
   document.head.appendChild(styleEl);
