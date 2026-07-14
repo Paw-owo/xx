@@ -36,7 +36,7 @@ import {
 
 import { showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon } from '../core/ui.js';
 import { fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups } from '../core/api.js';
-import { resetSession, getMcpServers, listMcpTools } from '../core/mcp.js';
+import { resetSession, getMcpServers, listMcpTools, listMcpToolsWithDraft } from '../core/mcp.js';
 import { testCloudConnection } from '../core/storage-manager.js';
 
 // ═══════════════════════════════════════
@@ -971,6 +971,8 @@ function openMcpEditor(server) {
   };
 
   const sheet = sheetBox(editing ? '编辑 MCP 服务器' : '新增 MCP 服务器');
+  // 加专属 class，让 MCP 编辑弹层用 flex 布局，工具 tab 高度与基础设置一致
+  sheet.root.classList.add('settings-mcp-editor-sheet');
 
   // 分段 tab：基础设置 / 工具
   const seg = el('div', 'settings-segment');
@@ -980,7 +982,7 @@ function openMcpEditor(server) {
   seg.append(basicTabBtn, toolsTabBtn);
 
   // 基础设置面板
-  const basicPanel = el('div', 'settings-mcp-panel');
+  const basicPanel = el('div', 'settings-mcp-panel settings-mcp-panel-basic');
   const name = inputRow('名字', current.name || '', '比如：我的世界百科');
   const url = inputRow('服务器地址', current.url || '', 'https://example.com/mcp');
   const sse = inputRow('SSE 地址', current.sseEndpoint || '/sse', '/sse');
@@ -1019,6 +1021,7 @@ function openMcpEditor(server) {
   let toolsCache = [];
   let toolsLoading = false;
   let toolsLoaded = false;
+  let toolsError = '';
 
   function switchTab(tab) {
     activeTab = tab;
@@ -1046,9 +1049,18 @@ function openMcpEditor(server) {
 
     if (toolsLoading) {
       body.append(el('p', 'settings-note', '正在拉取工具列表…'));
-    } else if (!toolsCache.length) {
-      body.append(el('p', 'settings-note', '还没有工具，先点下面按钮拉取一下'));
+    } else if (toolsError) {
+      // 失败状态：显示具体可读错误 + 重试按钮
+      body.append(el('p', 'settings-mcp-tools-error', toolsError));
+      body.append(actionBtn('check', '重新拉取工具', loadTools));
+    } else if (!toolsLoaded) {
+      // 初始状态：还没拉取过
+      body.append(el('p', 'settings-note', '点下面按钮拉取一下工具列表'));
       body.append(actionBtn('check', '拉取工具', loadTools));
+    } else if (!toolsCache.length) {
+      // 拉取成功但真的没工具
+      body.append(el('p', 'settings-note', '连上了，但这个服务器没有暴露工具'));
+      body.append(actionBtn('check', '重新拉取工具', loadTools));
     } else {
       toolsCache.forEach((tool) => {
         body.append(renderMcpToolCard(tool, current.toolSettings));
@@ -1065,34 +1077,59 @@ function openMcpEditor(server) {
     drawer.append(header, body);
     toolsPanel.append(drawer);
 
-    // 顶部刷新按钮
-    if (toolsLoaded && !toolsLoading) {
+    // 顶部刷新按钮（拉取成功后显示）
+    if (toolsLoaded && !toolsLoading && !toolsError && toolsCache.length) {
       const refreshRow = el('div', 'settings-mcp-tools-refresh');
       refreshRow.append(actionBtn('check', '重新拉取工具', loadTools));
       toolsPanel.append(refreshRow);
     }
   }
 
+  // 从当前编辑表单组装草稿 server 对象，用于未保存时也能拉工具
+  function buildDraftServer() {
+    return {
+      id: current.id,
+      name: name.input.value.trim() || '未命名服务器',
+      url: url.input.value.trim(),
+      apiKey: apiKey.input.value.trim(),
+      apiKeyHeader: apiKeyHeader.input.value.trim(),
+      sseEndpoint: sse.input.value.trim() || '/sse',
+      messageEndpoint: message.input.value.trim() || '/message',
+      enabled: current.enabled,
+      toolSettings: current.toolSettings
+    };
+  }
+
   async function loadTools() {
     if (toolsLoading) return;
     toolsLoading = true;
+    toolsError = '';
     renderToolsPanel();
     try {
+      const draft = buildDraftServer();
+      // URL 为空时直接给可读错误，不发请求
+      if (!draft.url) {
+        throw new Error('先填一下服务器地址再拉工具呀');
+      }
+      // 用 draft 路径：无论新建还是已保存，都走 listMcpToolsWithDraft
+      // 这样表单里改的 URL/apiKey 能立即生效，不需要先保存
       await resetSession(current.id);
-      const tools = await listMcpTools(current.id);
+      const tools = await listMcpToolsWithDraft(draft);
       toolsCache = Array.isArray(tools) ? tools : [];
       // 合并 toolSettings：新发现的工具填默认值，已保存的不覆盖
       toolsCache.forEach((tool) => {
-        const name = tool?.name;
-        if (!name) return;
-        if (!current.toolSettings[name]) {
-          current.toolSettings[name] = { enabled: true, requireApproval: false };
+        const toolName = tool?.name;
+        if (!toolName) return;
+        if (!current.toolSettings[toolName]) {
+          current.toolSettings[toolName] = { enabled: true, requireApproval: false };
         }
       });
       toolsLoaded = true;
+      toolsError = '';
       showToast(`找到 ${toolsCache.length} 个工具`);
     } catch (error) {
-      showToast(String(error?.message || '工具拉取失败'));
+      toolsError = String(error?.message || '没拉到工具，检查一下地址或连接方式呀');
+      showToast(toolsError);
     } finally {
       toolsLoading = false;
       renderToolsPanel();
@@ -3420,10 +3457,86 @@ function injectStyle() {
     /* ═══ MCP 工具抽屉 + 工具卡片 ═══ */
     .settings-mcp-panel.hidden { display: none; }
 
+    /* MCP 编辑弹层专属布局：让 body 撑满剩余高度，actions 固定底部 */
+    /* 覆盖 .bottom-sheet > :not(.sheet-handle) 的 overflow:auto，改用 flex 内部滚动 */
+    .settings-mcp-editor-sheet {
+      display: flex;
+      flex-direction: column;
+      max-height: min(80vh, 720px);
+      overflow: hidden;
+    }
+
+    .settings-mcp-editor-sheet .settings-sheet-title {
+      flex: 0 0 auto;
+    }
+
+    .settings-mcp-editor-sheet .settings-sheet-body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .settings-mcp-editor-sheet .settings-actions {
+      flex: 0 0 auto;
+    }
+
+    /* tab 切换栏固定，不随内容滚动 */
+    .settings-mcp-editor-sheet .settings-segment {
+      flex: 0 0 auto;
+    }
+
+    /* 工具 tab 与基础设置 tab 共用的高度规则，保证两 tab 视觉高度一致 */
+    .settings-mcp-panel {
+      flex: 1 1 auto;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 基础设置 tab：内容多时 panel 内部滚动，tab header 和 actions 固定 */
+    .settings-mcp-panel-basic:not(.hidden) {
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 2px;
+    }
+
+    /* 工具 tab：panel 不滚，让 drawer-body 内部滚动 */
+    .settings-mcp-panel:not(.settings-mcp-panel-basic):not(.hidden) {
+      overflow: hidden;
+    }
+
+    /* 工具抽屉内部列表可滚动，弹层整体不被无限撑长 */
     .settings-mcp-tools-drawer {
       border-radius: var(--radius-md);
       background: var(--surface-muted);
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .settings-mcp-tools-drawer.expanded .settings-mcp-drawer-body {
+      max-height: none;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 16px;
+    }
+
+    .settings-mcp-tools-error {
+      margin: 0 0 8px 0;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: var(--font-size-small);
+      line-height: 1.5;
+      word-break: break-word;
     }
 
     .settings-mcp-drawer-header {

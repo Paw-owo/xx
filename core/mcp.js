@@ -41,7 +41,15 @@ function buildNotification(method, params) {
   return msg;
 }
 
+// 草稿 server 机制：编辑页新建/修改但未保存时，临时注册 draft server
+// 让 findServer 能找到它，从而复用现有 ensureSession/rpcCall 全套逻辑
+// key = serverId，value = server 对象
+const draftServers = new Map();
+
 function findServer(serverId) {
+  // 优先查 draft（未保存的草稿，或表单值已改但未保存）
+  const draft = draftServers.get(serverId);
+  if (draft) return draft;
   const settings = getData('app_settings');
   const servers = settings?.mcpServers || [];
   return servers.find(s => s.id === serverId) || null;
@@ -610,13 +618,46 @@ export function getMcpServers() {
  * 获取指定服务器的工具列表（带开关状态）
  * @param {string} serverId
  * @returns {Promise<Array<{name,description,inputSchema,enabled,requireApproval,blockedByApproval}>>}
+ *   失败时抛错（带可读原因），让调用方区分"真的没工具"和"连接失败"
  *   enabled:false 的工具仍会返回（让设置页能看到并重新启用），但不会进入 AI 上下文
  */
 export async function listMcpTools(serverId) {
+  const server = findServer(serverId);
+  if (!server) {
+    throw new Error('服务器还没保存，先填好地址点保存吧');
+  }
   const rpc = await rpcCall(serverId, 'tools/list');
-  if (!rpc || !rpc.ok) return [];
+  if (!rpc) {
+    throw new Error('没拉到工具，检查一下地址或连接方式呀');
+  }
+  if (!rpc.ok) {
+    throw new Error(rpc.error?.message || '服务器拒绝了 tools/list 请求');
+  }
   const toolSettings = getToolSettings(serverId);
   return attachToolStatus(rpc.result?.tools || [], toolSettings);
+}
+
+/**
+ * 用草稿 server 对象拉取工具列表（编辑页新建/修改未保存时用）
+ * 内部临时注册 draft，复用现有 ensureSession/rpcCall 全套逻辑，不造第二套
+ * @param {object} draftServer - 完整 server 对象（id/url/apiKey 等）
+ * @returns {Promise<Array>}
+ */
+export async function listMcpToolsWithDraft(draftServer) {
+  if (!draftServer?.id) {
+    throw new Error('服务器信息不完整');
+  }
+  // 注册 draft，让 findServer 能找到
+  draftServers.set(draftServer.id, draftServer);
+  // 清理可能存在的旧 session，确保用新 draft 重新建连
+  cleanupSession(draftServer.id);
+  try {
+    return await listMcpTools(draftServer.id);
+  } finally {
+    // 拉取完成后清理 draft（已保存的 server 走正常 findServer 路径）
+    // 但保留 session 缓存，避免立即重新建连
+    draftServers.delete(draftServer.id);
+  }
 }
 
 /**
