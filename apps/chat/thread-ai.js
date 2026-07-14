@@ -552,35 +552,42 @@ async function requestPrivateReply(state, options = {}) {
       state.renderOnly?.();
 
       // MCP 工具调用闭环：检测初次回复是否为工具请求 JSON
-      //   是 → 调 callMcpTool → 工具结果作为 context 再请求一次（非流式）
-      //   工具 JSON 不落气泡（清空 acc + placeholder.content，避免流式残留显示）
-      //   失败降级为 null，走普通回复兜底
-      if (result && result.content) {
+      //   是 → 先立即清空 placeholder（防止 JSON 闪现/长留气泡）→ 调 callMcpTool
+      //        → 工具结果作为 context 再请求一次（非流式）
+      //   工具 JSON 不落气泡：检测命中后第一时间清空 acc + placeholder 并 renderOnly
+      //   失败降级为普通回复（重新请求一次，不带工具协议）；兜底失败抛错走外层 catch
+      if (result && result.content && parseMcpToolCall(result.content)) {
+        // 命中工具请求：立即清空，避免 JSON 显示到气泡
+        acc.rawContent = '';
+        acc.rawThinking = '';
+        const ph0 = state.messages.find((m) => m.id === placeholder.id);
+        if (ph0) { ph0.content = ''; ph0.thinking = ''; ph0.isStreaming = false; }
+        state.renderOnly?.();
+
         const mcpHandled = await handleMcpToolRequest(result, {
           promptMessages, character, signal: job.controller.signal
         });
         if (mcpHandled.handled) {
-          // 清空流式残留，避免工具 JSON 显示到气泡
-          acc.rawContent = '';
-          acc.rawThinking = '';
-          const ph = state.messages.find((m) => m.id === placeholder.id);
-          if (ph) { ph.content = ''; ph.thinking = ''; ph.isStreaming = false; }
-          if (mcpHandled.finalResult && mcpHandled.finalResult.content) {
+          if (mcpHandled.finalResult && mcpHandled.finalResult.content
+              && !parseMcpToolCall(mcpHandled.finalResult.content)) {
+            // 二次兜底：finalResult 不再是工具 JSON，作为最终回复
             result = mcpHandled.finalResult;
+          } else if (mcpHandled.finalResult && mcpHandled.finalResult.content) {
+            // finalResult 又是工具 JSON（模型不听话）：丢弃，走兜底
+            result = null;
           } else {
             // 工具请求但失败：降级为普通回复（重新请求一次，不带工具协议）
-            try {
-              result = await requestAITextDirect(promptMessages, {
-                signal: job.controller.signal,
-                character,
-                onChunk: (chunk) => {
-                  acc.append(chunk);
-                  const msg = state.messages.find((m) => m.id === placeholder.id);
-                  acc.applyTo(msg);
-                  if (acc.shouldRender()) state.renderOnly?.();
-                }
-              });
-            } catch (_) { result = null; }
+            // 兜底失败抛错，让外层 catch 走 markMessageError，不静默吞错
+            result = await requestAITextDirect(promptMessages, {
+              signal: job.controller.signal,
+              character,
+              onChunk: (chunk) => {
+                acc.append(chunk);
+                const msg = state.messages.find((m) => m.id === placeholder.id);
+                acc.applyTo(msg);
+                if (acc.shouldRender()) state.renderOnly?.();
+              }
+            });
           }
           state.renderOnly?.();
         }
@@ -828,30 +835,35 @@ async function requestGroupReply(state, options = {}) {
           state.renderOnly?.();
 
           // MCP 工具调用闭环：检测初次回复是否为工具请求 JSON
-          if (result && result.content) {
+          if (result && result.content && parseMcpToolCall(result.content)) {
+            // 命中工具请求：立即清空，避免 JSON 显示到气泡
+            acc.rawContent = '';
+            acc.rawThinking = '';
+            const ph0 = state.groupMessages.find((m) => m.id === placeholder.id);
+            if (ph0) { ph0.content = ''; ph0.thinking = ''; ph0.isStreaming = false; }
+            state.renderOnly?.();
+
             const mcpHandled = await handleMcpToolRequest(result, {
               promptMessages, character, signal: job.controller.signal
             });
             if (mcpHandled.handled) {
-              acc.rawContent = '';
-              acc.rawThinking = '';
-              const ph = state.groupMessages.find((m) => m.id === placeholder.id);
-              if (ph) { ph.content = ''; ph.thinking = ''; ph.isStreaming = false; }
-              if (mcpHandled.finalResult && mcpHandled.finalResult.content) {
+              if (mcpHandled.finalResult && mcpHandled.finalResult.content
+                  && !parseMcpToolCall(mcpHandled.finalResult.content)) {
                 result = mcpHandled.finalResult;
+              } else if (mcpHandled.finalResult && mcpHandled.finalResult.content) {
+                result = null;
               } else {
-                try {
-                  result = await requestAITextDirect(promptMessages, {
-                    signal: job.controller.signal,
-                    character,
-                    onChunk: (chunk) => {
-                      acc.append(chunk);
-                      const msg = state.groupMessages.find((m) => m.id === placeholder.id);
-                      acc.applyTo(msg);
-                      if (acc.shouldRender()) state.renderOnly?.();
-                    }
-                  });
-                } catch (_) { result = null; }
+                // 兜底失败抛错，让外层 catch 走 markMessageError，不静默吞错
+                result = await requestAITextDirect(promptMessages, {
+                  signal: job.controller.signal,
+                  character,
+                  onChunk: (chunk) => {
+                    acc.append(chunk);
+                    const msg = state.groupMessages.find((m) => m.id === placeholder.id);
+                    acc.applyTo(msg);
+                    if (acc.shouldRender()) state.renderOnly?.();
+                  }
+                });
               }
               state.renderOnly?.();
             }
