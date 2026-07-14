@@ -1070,13 +1070,29 @@ async function requestOnce({ source, messages = [], systemPrompt = '', model = '
   }
 }
 
+// ═══════════════════════════════════════
+// 【测试注入点】仅供本地单测覆盖内部函数，生产环境为 null 不生效
+// ═══════════════════════════════════════
+
+export const __testHooks = {
+  requestOnce: null,
+  getApiPoolItems: null,
+  markPoolSourceSuccess: null,
+  markPoolSourceError: null
+};
+
 export async function callAPI({
   messages = [], systemPrompt = '', model = '', stream = false, timeout,
   temperature, maxTokens, onChunk, onDone, onError, signal,
   groupTypes = [], endpointId = ''
 } = {}) {
+  const _requestOnce = __testHooks.requestOnce || requestOnce;
+  const _getApiPoolItems = __testHooks.getApiPoolItems || getApiPoolItems;
+  const _markPoolSourceSuccess = __testHooks.markPoolSourceSuccess || markPoolSourceSuccess;
+  const _markPoolSourceError = __testHooks.markPoolSourceError || markPoolSourceError;
+
   await ensureApiPoolMigrated();
-  const poolItems = await getApiPoolItems();
+  const poolItems = await _getApiPoolItems();
   const groups = getPoolGroups();
 
   // 角色级 endpointId：优先精确命中指定端点（用户明确选择，失败不回退其他端点）
@@ -1092,18 +1108,18 @@ export async function callAPI({
         for (const source of epSources) {
           if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
           try {
-            const result = await requestOnce({
+            const result = await _requestOnce({
               source, messages, systemPrompt, model: model || source.model, stream,
               timeout: timeout || epDefaultTimeout, temperature, maxTokens, onChunk, signal
             });
-            await markPoolSourceSuccess(source, result.latencyMs || 0);
+            await _markPoolSourceSuccess(source, result.latencyMs || 0);
             onDone?.(result);
             return result;
           } catch (error) {
             if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
             const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
             const status = getStatusFromError(normalizedError);
-            await markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
+            await _markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
             epLastError = normalizedError;
             const hasMore = epSources.indexOf(source) < epSources.length - 1;
             if (hasMore && isRetryableError(status, Boolean(source.apiKey), source)) {
@@ -1118,8 +1134,12 @@ export async function callAPI({
         onError?.(epLastError || { message: '指定接口没接上', status: 0 });
         return null;
       }
+      // endpointId 命中但无可用 source（disabled / 无 key / 模型不匹配等）：
+      // 用户已明确选择该端点，绝不悄悄改用其他 endpoint
+      onError?.({ message: '指定的接口当前不可用', status: 0 });
+      return null;
     }
-    // endpointId 未命中池或命中但无可用 source，继续走正常 groupTypes 流程
+    // endpointId 未命中池，继续走正常 groupTypes 流程
   }
 
   const effectiveGroupTypes = Array.isArray(groupTypes) && groupTypes.length
@@ -1149,18 +1169,18 @@ export async function callAPI({
   for (const source of paidSources) {
     if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
     try {
-      const result = await requestOnce({
+      const result = await _requestOnce({
         source, messages, systemPrompt, model: model || source.model, stream,
         timeout: timeout || PAID_TIMEOUT, temperature, maxTokens, onChunk, signal
       });
-      await markPoolSourceSuccess(source, result.latencyMs || 0);
+      await _markPoolSourceSuccess(source, result.latencyMs || 0);
       onDone?.(result);
       return result;
     } catch (error) {
       if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
       const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
       const status = getStatusFromError(normalizedError);
-      await markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
+      await _markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
       const hasMorePaid = paidSources.indexOf(source) < paidSources.length - 1;
       if (hasMorePaid && isRetryableError(status, Boolean(source.apiKey), source)) {
         const nextSource = paidSources[paidSources.indexOf(source) + 1];
@@ -1175,16 +1195,16 @@ export async function callAPI({
     const source = freeSources[0];
     if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
     try {
-      const result = await requestOnce({
+      const result = await _requestOnce({
         source, messages, systemPrompt, model: model || source.model, stream,
         timeout: timeout || FREE_TIMEOUT, temperature, maxTokens, onChunk, signal
       });
-      await markPoolSourceSuccess(source, result.latencyMs || 0);
+      await _markPoolSourceSuccess(source, result.latencyMs || 0);
       onDone?.(result);
       return result;
     } catch (error) {
       if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
-      await markPoolSourceError(source, String(error?.message || ''), 0);
+      await _markPoolSourceError(source, String(error?.message || ''), 0);
       const elapsed = Date.now() - callStartedAt;
       if (elapsed >= FREE_HINT_THRESHOLD) notifyPoolHint('免费接口等了好久都没回应，建议换个模型试试');
       onError?.({ message: '免费接口暂时没接上', raw: error, status: getStatusFromError(error) });
