@@ -1,0 +1,140 @@
+// core/push.js
+// 生活流 push：在朋友圈发布 / 梦境生成 / AI 回复完成时，向 MCP 服务端推送摘要
+// 复用云同步配置 (app_cloud_server) 的 enabled / endpoint / apiKey
+// 推送失败只 console.warn，不影响任何业务流程
+// 启动时由 index.html 调用 initPushBridge() 初始化一次
+
+import { getData } from './storage.js';
+import { on } from './app-bus.js';
+
+const CLOUD_KEY = 'app_cloud_server';
+const DEFAULT_ENDPOINT = 'https://kiss.eoty.cn';
+const PUSH_TIMEOUT = 8000;
+
+let initialized = false;
+
+// ═══════════════════════════════════════
+// 【配置读取】从云同步配置里取 enabled / endpoint / apiKey
+// ═══════════════════════════════════════
+
+function readCloudConfig() {
+  const cloud = getData(CLOUD_KEY) || {};
+  const enabled = cloud.enabled === true;
+  let endpoint = String(cloud.endpoint || '').trim();
+  // endpoint 为空时使用默认建议地址，但不写死 token
+  if (!endpoint) endpoint = DEFAULT_ENDPOINT;
+  // 去掉末尾 /
+  endpoint = endpoint.replace(/\/+$/, '');
+  const apiKey = String(cloud.apiKey || '').trim();
+  return { enabled, endpoint, apiKey };
+}
+
+function truncate(text, max) {
+  const str = String(text || '').trim();
+  if (!str) return '';
+  return str.length > max ? str.slice(0, max) : str;
+}
+
+// ═══════════════════════════════════════
+// 【底层发送】统一 fetch，失败只 warn 不 throw
+// ═══════════════════════════════════════
+
+async function sendPush(path, payload) {
+  const { enabled, endpoint, apiKey } = readCloudConfig();
+  // 云同步未开启时不推送，也不发任何请求
+  if (!enabled) return;
+  if (!endpoint) return;
+
+  const url = `${endpoint}${path}`;
+  const headers = { 'Content-Type': 'application/json' };
+  // token 走请求头，不写死到代码，也不打印
+  if (apiKey) headers['X-Phone-Token'] = apiKey;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PUSH_TIMEOUT);
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      console.warn('[push]', path, 'status', response.status);
+    }
+  } catch (err) {
+    console.warn('[push]', path, err?.message || err);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ═══════════════════════════════════════
+// 【三个推送时机】只推摘要，不推大段全文
+// ═══════════════════════════════════════
+
+export async function pushMoment(post) {
+  if (!post) return;
+  // 兼容 { post } 包装或直接传 post
+  const data = post.post || post;
+  const payload = {
+    id: data.id || '',
+    summary: truncate(data.content, 160),
+    author_id: data.authorId || data.characterId || 'user',
+    author_name: data.authorName || data.author_name || data.authorId || '',
+    timestamp: data.timestamp || data.createdAt || Date.now()
+  };
+  await sendPush('/push/moment', payload);
+}
+
+export async function pushDream(dreamOrEvent) {
+  if (!dreamOrEvent) return;
+  const data = dreamOrEvent.dream || dreamOrEvent;
+  const payload = {
+    id: data.id || data.dreamId || '',
+    summary: truncate(data.summary || data.content, 200),
+    character_id: data.characterId || data.character_id || '',
+    mood: data.mood || '',
+    timestamp: data.createdAt || data.timestamp || Date.now()
+  };
+  await sendPush('/push/dream', payload);
+}
+
+export async function pushCharacterState(stateOrEvent) {
+  if (!stateOrEvent) return;
+  const data = stateOrEvent.state || stateOrEvent;
+  const lastMessage = truncate(data.lastMessage || data.last_message || data.content, 160);
+  // 没有独立状态摘要时，用最近一条回复作为状态摘要
+  const summary = truncate(data.summary || lastMessage, 240);
+  const payload = {
+    character_id: data.characterId || data.character_id || '',
+    character_name: data.characterName || data.character_name || '',
+    last_message: lastMessage,
+    summary,
+    updated_at: new Date().toISOString()
+  };
+  await sendPush('/push/character-state', payload);
+}
+
+// ═══════════════════════════════════════
+// 【事件桥接】订阅 AppBus 事件，fire-and-forget
+// ═══════════════════════════════════════
+
+export function initPushBridge() {
+  if (initialized) return;
+  initialized = true;
+
+  on('moments:published', (eventData) => {
+    pushMoment(eventData).catch(() => {});
+  });
+
+  on('dream:created', (eventData) => {
+    pushDream(eventData).catch(() => {});
+  });
+
+  on('chat:ai-reply-finished', (eventData) => {
+    pushCharacterState(eventData).catch(() => {});
+  });
+}
+
+// depends: core/storage.js -> getData; core/app-bus.js -> on

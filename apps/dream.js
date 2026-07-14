@@ -936,7 +936,7 @@ ${recentText || '（还没有对话记录）'}
         importance: 3,
         mood: dream.mood || ''
       });
-      window.AppBus?.emit?.('dream:created', { dreamId: dream.id, characterId: ch.id, mood: dream.mood });
+      window.AppBus?.emit?.('dream:created', { dreamId: dream.id, characterId: ch.id, mood: dream.mood, summary: dream.summary, createdAt: dream.createdAt });
     } catch (_) {}
   } catch (err) {
     console.warn('[梦境] 生成失败:', err);

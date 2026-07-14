@@ -670,6 +670,15 @@ async function requestPrivateReply(state, options = {}) {
       await updateUnreadCount(characterId, 0);
     }
 
+    // AI 回复正常完成：通知 push 桥接推送角色状态（中断/报错不会走到这里）
+    try {
+      window.AppBus?.emit?.('chat:ai-reply-finished', {
+        characterId,
+        characterName: character?.name || '',
+        lastMessage: finalMessage.content || ''
+      });
+    } catch (_) {}
+
     return finalMessage;
   } catch (error) {
     if (isAbortError(error) || isJobStopped(job)) {
@@ -879,6 +888,15 @@ async function requestGroupReply(state, options = {}) {
         }
 
         replies.push(finalMessage);
+
+        // 该角色群聊回复正常完成：通知 push 桥接推送角色状态
+        try {
+          window.AppBus?.emit?.('chat:ai-reply-finished', {
+            characterId: character.id,
+            characterName: character.name || '',
+            lastMessage: finalMessage.content || ''
+          });
+        } catch (_) {}
       } catch (error) {
         if (isAbortError(error) || isJobStopped(job)) {
           await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');

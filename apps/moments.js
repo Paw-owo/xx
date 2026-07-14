@@ -331,6 +331,8 @@ function openPublishSheet() {
     render();
     showToast('发出去啦');
 
+    try { window.AppBus?.emit?.('moments:published', { id: post.id, content: post.content, authorId: post.authorId, timestamp: post.timestamp }); } catch (_) {}
+
     await maybeAiInteract(post);
   });
 

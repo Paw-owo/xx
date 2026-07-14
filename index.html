@@ -1188,6 +1188,7 @@
     import { registerAPI, getAPI, emit as busEmit, on as busOn, openApp as busOpenApp, recordExternalInteraction as busRecordExternalInteraction, subscribe as busSubscribe } from './core/app-bus.js';
     import { initChatEventBridge } from './core/chat-event-bridge.js';
     import { initAnniversaryBridge } from './core/anniversary-bridge.js';
+    import { initPushBridge } from './core/push.js';
 
     const LOCK_PASSWORD = '0326';
     const CUSTOM_FONT_KEY = 'app_custom_font';
@@ -1324,6 +1325,7 @@
         setupAppEvents();
         initChatEventBridge();
         initAnniversaryBridge();
+        initPushBridge();
         initWidgets();
         await applyAllImages();
         refreshBadges();
