@@ -692,6 +692,134 @@ async function renderTtsPage() {
 }
 
 // ═══════════════════════════════════════
+// 【MCP 推荐模板】集中定义，单一数据源
+// 模板只是生成新 server 的草稿，不自动写入 mcpServers
+// ═══════════════════════════════════════
+
+const MCP_RECOMMENDED_TEMPLATES = [
+  {
+    id: 'sense',
+    name: '我的感知服务器',
+    description: '读取朋友圈、梦境、角色状态、今日简报、聊天记录',
+    url: '',
+    apiKeyPlaceholder: '如果服务器需要认证就填这里',
+    tags: ['感知'],
+    category: 'custom',
+    requiresManualUrl: true,
+    defaultEnabled: false,
+    hint: '把你的服务器地址填进来就能用啦'
+  },
+  {
+    id: 'context7',
+    name: 'Context7',
+    description: '查开发文档、框架用法、版本差异',
+    url: '',
+    apiKeyPlaceholder: '可选，部分部署需要',
+    tags: ['文档'],
+    category: 'docs',
+    requiresManualUrl: true,
+    defaultEnabled: false,
+    hint: '需要填入可用的服务器地址'
+  },
+  {
+    id: 'deepwiki',
+    name: 'DeepWiki',
+    description: '读 GitHub 仓库结构和文档，更快看懂项目',
+    url: '',
+    apiKeyPlaceholder: '可选，部分部署需要',
+    tags: ['仓库'],
+    category: 'repo',
+    requiresManualUrl: true,
+    defaultEnabled: false,
+    hint: '需要填入可用的服务器地址'
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    description: '仓库、Issue、PR、文件浏览这类能力',
+    url: '',
+    apiKeyPlaceholder: '需要填 GitHub Token',
+    tags: ['仓库'],
+    category: 'repo',
+    requiresManualUrl: true,
+    defaultEnabled: false,
+    hint: '需要填 GitHub Token 才能用'
+  }
+];
+
+// 从模板生成 server 草稿，打开编辑弹层
+// 不自动保存、不自动启用、不自动测试
+function addServerFromTemplate(template) {
+  // 感知服务器模板：尝试从云服务器配置读 endpoint 作为 url 建议，读不到就留空
+  let prefillUrl = template.url || '';
+  if (template.id === 'sense') {
+    try {
+      const cloud = getData(CLOUD_KEY) || {};
+      if (cloud.endpoint) prefillUrl = cloud.endpoint;
+    } catch (_) { /* 读不到就留空 */ }
+  }
+
+  const draft = {
+    id: generateId('mcp'),
+    name: template.name || '',
+    url: prefillUrl,
+    apiKey: '',
+    apiKeyHeader: '',
+    sseEndpoint: '/sse',
+    messageEndpoint: '/message',
+    enabled: false,
+    toolSettings: {},
+    updatedAt: getNow()
+  };
+
+  // 打开编辑弹层，让用户确认/补全后自行保存
+  openMcpEditor(draft);
+}
+
+// 渲染推荐模板区域
+function renderMcpRecommendedSection() {
+  const section = card('推荐添加', '点一下就能帮你填好草稿，地址和密钥要自己补哦');
+  const list = el('div', 'settings-mcp-recommended-list');
+
+  MCP_RECOMMENDED_TEMPLATES.forEach((template) => {
+    const item = el('div', 'settings-mcp-recommended-card');
+
+    // 顶部：图标 + 名称 + 添加按钮
+    const head = el('div', 'settings-mcp-recommended-head');
+    const iconWrap = el('div', 'settings-mcp-recommended-icon');
+    const iconMap = { sense: 'eye', context7: 'book', deepwiki: 'compass', github: 'github' };
+    iconWrap.append(safeIcon(iconMap[template.id] || 'star', 18));
+    const nameBox = el('div', 'settings-mcp-recommended-namebox');
+    nameBox.append(el('div', 'settings-mcp-recommended-name', template.name));
+
+    // 标签
+    const tagsRow = el('div', 'settings-mcp-recommended-tags');
+    (template.tags || []).forEach((tag) => {
+      tagsRow.append(el('span', 'settings-mcp-recommended-tag', tag));
+    });
+    nameBox.append(tagsRow);
+    head.append(iconWrap, nameBox);
+
+    const addBtn = makeButton('settings-mcp-recommended-add', '添加', 'add', () => addServerFromTemplate(template));
+    head.append(addBtn);
+    item.append(head);
+
+    // 说明
+    item.append(el('p', 'settings-mcp-recommended-desc', template.description));
+
+    // 需要手动填地址的提示
+    if (template.requiresManualUrl) {
+      item.append(el('p', 'settings-mcp-recommended-hint', template.hint || '需要自己填地址'));
+    }
+
+    list.append(item);
+  });
+
+  section.append(list);
+  return section;
+}
+
+// ═══════════════════════════════════════
 // 【MCP 页】
 // ═══════════════════════════════════════
 
@@ -728,6 +856,9 @@ function renderMcpPage() {
     ]));
     wrap.append(item);
   });
+
+  // 推荐模板区域：点一下生成草稿进编辑弹层，不自动保存/启用
+  wrap.append(renderMcpRecommendedSection());
 
   return wrap;
 }
@@ -3121,6 +3252,84 @@ function injectStyle() {
       .settings-api-top-buttons > .settings-api-top-btn:last-child {
         flex: 1 1 100%;
       }
+    }
+
+    /* ═══ MCP 推荐模板卡片 ═══ */
+    .settings-mcp-recommended-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .settings-mcp-recommended-card {
+      padding: 14px 16px;
+      border-radius: var(--radius-md);
+      background: var(--surface-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .settings-mcp-recommended-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .settings-mcp-recommended-icon {
+      width: 36px;
+      height: 36px;
+      flex: 0 0 36px;
+      border-radius: 12px;
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .settings-mcp-recommended-namebox {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .settings-mcp-recommended-name {
+      color: var(--text-primary);
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+      word-break: break-word;
+    }
+    .settings-mcp-recommended-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .settings-mcp-recommended-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      font-size: 11px;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .settings-mcp-recommended-add {
+      flex: 0 0 auto;
+    }
+    .settings-mcp-recommended-desc {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .settings-mcp-recommended-hint {
+      margin: 0;
+      color: var(--text-hint);
+      font-size: 12px;
+      line-height: 1.4;
     }
 
     /* ═══ MCP 工具抽屉 + 工具卡片 ═══ */
