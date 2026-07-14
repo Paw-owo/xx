@@ -47,8 +47,8 @@ async function sendPush(path, payload) {
 
   const url = `${endpoint}${path}`;
   const headers = { 'Content-Type': 'application/json' };
-  // token 走请求头，不写死到代码，也不打印
-  if (apiKey) headers['X-Phone-Token'] = apiKey;
+  // token 走请求头，与 storage-manager.js 的 cloudFetch 统一用 x-api-key，不写死到代码，也不打印
+  if (apiKey) headers['x-api-key'] = apiKey;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PUSH_TIMEOUT);
