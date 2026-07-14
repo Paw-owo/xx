@@ -1038,8 +1038,22 @@ function openMcpEditor(server) {
     toolsTabBtn.classList.toggle('active', tab === 'tools');
     basicPanel.classList.toggle('hidden', tab !== 'basic');
     toolsPanel.classList.toggle('hidden', tab !== 'tools');
-    // 切到工具 tab 且未拉取过时自动拉取
-    if (tab === 'tools' && !toolsLoaded && !toolsLoading) loadTools();
+    // 不再自动拉取工具：已保存工具从 server.tools 恢复，用户主动点击才联网
+    // 切到工具 tab 时，从持久化数据恢复工具显示（本地读取，不联网）
+    if (tab === 'tools' && !toolsLoaded && !toolsLoading) {
+      restoreSavedTools();
+    }
+  }
+
+  // 从持久化 server.tools 恢复工具列表（纯本地读取，不联网）
+  // 与 refreshToolsFromServer 区分：前者读本地，后者联网拉取
+  function restoreSavedTools() {
+    if (current.tools.length > 0) {
+      toolsCache = current.tools.slice();
+      toolsLoaded = true;
+      toolsError = '';
+      renderToolsPanel();
+    }
   }
 
   function renderToolsPanel() {
@@ -1061,15 +1075,15 @@ function openMcpEditor(server) {
     } else if (toolsError) {
       // 失败状态：显示具体可读错误 + 重试按钮
       body.append(el('p', 'settings-mcp-tools-error', toolsError));
-      body.append(actionBtn('check', '重新拉取工具', loadTools));
+      body.append(actionBtn('check', '重新拉取工具', refreshToolsFromServer));
     } else if (!toolsLoaded) {
       // 初始状态：还没拉取过
       body.append(el('p', 'settings-note', '点下面按钮拉取一下工具列表'));
-      body.append(actionBtn('check', '拉取工具', loadTools));
+      body.append(actionBtn('check', '拉取工具', refreshToolsFromServer));
     } else if (!toolsCache.length) {
       // 拉取成功但真的没工具
       body.append(el('p', 'settings-note', '连上了，但这个服务器没有暴露工具'));
-      body.append(actionBtn('check', '重新拉取工具', loadTools));
+      body.append(actionBtn('check', '重新拉取工具', refreshToolsFromServer));
     } else {
       toolsCache.forEach((tool) => {
         body.append(renderMcpToolCard(tool, current.toolSettings));
@@ -1089,7 +1103,7 @@ function openMcpEditor(server) {
     // 顶部刷新按钮（拉取成功后显示）
     if (toolsLoaded && !toolsLoading && !toolsError && toolsCache.length) {
       const refreshRow = el('div', 'settings-mcp-tools-refresh');
-      refreshRow.append(actionBtn('check', '重新拉取工具', loadTools));
+      refreshRow.append(actionBtn('check', '重新拉取工具', refreshToolsFromServer));
       toolsPanel.append(refreshRow);
     }
   }
@@ -1110,7 +1124,7 @@ function openMcpEditor(server) {
     };
   }
 
-  async function loadTools() {
+  async function refreshToolsFromServer() {
     if (toolsLoading) return;
     toolsLoading = true;
     toolsError = '';
@@ -1184,8 +1198,23 @@ function openMcpEditor(server) {
         : [...settings.mcpServers, { ...nextServer, createdAt: getNow() }];
 
       saveSettings({ ...settings, mcpServers: servers });
+
+      // 保存后立刻从 localStorage 回读验证，确保 server.tools 真的持久化
+      const saved = getData('app_settings');
+      if (saved && Array.isArray(saved.mcpServers)) {
+        const verified = saved.mcpServers.find((s) => s.id === current.id);
+        if (verified && Array.isArray(verified.tools) && verified.tools.length > 0) {
+          showToast(editing ? '保存好啦 (' + verified.tools.length + ' 个工具)' : '加好啦');
+        } else if (verified) {
+          showToast(editing ? '保存好啦（暂无工具）' : '加好啦');
+        } else {
+          showToast('保存异常：未找到该服务器，请重试');
+        }
+      } else {
+        showToast(editing ? '保存好啦' : '加好啦');
+      }
+
       hideBottomSheet();
-      showToast(editing ? '保存好啦' : '加好啦');
       render('mcp');
     })
   );
