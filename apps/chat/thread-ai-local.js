@@ -107,7 +107,9 @@ function hasUserAPI() {
 export async function tryLocalOrSiliconFlowReply(state, options = {}) {
   if (!state) return null;
 
-  const character = state.character;
+  // 优先用 options.character（群聊场景传入的当前发言角色），
+  // 其次回退到 state.character（私聊场景）
+  const character = options.character || state.character;
   if (!character?.useLocalChat) return null;
 
   if (hasUserAPI()) return null;

@@ -578,7 +578,17 @@ async function requestPrivateReply(state, options = {}) {
           } else {
             // 工具请求但失败：降级为普通回复（重新请求一次，不带工具协议）
             // 兜底失败抛错，让外层 catch 走 markMessageError，不静默吞错
-            result = await requestAITextDirect(promptMessages, {
+            // 移除 MCP 协议段，避免模型再次输出工具 JSON
+            const cleanMessages = promptMessages.map(m => {
+              if (m.role === 'system') {
+                // 去掉工具协议行和工具列表行
+                return { ...m, content: String(m.content || '')
+                  .replace(/如果我需要用上面列出的工具来辅助回答[^]*?不需要工具时直接正常回复。/g, '')
+                  .replace(/我可以用以下工具辅助回答[^]*?不会在回复里报工具名）：\n[\s\S]*?(?=\n\n|$)/g, '') };
+              }
+              return m;
+            });
+            result = await requestAITextDirect(cleanMessages, {
               signal: job.controller.signal,
               character,
               onChunk: (chunk) => {
@@ -588,6 +598,10 @@ async function requestPrivateReply(state, options = {}) {
                 if (acc.shouldRender()) state.renderOnly?.();
               }
             });
+            // 兜底重试结果仍可能是工具 JSON，二次检测并丢弃
+            if (result && result.content && parseMcpToolCall(result.content)) {
+              result = null;
+            }
           }
           state.renderOnly?.();
         }
@@ -604,8 +618,7 @@ async function requestPrivateReply(state, options = {}) {
     } catch (apiError) {
       if (isAbortError(apiError) || isJobStopped(job)) {
         await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
-        await syncPrivateState(state, characterId);
-        state.renderOnly?.();
+        if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
         return null;
       }
 
@@ -618,16 +631,14 @@ async function requestPrivateReply(state, options = {}) {
       if (!result) {
         const friendlyMessage = getFriendlyErrorMessage(apiError?.status || 0, apiError);
         await markMessageError(PRIVATE_STORE, placeholder.id, friendlyMessage);
-        await syncPrivateState(state, characterId);
-        state.renderOnly?.();
+        if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
         return null;
       }
     }
 
     if (isJobStopped(job)) {
       await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
-      await syncPrivateState(state, characterId);
-      state.renderOnly?.();
+      if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
       return null;
     }
 
@@ -635,8 +646,7 @@ async function requestPrivateReply(state, options = {}) {
 
     if (!parsed.content && !parsed.thinking) {
       await deleteDB(PRIVATE_STORE, placeholder.id);
-      await syncPrivateState(state, characterId);
-      state.renderOnly?.();
+      if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
       return null;
     }
 
@@ -698,8 +708,7 @@ async function requestPrivateReply(state, options = {}) {
       });
     }
 
-    await syncPrivateState(state, characterId);
-    state.renderOnly?.();
+    if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
 
     if (options.proactive) {
       markProactiveSent(characterId);
@@ -726,14 +735,12 @@ async function requestPrivateReply(state, options = {}) {
   } catch (error) {
     if (isAbortError(error) || isJobStopped(job)) {
       await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
-      await syncPrivateState(state, characterId);
-      state.renderOnly?.();
+      if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
       return null;
     }
 
     await deleteDB(PRIVATE_STORE, placeholder.id).catch(() => {});
-    await syncPrivateState(state, characterId);
-    state.renderOnly?.();
+    if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
     throw error;
   } finally {
     finishAIJob(state, job);
@@ -872,6 +879,7 @@ async function requestGroupReply(state, options = {}) {
           const hasContent = result && (result.content || result.thinking);
           if (!hasContent && character?.useLocalChat) {
             result = await tryLocalOrSiliconFlowReply(state, {
+              character,
               messages: groupMessages,
               userName,
               signal: job.controller.signal
@@ -880,12 +888,12 @@ async function requestGroupReply(state, options = {}) {
         } catch (apiError) {
           if (isAbortError(apiError) || isJobStopped(job)) {
             await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
-            await syncGroupState(state, groupId);
-            state.renderOnly?.();
+            if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
             break;
           }
 
           result = await tryLocalOrSiliconFlowReply(state, {
+            character,
             messages: groupMessages,
             userName,
             signal: job.controller.signal
@@ -894,16 +902,14 @@ async function requestGroupReply(state, options = {}) {
           if (!result) {
             const friendlyMessage = getFriendlyErrorMessage(apiError?.status || 0, apiError);
             await markMessageError(GROUP_STORE, placeholder.id, friendlyMessage);
-            await syncGroupState(state, groupId);
-            state.renderOnly?.();
+            if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
             continue;
           }
         }
 
         if (isJobStopped(job)) {
           await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
-          await syncGroupState(state, groupId);
-          state.renderOnly?.();
+          if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
           break;
         }
 
@@ -911,8 +917,7 @@ async function requestGroupReply(state, options = {}) {
 
         if (!parsed.content && !parsed.thinking) {
           await deleteDB(GROUP_STORE, placeholder.id);
-          await syncGroupState(state, groupId);
-          state.renderOnly?.();
+          if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
           continue;
         }
 
@@ -978,20 +983,17 @@ async function requestGroupReply(state, options = {}) {
       } catch (error) {
         if (isAbortError(error) || isJobStopped(job)) {
           await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
-          await syncGroupState(state, groupId);
-          state.renderOnly?.();
+          if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
           break;
         }
 
         await deleteDB(GROUP_STORE, placeholder.id).catch(() => {});
-        await syncGroupState(state, groupId);
-        state.renderOnly?.();
+        if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
         continue;
       }
     }
 
-    await syncGroupState(state, groupId);
-    state.renderOnly?.();
+    if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
     return replies;
   } finally {
     finishAIJob(state, job);
@@ -1336,7 +1338,7 @@ async function buildPrompt({
 
   // 工具调用协议规则（只在有可用工具时追加，避免无工具时误导 AI）
   const mcpToolProtocol = mcpToolsPrompt
-    ? '【MCP工具调用协议】如果我需要调用上面列出的 MCP 工具来辅助回答，必须只输出严格 JSON（不要夹任何其他文字、不要 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。调用后我会把工具结果给你，你再用角色口吻简短回答用户。如果不需要工具，直接正常回复即可。'
+    ? '如果我需要用上面列出的工具来辅助回答，只输出严格 JSON（不夹其他文字、不用 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。用完工具拿到结果后，我再用自己的口吻简短回答。不需要工具时直接正常回复。'
     : '';
 
   const system = [
@@ -1804,7 +1806,7 @@ async function handleMcpToolRequest(firstResult, ctx) {
     { role: 'assistant', content: firstResult.content },
     {
       role: 'user',
-      content: `【MCP工具结果 - ${matched.tool}】\n${toolText}\n\n请基于这个结果，用你的角色口吻简短回答我上一句话。不要再调用工具，直接回复。`
+      content: `我刚查到的内容：\n${toolText}\n\n我根据这个结果用自己的口吻简短回答上一句话就好，不再用工具。`
     }
   ];
 
@@ -2145,8 +2147,21 @@ function finishAIJob(state, job) {
 
   if (current === job) activeAIJobs.delete(key);
 
-  state.aiGenerating = false;
-  state.isSending = false;
+  // 只在 state 仍属于当前 job 的会话时才复位标志
+  // 避免：切换会话后旧 job 的 finally 把新会话的 aiGenerating 清掉
+  if (isStateForThisJob(state, job)) {
+    state.aiGenerating = false;
+    state.isSending = false;
+  }
+}
+
+// 检查 state 是否仍属于该 job 对应的会话
+// 用于防止切换会话后旧 job 的 catch/finally 污染新会话的 state
+function isStateForThisJob(state, job) {
+  if (!state || !state.mounted || !job) return false;
+  if (job.groupId) return String(state.groupId || '') === String(job.groupId);
+  if (job.characterId) return String(state.characterId || '') === String(job.characterId);
+  return true;
 }
 
 function getAIJobKey(state) {
@@ -2689,7 +2704,6 @@ function cleanPerspectiveText(text, userName = '你') {
     .replace(/你(要)/g, '我会')
     .replace(/你(必须)/g, '我会')
     .replace(/请(你)/g, '我会')
-    .replace(/请/g, '')
     .trim();
 }
 

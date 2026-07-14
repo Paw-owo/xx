@@ -128,11 +128,10 @@ export async function deleteMemory(characterId, memoryId) {
   const memoryKey = String(memoryId || '').trim();
 
   if (!memoryKey) return false;
+  if (!id) return false; // 强制要求 characterId，不允许跨角色删除
 
-  if (id) {
-    const old = await getDB(MEMORY_STORE, memoryKey).catch(() => null);
-    if (old && String(old.characterId || '') !== id) return false;
-  }
+  const old = await getDB(MEMORY_STORE, memoryKey).catch(() => null);
+  if (old && String(old.characterId || '') !== id) return false;
 
   await deleteDB(MEMORY_STORE, memoryKey);
   return true;

@@ -780,7 +780,7 @@ export async function buildMcpToolsContext() {
     sections.push(`【${serverName} 工具】\n${lines.join('\n')}`);
   }
 
-  return `我可以使用以下 MCP 工具辅助回答（工具名和参数如下，需要时在回复里说明调用了哪个工具）：\n${sections.join('\n\n')}`;
+  return `我可以用以下工具辅助回答（需要时我会悄悄用一下，不会在回复里报工具名）：\n${sections.join('\n\n')}`;
 }
 
 // 从工具 inputSchema 提取参数名（最多 8 个）
