@@ -747,7 +747,7 @@ async function testMcpServer(id) {
   showToast('正在连接 MCP 服务器...');
   try {
     await resetSession();
-    const tools = await listMcpTools(server);
+    const tools = await listMcpTools(server.id);
     if (Array.isArray(tools)) {
       showToast(`连上啦，找到 ${tools.length} 个工具`);
     } else {
