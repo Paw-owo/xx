@@ -1073,11 +1073,42 @@ async function requestOnce({ source, messages = [], systemPrompt = '', model = '
 export async function callAPI({
   messages = [], systemPrompt = '', model = '', stream = false, timeout,
   temperature, maxTokens, onChunk, onDone, onError, signal,
-  groupTypes = []
+  groupTypes = [], endpointId = ''
 } = {}) {
   await ensureApiPoolMigrated();
   const poolItems = await getApiPoolItems();
   const groups = getPoolGroups();
+
+  // 角色级 endpointId：优先精确命中指定端点（用户明确选择，失败不回退其他端点）
+  if (endpointId) {
+    const matched = poolItems.find((item) => String(item.id) === String(endpointId));
+    if (matched) {
+      const matchedGroupType = matched.groupType === 'free' ? 'free' : 'paid';
+      const epSources = buildPoolCandidateSources([matched], { model, groupTypes: [matchedGroupType] });
+      if (epSources.length) {
+        const epDefaultTimeout = matchedGroupType === 'free' ? FREE_TIMEOUT : PAID_TIMEOUT;
+        for (const source of epSources) {
+          if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
+          try {
+            const result = await requestOnce({
+              source, messages, systemPrompt, model: model || source.model, stream,
+              timeout: timeout || epDefaultTimeout, temperature, maxTokens, onChunk, signal
+            });
+            await markPoolSourceSuccess(source, result.latencyMs || 0);
+            onDone?.(result);
+            return result;
+          } catch (error) {
+            if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
+            const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
+            await markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
+            onError?.(normalizedError);
+            return null;
+          }
+        }
+      }
+    }
+    // endpointId 未命中池，继续走正常 groupTypes 流程
+  }
 
   const effectiveGroupTypes = Array.isArray(groupTypes) && groupTypes.length
     ? groupTypes

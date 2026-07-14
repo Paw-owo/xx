@@ -1848,6 +1848,9 @@ async function requestAITextDirect(promptMessages, options = {}) {
   const temperature = Number(character?.apiConfig?.temperature ?? 0.85);
   const maxTokens = Math.round(Number(character?.apiConfig?.maxTokens || 1200));
   const model = character?.apiConfig?.model || '';
+  const endpointId = (character?.apiConfig?.useGlobal === false)
+    ? String(character?.apiConfig?.endpointId || '')
+    : '';
 
   let lastApiError = null;
 
@@ -1863,7 +1866,8 @@ async function requestAITextDirect(promptMessages, options = {}) {
       maxTokens,
       onChunk,
       onError: (err) => { lastApiError = err; },
-      signal
+      signal,
+      endpointId
     });
 
     if (result && (result.content || result.thinking)) {
