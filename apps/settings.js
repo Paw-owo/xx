@@ -987,7 +987,32 @@ function openMcpEditor(server) {
   const message = inputRow('消息地址', current.messageEndpoint || '/message', '/message');
   const apiKey = inputRow('API Key', current.apiKey || '', '可选');
   const apiKeyHeader = inputRow('Key 字段名', current.apiKeyHeader || '', '例如 Authorization');
-  basicPanel.append(name.wrap, url.wrap, sse.wrap, message.wrap, apiKey.wrap, apiKeyHeader.wrap);
+
+  // SSE 地址 / 消息地址 折叠区：仅自建 SSE 型服务器需要，streamable HTTP 型远程 MCP 留空即可
+  // 默认收起，避免对远程 MCP 用户造成"必须填"的误导
+  const sseAdvanced = el('div', 'settings-mcp-advanced');
+  const sseAdvancedHeader = el('button', 'settings-mcp-advanced-header');
+  sseAdvancedHeader.type = 'button';
+  const sseAdvancedTitle = el('span', 'settings-mcp-advanced-title', '高级 · 仅 SSE 模式需要');
+  const sseAdvancedHint = el('span', 'settings-mcp-advanced-hint', '点击展开');
+  const sseAdvancedArrow = el('span', 'settings-mcp-advanced-arrow');
+  sseAdvancedArrow.append(safeIcon('settings', 16));
+  sseAdvancedHeader.append(sseAdvancedTitle, sseAdvancedHint, sseAdvancedArrow);
+
+  const sseAdvancedBody = el('div', 'settings-mcp-advanced-body');
+  const sseAdvancedNote = el('p', 'settings-mcp-advanced-note',
+    '只有自建 SSE 型服务器（如小手机感知服务器）才需要填这两项。Context7 / DeepWiki / GitMCP / Microsoft Learn 这类远程 streamable HTTP 型 MCP 只填上面的服务器地址即可，这里留空。'
+  );
+  sseAdvancedBody.append(sseAdvancedNote, sse.wrap, message.wrap);
+
+  sseAdvancedHeader.addEventListener('click', () => {
+    const expanded = sseAdvanced.classList.toggle('expanded');
+    sseAdvancedHint.textContent = expanded ? '点击收起' : '点击展开';
+  });
+
+  sseAdvanced.append(sseAdvancedHeader, sseAdvancedBody);
+
+  basicPanel.append(name.wrap, url.wrap, apiKey.wrap, apiKeyHeader.wrap, sseAdvanced);
 
   // 工具面板（抽屉式折叠）
   const toolsPanel = el('div', 'settings-mcp-panel hidden');
@@ -3465,6 +3490,81 @@ function injectStyle() {
       display: flex;
       justify-content: center;
       margin-top: 8px;
+    }
+
+    .settings-mcp-advanced {
+      margin-top: 4px;
+      border-top: 1px dashed var(--border-subtle, color-mix(in srgb, var(--text-primary) 10%, transparent));
+      padding-top: 4px;
+    }
+
+    .settings-mcp-advanced-header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 4px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: var(--font-size-small);
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--motion);
+    }
+
+    .settings-mcp-advanced-header:active { transform: scale(0.99); }
+
+    .settings-mcp-advanced-title {
+      flex: 0 0 auto;
+      text-align: left;
+    }
+
+    .settings-mcp-advanced-hint {
+      flex: 1;
+      color: var(--text-hint);
+      font-size: var(--font-size-small);
+      font-weight: 400;
+      text-align: right;
+    }
+
+    .settings-mcp-advanced-arrow {
+      flex: 0 0 auto;
+      color: var(--text-hint);
+      transition: transform 0.25s ease;
+      display: inline-flex;
+    }
+
+    .settings-mcp-advanced.expanded .settings-mcp-advanced-arrow {
+      transform: rotate(90deg);
+    }
+
+    .settings-mcp-advanced-body {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 0 4px;
+      transition: max-height 0.3s ease, opacity 0.2s ease, padding 0.2s ease;
+    }
+
+    .settings-mcp-advanced.expanded .settings-mcp-advanced-body {
+      max-height: 800px;
+      opacity: 1;
+      padding-bottom: 10px;
+    }
+
+    .settings-mcp-advanced-note {
+      margin: 0 0 4px 0;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      color: var(--text-hint);
+      font-size: var(--font-size-small);
+      line-height: 1.5;
     }
 
     .settings-mcp-tool-card {
