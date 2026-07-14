@@ -935,11 +935,15 @@ function openMcpEditor(server) {
 }
 
 // 单个 MCP 工具卡片：名字 + 描述 + 参数标签 + 主开关 + 需要审批开关
+// 初始状态优先用 listMcpTools 返回的 tool 对象字段（它已和 toolSettings 同步），
+// 写入仍回 toolSettings，保持单一真实数据源。
 function renderMcpToolCard(tool, toolSettings) {
   const toolName = tool?.name || '未命名工具';
-  const setting = toolSettings[toolName] || { enabled: true, requireApproval: false };
+  // tool 对象已带 enabled/requireApproval/blockedByApproval（由 core/mcp.js 注入）
+  const initialEnabled = tool?.enabled !== false;
+  const initialApproval = tool?.requireApproval === true;
 
-  const cardEl = el('div', `settings-mcp-tool-card ${setting.enabled ? '' : 'disabled'}`);
+  const cardEl = el('div', `settings-mcp-tool-card ${initialEnabled ? '' : 'disabled'}`);
 
   // 顶部：工具名 + 主开关
   const top = el('div', 'settings-mcp-tool-top');
@@ -947,7 +951,7 @@ function renderMcpToolCard(tool, toolSettings) {
   nameWrap.append(el('strong', 'settings-mcp-tool-name', toolName));
   top.append(nameWrap);
 
-  const enableSwitch = switchRow('', setting.enabled, (next) => {
+  const enableSwitch = switchRow('', initialEnabled, (next) => {
     toolSettings[toolName] = { ...toolSettings[toolName], enabled: next };
     cardEl.classList.toggle('disabled', !next);
   });
@@ -969,15 +973,19 @@ function renderMcpToolCard(tool, toolSettings) {
     cardEl.append(paramRow);
   }
 
-  // 需要审批开关
+  // 需要审批开关 + blockedByApproval 提示
   const approvalRow = el('div', 'settings-mcp-tool-approval');
   const approvalLabel = el('div', 'settings-mcp-tool-approval-text');
   approvalLabel.append(
     el('span', 'settings-mcp-tool-approval-label', '需要审批'),
-    el('span', 'settings-mcp-tool-approval-hint', '调用前问我一句')
+    el('span', 'settings-mcp-tool-approval-hint',
+      initialApproval ? '已阻止自动调用' : '调用前问我一句')
   );
-  const approvalSwitch = switchRow('', setting.requireApproval, (next) => {
+  const approvalSwitch = switchRow('', initialApproval, (next) => {
     toolSettings[toolName] = { ...toolSettings[toolName], requireApproval: next };
+    // 同步提示文案
+    const hintEl = approvalLabel.querySelector('.settings-mcp-tool-approval-hint');
+    if (hintEl) hintEl.textContent = next ? '已阻止自动调用' : '调用前问我一句';
   });
   approvalSwitch.classList.add('settings-mcp-tool-switch');
   approvalRow.append(approvalLabel, approvalSwitch);

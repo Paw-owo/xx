@@ -28,6 +28,7 @@ import {
 
 import { getIdentityCore } from './identity-core.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
+import { buildMcpToolsContext } from '../../core/mcp.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
 
@@ -1249,6 +1250,13 @@ async function buildPrompt({
 
   const dreamPrompt = await buildDreamPrompt(activeCharacter?.id || '', userName);
 
+  // MCP 可用工具上下文：只含 enabled:true 且 requireApproval:false 的工具
+  // 任何失败静默返回空串，不阻塞主聊天流程
+  let mcpToolsPrompt = '';
+  try {
+    mcpToolsPrompt = await buildMcpToolsContext();
+  } catch (_) { mcpToolsPrompt = ''; }
+
   const system = [
     buildIdentityPrompt(activeCharacter, userName, userProfile),
     buildCharacterPrompt(activeCharacter, userName),
@@ -1261,6 +1269,7 @@ async function buildPrompt({
     buildGrudgePrompt(grudgeContext, options?.activeLock, userName),
     `当前时间：${currentTime}`,
     buildModePrompt(mode, group, activeCharacter, options, userName, userProfile),
+    mcpToolsPrompt,
     options.proactive ? buildProactivePrompt(options.proactiveReason, messages, userName, activeCharacter) : ''
   ].filter(Boolean).join('\n\n');
 
