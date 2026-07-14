@@ -796,6 +796,7 @@ function addServerFromTemplate(template) {
     messageEndpoint: '/message',
     enabled: false,
     toolSettings: {},
+    tools: [],
     updatedAt: getNow()
   };
 
@@ -955,7 +956,9 @@ async function deleteMcp(id) {
 }
 
 function openMcpEditor(server) {
-  const editing = Boolean(server?.id);
+  // editing 必须基于 server 是否真的在 mcpServers 中，而不是只看有没有 id
+  // 模板创建的 draft 有 id 但不在 mcpServers，应走新增路径
+  const editing = server?.id ? getSettings().mcpServers.some(s => s.id === server.id) : false;
   const current = {
     id: server?.id || generateId('mcp'),
     name: server?.name || '',
@@ -1193,28 +1196,16 @@ function openMcpEditor(server) {
         updatedAt: getNow()
       };
 
-      const servers = editing
+      // 统一 upsert：检查 server 是否已在 mcpServers 中，不在则新增
+      const exists = settings.mcpServers.some((item) => item.id === nextServer.id);
+      const servers = exists
         ? settings.mcpServers.map((item) => item.id === nextServer.id ? nextServer : item)
         : [...settings.mcpServers, { ...nextServer, createdAt: getNow() }];
 
       saveSettings({ ...settings, mcpServers: servers });
 
-      // 保存后立刻从 localStorage 回读验证，确保 server.tools 真的持久化
-      const saved = getData('app_settings');
-      if (saved && Array.isArray(saved.mcpServers)) {
-        const verified = saved.mcpServers.find((s) => s.id === current.id);
-        if (verified && Array.isArray(verified.tools) && verified.tools.length > 0) {
-          showToast(editing ? '保存好啦 (' + verified.tools.length + ' 个工具)' : '加好啦');
-        } else if (verified) {
-          showToast(editing ? '保存好啦（暂无工具）' : '加好啦');
-        } else {
-          showToast('保存异常：未找到该服务器，请重试');
-        }
-      } else {
-        showToast(editing ? '保存好啦' : '加好啦');
-      }
-
       hideBottomSheet();
+      showToast(exists ? '保存好啦' : '加好啦');
       render('mcp');
     })
   );
