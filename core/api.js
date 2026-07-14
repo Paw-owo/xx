@@ -1080,6 +1080,7 @@ export async function callAPI({
   const groups = getPoolGroups();
 
   // 角色级 endpointId：优先精确命中指定端点（用户明确选择，失败不回退其他端点）
+  // 重试规则与下方 paidSources 循环一致：多 key 依次尝试，可重试错误才换下一个 key
   if (endpointId) {
     const matched = poolItems.find((item) => String(item.id) === String(endpointId));
     if (matched) {
@@ -1087,6 +1088,7 @@ export async function callAPI({
       const epSources = buildPoolCandidateSources([matched], { model, groupTypes: [matchedGroupType] });
       if (epSources.length) {
         const epDefaultTimeout = matchedGroupType === 'free' ? FREE_TIMEOUT : PAID_TIMEOUT;
+        let epLastError = null;
         for (const source of epSources) {
           if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
           try {
@@ -1100,14 +1102,24 @@ export async function callAPI({
           } catch (error) {
             if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
             const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
+            const status = getStatusFromError(normalizedError);
             await markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
-            onError?.(normalizedError);
-            return null;
+            epLastError = normalizedError;
+            const hasMore = epSources.indexOf(source) < epSources.length - 1;
+            if (hasMore && isRetryableError(status, Boolean(source.apiKey), source)) {
+              const nextSource = epSources[epSources.indexOf(source) + 1];
+              if (source.isUser) notifyRetry(nextSource?.name || '备用接口');
+              continue;
+            }
+            break;
           }
         }
+        // 全部 key 失败或遇到不可重试错误：只报一次错，不回退到其他 endpoint
+        onError?.(epLastError || { message: '指定接口没接上', status: 0 });
+        return null;
       }
     }
-    // endpointId 未命中池，继续走正常 groupTypes 流程
+    // endpointId 未命中池或命中但无可用 source，继续走正常 groupTypes 流程
   }
 
   const effectiveGroupTypes = Array.isArray(groupTypes) && groupTypes.length
