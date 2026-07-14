@@ -696,11 +696,11 @@ async function renderTtsPage() {
 // 模板只是生成新 server 的草稿，不自动写入 mcpServers
 // ═══════════════════════════════════════
 
-// 调研来源（2026-07-14 联网核实）：
-// - Context7: https://context7.com 官方文档，Streamable HTTP，免 key
-// - DeepWiki: https://mcp.deepwiki.com 官方，Streamable HTTP，完全免 key
-// - GitMCP: https://gitmcp.io 官方 + mcpservers.org 索引，通用动态端点，免 key
-// - Microsoft Learn: https://learn.microsoft.com/training/support/mcp 官方说明，免认证、免费
+// 调研来源（2026-07-14 联网核实 + curl 端点验证）：
+// - Context7: https://mcp.context7.com/mcp，Streamable HTTP，免 key，CORS 开放（已验证 initialize + tools/list）
+// - DeepWiki: https://mcp.deepwiki.com/mcp，Streamable HTTP，免 key，CORS 未开放（浏览器可能连不上）
+// - GitMCP: https://gitmcp.io/docs，Streamable HTTP，免 key，CORS 开放（已验证 initialize + tools/list）
+// - Microsoft Learn: https://learn.microsoft.com/api/mcp，Streamable HTTP，免认证，CORS 未开放（浏览器可能连不上）
 const MCP_RECOMMENDED_TEMPLATES = [
   {
     id: 'sense',
@@ -725,7 +725,7 @@ const MCP_RECOMMENDED_TEMPLATES = [
     tags: ['文档', '搜索'],
     category: 'docs',
     authType: 'none',
-    notes: 'Streamable HTTP，免 key 即可用，来源：context7.com 官方文档',
+    notes: 'Streamable HTTP，免 key，CORS 开放，已验证可用',
     requiresManualUrl: false,
     defaultEnabled: false,
     hint: '免 key 直接用，配 key 可提高限额'
@@ -739,10 +739,10 @@ const MCP_RECOMMENDED_TEMPLATES = [
     tags: ['GitHub', '文档'],
     category: 'repo',
     authType: 'none',
-    notes: 'Streamable HTTP，完全免 key，来源：mcp.deepwiki.com 官方',
+    notes: 'Streamable HTTP，免 key，但 CORS 未开放，浏览器直连可能失败',
     requiresManualUrl: false,
     defaultEnabled: false,
-    hint: '免 key 直接用'
+    hint: '免 key，但当前版本可能因 CORS 限制连不上'
   },
   {
     id: 'gitmcp',
@@ -753,7 +753,7 @@ const MCP_RECOMMENDED_TEMPLATES = [
     tags: ['GitHub', '文档'],
     category: 'repo',
     authType: 'none',
-    notes: '通用动态端点，调用时由 AI 传 owner/repo，来源：gitmcp.io 官方',
+    notes: '通用动态端点，免 key，CORS 开放，已验证可用',
     requiresManualUrl: false,
     defaultEnabled: false,
     hint: '免 key 直接用，AI 调用时会指定仓库'
@@ -767,10 +767,10 @@ const MCP_RECOMMENDED_TEMPLATES = [
     tags: ['文档', '微软'],
     category: 'docs',
     authType: 'none',
-    notes: 'Streamable HTTP，官方明确免认证、免费，来源：learn.microsoft.com/training/support/mcp',
+    notes: 'Streamable HTTP，免认证，但 CORS 未开放，浏览器直连可能失败',
     requiresManualUrl: false,
     defaultEnabled: false,
-    hint: '免 key 直接用'
+    hint: '免 key，但当前版本可能因 CORS 限制连不上'
   }
 ];
 

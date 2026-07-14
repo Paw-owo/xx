@@ -1,6 +1,9 @@
 // core/mcp.js
-// MCP 客户端：支持 MCP SSE 传输模式
-// 流程：GET /mcp/sse 建流 → 解析 endpoint → POST /mcp/messages?sessionId=xxx 发 JSON-RPC → 从 SSE 流读响应
+// MCP 客户端：支持两种传输模式
+//   1. SSE 模式（自建服务器）：GET /mcp/sse 建流 → 解析 endpoint → POST /mcp/messages?sessionId=xxx → 从 SSE 流读响应
+//   2. Streamable HTTP 模式（远程公共 MCP，如 Context7/DeepWiki/GitMCP/Microsoft Learn）：
+//      POST 到单一端点 → 响应体是 SSE 流或 JSON，直接读出 JSON-RPC 结果
+// ensureSession 统一入口：先试 streamable HTTP，失败回退 SSE，保证自建服务器不受影响
 // imports: getData from './storage.js'
 
 import { getData } from './storage.js';
@@ -149,12 +152,12 @@ function parseRpcResult(data) {
 // ═══════════════════════════════════════
 // 【SSE 会话】每个 serverId 维护一条 SSE 长连接
 // session 结构：
-//   { ready, sseUrl, messageUrl, sessionId, apiKey, abortController, reader, pending: Map<id, {resolve, reject, timer}> }
+//   { transport:'sse', ready, sseUrl, messageUrl, sessionId, apiKey, abortController, reader, pending: Map<id, {resolve, reject, timer}> }
 // ═══════════════════════════════════════
 
-async function ensureSession(serverId) {
+async function ensureSseSession(serverId) {
   const cached = sessions.get(serverId);
-  if (cached && cached.ready) return cached;
+  if (cached && cached.ready && cached.transport === 'sse') return cached;
 
   const server = findServer(serverId);
   if (!server) return null;
@@ -164,6 +167,7 @@ async function ensureSession(serverId) {
   const apiKey = server.apiKey || '';
 
   const session = {
+    transport: 'sse',
     ready: false,
     sseUrl,
     messageUrl: '',
@@ -290,6 +294,180 @@ async function ensureSession(serverId) {
   }
 }
 
+// ═══════════════════════════════════════
+// 【Streamable HTTP 会话】远程公共 MCP（Context7/DeepWiki/GitMCP/Microsoft Learn）
+//   POST 到单一端点，响应体是 SSE 流（text/event-stream）或 JSON（application/json）
+//   每次 RPC 独立 POST，不需要长连接，不需要 endpoint 协商
+//   session-id 通过 MCP-Session-Id header 传递
+// session 结构：
+//   { transport:'streamable', ready, endpointUrl, sessionId, apiKey, serverInfo, capabilities }
+// ═══════════════════════════════════════
+
+// 从响应文本解析 JSON-RPC 结果（兼容 application/json 和 text/event-stream 两种响应格式）
+// expectedId 用于匹配请求 id，避免误读 notifications
+function parseStreamableResponse(text, expectedId) {
+  if (!text) return null;
+
+  // 优先尝试直接 JSON 解析（application/json 响应）
+  try {
+    const json = JSON.parse(text);
+    if (json && json.jsonrpc === '2.0' && json.id === expectedId) return json;
+  } catch (_) { /* 不是 JSON，继续尝试 SSE 解析 */ }
+
+  // SSE 格式解析：按空行分块，每块找 data: 行
+  const blocks = String(text).split('\n\n');
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    const dataLines = [];
+    for (const line of lines) {
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice(5).trim());
+      }
+    }
+    if (dataLines.length === 0) continue;
+    const dataStr = dataLines.join('\n');
+    try {
+      const json = JSON.parse(dataStr);
+      if (json && json.jsonrpc === '2.0' && json.id === expectedId) return json;
+    } catch (_) { /* 跳过非法块 */ }
+  }
+  return null;
+}
+
+// 尝试建立 streamable HTTP 会话：POST initialize 到原始 URL
+// 成功返回 session，失败返回 null（让上层回退 SSE）
+async function tryStreamableSession(serverId, rawUrl, apiKey) {
+  let response;
+  let initBody;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MCP_TIMEOUT);
+  try {
+    initBody = buildRpc('initialize', {
+      protocolVersion: PROTOCOL_VERSION,
+      capabilities: {},
+      clientInfo: CLIENT_INFO
+    });
+
+    response = await fetch(rawUrl, {
+      method: 'POST',
+      headers: buildHeaders(null, apiKey, 'application/json, text/event-stream'),
+      body: JSON.stringify(initBody),
+      signal: controller.signal
+    });
+  } catch (_) {
+    // 网络错误（CORS 拦截 / 域名不通 / 超时）→ 不是 streamable，回退 SSE
+    clearTimeout(timer);
+    return null;
+  }
+  clearTimeout(timer);
+
+  // 404/405/406 等表示这个 URL 不支持 POST → 回退 SSE 模式
+  if (!response.ok) return null;
+
+  const contentType = response.headers.get('content-type') || '';
+  // 只接受 JSON 或 SSE 响应，其他类型回退
+  if (!/application\/json/i.test(contentType) && !/text\/event-stream/i.test(contentType)) {
+    return null;
+  }
+
+  const sessionId = response.headers.get('mcp-session-id') || '';
+  // 读响应体也加超时保护，避免服务器保持 SSE 流不关闭
+  const bodyController = new AbortController();
+  const bodyTimer = setTimeout(() => bodyController.abort(), MCP_TIMEOUT);
+  let text;
+  try {
+    text = await response.text();
+  } catch (_) {
+    clearTimeout(bodyTimer);
+    return null;
+  }
+  clearTimeout(bodyTimer);
+
+  // 用 initBody.id 匹配响应，不能用写死值（rpcId 全局递增）
+  const parsed = parseStreamableResponse(text, initBody.id);
+  if (!parsed) return null; // 响应里没有匹配 id 的 JSON-RPC，不是 streamable
+
+  const session = {
+    transport: 'streamable',
+    ready: true,
+    endpointUrl: rawUrl,
+    sessionId,
+    apiKey,
+    serverInfo: parsed.result?.serverInfo || null,
+    capabilities: parsed.result?.capabilities || null,
+    // SSE 相关字段保留空值，避免外部代码访问报错
+    sseUrl: '',
+    messageUrl: rawUrl,
+    abortController: null,
+    reader: null,
+    pending: new Map()
+  };
+  return session;
+}
+
+// streamable HTTP 的单次 RPC：POST 到 endpointUrl，从响应体读 JSON-RPC 结果
+async function rpcCallStreamable(session, rpcBody) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), MCP_TIMEOUT);
+  try {
+    const response = await fetch(session.endpointUrl, {
+      method: 'POST',
+      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream'),
+      body: JSON.stringify(rpcBody),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`MCP POST 失败 (${response.status})`);
+    }
+
+    const text = await response.text();
+    const parsed = parseStreamableResponse(text, rpcBody.id);
+    if (!parsed) {
+      throw new Error('MCP 响应未匹配请求 id');
+    }
+    return parseRpcResult(parsed);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ═══════════════════════════════════════
+// 【统一会话入口】先试 streamable HTTP，失败回退 SSE
+// 自建服务器（kiss.eoty.cn）走 SSE 分支，行为完全不变
+// 远程公共 MCP（Context7 等）走 streamable 分支
+// ═══════════════════════════════════════
+
+async function ensureSession(serverId) {
+  const cached = sessions.get(serverId);
+  if (cached && cached.ready) return cached;
+
+  const server = findServer(serverId);
+  if (!server) return null;
+
+  const rawUrl = String(server.url || '').trim().replace(/\/+$/, '');
+  if (!rawUrl) return null;
+  const apiKey = server.apiKey || '';
+
+  // 先试 streamable HTTP：POST initialize 到原始 URL
+  // 只对"看起来像 streamable 端点"的 URL 尝试（避免对自建 SSE 服务器浪费一次 POST）
+  // 启发式：URL 以 /mcp、/docs、/api/mcp 结尾，或不是裸域名 + /mcp/sse 模式
+  const looksStreamable = /\/(mcp|docs|api\/mcp)$/i.test(rawUrl) || !/\/mcp\/sse$/i.test(rawUrl);
+
+  if (looksStreamable) {
+    const streamableSession = await tryStreamableSession(serverId, rawUrl, apiKey);
+    if (streamableSession) {
+      sessions.set(serverId, streamableSession);
+      return streamableSession;
+    }
+    // streamable 失败：清理可能的半成品，继续走 SSE
+    cleanupSession(serverId);
+  }
+
+  // 回退 SSE 模式（自建服务器）
+  return await ensureSseSession(serverId);
+}
+
 // 处理 SSE 流里的 message 事件，匹配 pending 请求并 resolve
 function handleSseMessage(session, dataStr) {
   let parsed;
@@ -364,7 +542,9 @@ function rpcPostAndWait(session, serverId, rpcBody, timeout = MCP_TIMEOUT) {
 }
 
 // ═══════════════════════════════════════
-// 【通用 RPC】ensureSession → POST messageUrl → 等 SSE 响应
+// 【通用 RPC】ensureSession → 根据 transport 分流
+//   streamable: POST 到 endpointUrl，从响应体直接读 JSON-RPC
+//   sse:        POST 到 messageUrl，等 SSE 长连接的 message 事件
 // ═══════════════════════════════════════
 
 async function rpcCall(serverId, method, params, isRetry = false) {
@@ -375,9 +555,16 @@ async function rpcCall(serverId, method, params, isRetry = false) {
   }
 
   const session = await ensureSession(serverId);
-  if (!session || !session.ready || !session.messageUrl) {
+  if (!session || !session.ready) {
     if (!isRetry) {
       // 会话建立失败，清理后重试一次
+      cleanupSession(serverId);
+    }
+    return null;
+  }
+  // SSE 模式必须有 messageUrl，streamable 模式用 endpointUrl
+  if (session.transport === 'sse' && !session.messageUrl) {
+    if (!isRetry) {
       cleanupSession(serverId);
     }
     return null;
@@ -385,10 +572,14 @@ async function rpcCall(serverId, method, params, isRetry = false) {
 
   try {
     const body = buildRpc(method, params);
+    // 根据传输模式分流
+    if (session.transport === 'streamable') {
+      return await rpcCallStreamable(session, body);
+    }
     return await rpcPostAndWait(session, serverId, body);
   } catch (error) {
     if (!isRetry) {
-      // 流可能断开，清理后重试一次
+      // 流可能断开 / streamable 会话过期，清理后重试一次
       cleanupSession(serverId);
       return rpcCall(serverId, method, params, true);
     }
