@@ -967,6 +967,13 @@ function openMcpEditor(server) {
     enabled: server?.enabled !== false,
     // 按 server.id 隔离的工具开关配置；已保存的不会被刷新覆盖
     toolSettings: { ...(server?.toolSettings || {}) },
+    // 工具元数据持久化：拉取成功后存这里，保存时写入 mcpServers
+    // 重新打开编辑器时从这里恢复，不依赖临时变量
+    tools: Array.isArray(server?.tools) ? server.tools.map((t) => ({
+      name: t?.name || '',
+      description: t?.description || '',
+      inputSchema: t?.inputSchema || {}
+    })) : [],
     updatedAt: getNow()
   };
 
@@ -1018,9 +1025,11 @@ function openMcpEditor(server) {
 
   // 工具面板（抽屉式折叠）
   const toolsPanel = el('div', 'settings-mcp-panel hidden');
-  let toolsCache = [];
+  // 初始化 toolsCache 为已保存的工具元数据，让重新打开编辑器时直接显示
+  let toolsCache = current.tools.slice();
   let toolsLoading = false;
-  let toolsLoaded = false;
+  // 有已保存工具时标记为已加载，UI 直接显示工具列表而不是"点按钮拉取"
+  let toolsLoaded = current.tools.length > 0;
   let toolsError = '';
 
   function switchTab(tab) {
@@ -1096,7 +1105,8 @@ function openMcpEditor(server) {
       sseEndpoint: sse.input.value.trim() || '/sse',
       messageEndpoint: message.input.value.trim() || '/message',
       enabled: current.enabled,
-      toolSettings: current.toolSettings
+      toolSettings: current.toolSettings,
+      tools: current.tools
     };
   }
 
@@ -1115,8 +1125,17 @@ function openMcpEditor(server) {
       // 这样表单里改的 URL/apiKey 能立即生效，不需要先保存
       await resetSession(current.id);
       const tools = await listMcpToolsWithDraft(draft);
-      toolsCache = Array.isArray(tools) ? tools : [];
+      const freshTools = Array.isArray(tools) ? tools : [];
+      // 持久化工具元数据到 current.tools（保存时会写入 mcpServers）
+      // 只存 name/description/inputSchema，不存 enabled/requireApproval（那些走 toolSettings）
+      current.tools = freshTools.map((t) => ({
+        name: t?.name || '',
+        description: t?.description || '',
+        inputSchema: t?.inputSchema || {}
+      }));
+      toolsCache = freshTools;
       // 合并 toolSettings：新发现的工具填默认值，已保存的不覆盖
+      // 服务端删除工具时不删 toolSettings，避免用户配置丢失
       toolsCache.forEach((tool) => {
         const toolName = tool?.name;
         if (!toolName) return;
@@ -1129,6 +1148,8 @@ function openMcpEditor(server) {
       showToast(`找到 ${toolsCache.length} 个工具`);
     } catch (error) {
       toolsError = String(error?.message || '没拉到工具，检查一下地址或连接方式呀');
+      // 拉取失败不清空已保存的工具元数据和 toolsCache，保留旧列表
+      // toolsCache 保持当前值（可能是已保存的旧工具或空数组）
       showToast(toolsError);
     } finally {
       toolsLoading = false;
@@ -1153,6 +1174,8 @@ function openMcpEditor(server) {
         messageEndpoint: message.input.value.trim() || '/message',
         enabled: current.enabled,
         toolSettings: current.toolSettings,
+        // 工具元数据持久化：保存到 mcpServers，重新打开编辑器时恢复
+        tools: current.tools,
         updatedAt: getNow()
       };
 
@@ -1171,13 +1194,18 @@ function openMcpEditor(server) {
 }
 
 // 单个 MCP 工具卡片：名字 + 描述 + 参数标签 + 主开关 + 需要审批开关
-// 初始状态优先用 listMcpTools 返回的 tool 对象字段（它已和 toolSettings 同步），
-// 写入仍回 toolSettings，保持单一真实数据源。
+// 初始状态优先用 toolSettings（单一真实数据源），tool 对象字段作为 fallback
+// 这样从 current.tools（只有元数据）恢复时，开关状态也能正确从 toolSettings 读
 function renderMcpToolCard(tool, toolSettings) {
   const toolName = tool?.name || '未命名工具';
-  // tool 对象已带 enabled/requireApproval/blockedByApproval（由 core/mcp.js 注入）
-  const initialEnabled = tool?.enabled !== false;
-  const initialApproval = tool?.requireApproval === true;
+  const saved = toolSettings?.[toolName] || {};
+  // 优先用 toolSettings 里的状态，fallback 到 tool 对象注入的字段，再 fallback 默认值
+  const initialEnabled = saved.enabled !== undefined
+    ? saved.enabled !== false
+    : (tool?.enabled !== false);
+  const initialApproval = saved.requireApproval !== undefined
+    ? saved.requireApproval === true
+    : (tool?.requireApproval === true);
 
   const cardEl = el('div', `settings-mcp-tool-card ${initialEnabled ? '' : 'disabled'}`);
 
@@ -3462,6 +3490,8 @@ function injectStyle() {
     .settings-mcp-editor-sheet {
       display: flex;
       flex-direction: column;
+      /* 撑满父级 .bottom-sheet 的高度，而不是只占内容高度 */
+      height: 100%;
       max-height: min(80vh, 720px);
       overflow: hidden;
     }
@@ -3491,7 +3521,8 @@ function injectStyle() {
     /* 工具 tab 与基础设置 tab 共用的高度规则，保证两 tab 视觉高度一致 */
     .settings-mcp-panel {
       flex: 1 1 auto;
-      min-height: 280px;
+      /* 内容少时也保持与基础设置相近的最小高度 */
+      min-height: 240px;
       display: flex;
       flex-direction: column;
     }
