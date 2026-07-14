@@ -3519,15 +3519,6 @@ function injectStyle() {
       min-height: 0;
     }
 
-    .settings-mcp-tools-drawer.expanded .settings-mcp-drawer-body {
-      max-height: none;
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding-bottom: 16px;
-    }
-
     .settings-mcp-tools-error {
       margin: 0 0 8px 0;
       padding: 12px 14px;
@@ -3594,9 +3585,13 @@ function injectStyle() {
     }
 
     .settings-mcp-tools-drawer.expanded .settings-mcp-drawer-body {
-      max-height: 2400px;
+      max-height: none;
+      flex: 1 1 auto;
+      min-height: 0;
       opacity: 1;
-      padding-bottom: 12px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 16px;
     }
 
     .settings-mcp-tools-refresh {
@@ -3713,7 +3708,9 @@ function injectStyle() {
       font-size: var(--font-size-base);
       font-weight: 600;
       line-height: 1.35;
-      word-break: break-all;
+      /* 长英文工具名横向换行，禁止竖排 */
+      word-break: normal;
+      overflow-wrap: anywhere;
     }
 
     .settings-mcp-tool-desc {
@@ -3771,6 +3768,9 @@ function injectStyle() {
     /* 工具卡片内的开关只显示圆点，隐藏空 label span */
     .settings-mcp-tool-switch {
       flex: 0 0 auto;
+      /* 覆盖 .settings-switch-row 的 width:100%，否则开关会撑满整行
+         把左侧工具名/审批文案容器压成 0 宽，导致文字竖排 */
+      width: auto;
       padding: 0;
       min-height: auto;
       background: transparent;
