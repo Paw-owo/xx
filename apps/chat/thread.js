@@ -211,6 +211,13 @@ export function unmountChatThread() {
     state.rootEl.replaceChildren();
   }
 
+  // 会话切出时把新消息批量推到 MCP 服务端（fire-and-forget，不阻塞 unmount）
+  // 只推私聊会话；群聊暂不推
+  // 在 state 清空前捕获数据，避免清空后读不到
+  const pushCharacterId = state.characterId;
+  const pushCharacterName = state.character?.name || '';
+  const pushMessagesSnapshot = Array.isArray(state.messages) ? state.messages.slice() : [];
+
   state.rootEl = null;
   state.appState = null;
   state.character = null;
@@ -227,6 +234,17 @@ export function unmountChatThread() {
   state.renderOnly = null;
   state.wallpaperImage = '';
   state.wallpaperOpacity = 1;
+
+  // 动态 import push.js，避免静态循环依赖；push 模块不存在/失败时静默跳过
+  if (pushCharacterId && pushMessagesSnapshot.length > 0) {
+    import('../../core/push.js')
+      .then((mod) => {
+        if (mod && typeof mod.pushMessages === 'function') {
+          return mod.pushMessages(pushCharacterId, pushCharacterName, pushMessagesSnapshot);
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 function openSettingsPage() {
