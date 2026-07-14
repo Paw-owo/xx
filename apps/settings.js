@@ -696,6 +696,11 @@ async function renderTtsPage() {
 // 模板只是生成新 server 的草稿，不自动写入 mcpServers
 // ═══════════════════════════════════════
 
+// 调研来源（2026-07-14 联网核实）：
+// - Context7: https://context7.com 官方文档，Streamable HTTP，免 key
+// - DeepWiki: https://mcp.deepwiki.com 官方，Streamable HTTP，完全免 key
+// - GitMCP: https://gitmcp.io 官方 + mcpservers.org 索引，通用动态端点，免 key
+// - Microsoft Learn: https://learn.microsoft.com/training/support/mcp 官方说明，免认证、免费
 const MCP_RECOMMENDED_TEMPLATES = [
   {
     id: 'sense',
@@ -705,6 +710,8 @@ const MCP_RECOMMENDED_TEMPLATES = [
     apiKeyPlaceholder: '如果服务器需要认证就填这里',
     tags: ['感知'],
     category: 'custom',
+    authType: 'apiKey',
+    notes: '自己部署的小手机感知服务器，添加时会尝试预填云服务器地址',
     requiresManualUrl: true,
     defaultEnabled: false,
     hint: '把你的服务器地址填进来就能用啦'
@@ -712,38 +719,58 @@ const MCP_RECOMMENDED_TEMPLATES = [
   {
     id: 'context7',
     name: 'Context7',
-    description: '查开发文档、框架用法、版本差异',
-    url: '',
-    apiKeyPlaceholder: '可选，部分部署需要',
-    tags: ['文档'],
+    description: '查最新开发文档、框架用法、版本差异，少幻觉',
+    url: 'https://mcp.context7.com/mcp',
+    apiKeyPlaceholder: '可选，配 API key 能提高免费额度',
+    tags: ['文档', '搜索'],
     category: 'docs',
-    requiresManualUrl: true,
+    authType: 'none',
+    notes: 'Streamable HTTP，免 key 即可用，来源：context7.com 官方文档',
+    requiresManualUrl: false,
     defaultEnabled: false,
-    hint: '需要填入可用的服务器地址'
+    hint: '免 key 直接用，配 key 可提高限额'
   },
   {
     id: 'deepwiki',
     name: 'DeepWiki',
-    description: '读 GitHub 仓库结构和文档，更快看懂项目',
-    url: '',
-    apiKeyPlaceholder: '可选，部分部署需要',
-    tags: ['仓库'],
+    description: '把任意 GitHub 仓库自动生成 wiki，更快看懂项目',
+    url: 'https://mcp.deepwiki.com/mcp',
+    apiKeyPlaceholder: '不需要 key',
+    tags: ['GitHub', '文档'],
     category: 'repo',
-    requiresManualUrl: true,
+    authType: 'none',
+    notes: 'Streamable HTTP，完全免 key，来源：mcp.deepwiki.com 官方',
+    requiresManualUrl: false,
     defaultEnabled: false,
-    hint: '需要填入可用的服务器地址'
+    hint: '免 key 直接用'
   },
   {
-    id: 'github',
-    name: 'GitHub',
-    description: '仓库、Issue、PR、文件浏览这类能力',
-    url: '',
-    apiKeyPlaceholder: '需要填 GitHub Token',
-    tags: ['仓库'],
+    id: 'gitmcp',
+    name: 'GitMCP',
+    description: '读 GitHub 仓库的 README 和文档，AI 调用时指定仓库',
+    url: 'https://gitmcp.io/docs',
+    apiKeyPlaceholder: '不需要 key',
+    tags: ['GitHub', '文档'],
     category: 'repo',
-    requiresManualUrl: true,
+    authType: 'none',
+    notes: '通用动态端点，调用时由 AI 传 owner/repo，来源：gitmcp.io 官方',
+    requiresManualUrl: false,
     defaultEnabled: false,
-    hint: '需要填 GitHub Token 才能用'
+    hint: '免 key 直接用，AI 调用时会指定仓库'
+  },
+  {
+    id: 'microsoft-learn',
+    name: 'Microsoft Learn',
+    description: '微软官方文档检索：Windows / Azure / .NET / M365',
+    url: 'https://learn.microsoft.com/api/mcp',
+    apiKeyPlaceholder: '不需要 key',
+    tags: ['文档', '微软'],
+    category: 'docs',
+    authType: 'none',
+    notes: 'Streamable HTTP，官方明确免认证、免费，来源：learn.microsoft.com/training/support/mcp',
+    requiresManualUrl: false,
+    defaultEnabled: false,
+    hint: '免 key 直接用'
   }
 ];
 
@@ -778,7 +805,7 @@ function addServerFromTemplate(template) {
 
 // 渲染推荐模板区域
 function renderMcpRecommendedSection() {
-  const section = card('推荐添加', '点一下就能帮你填好草稿，地址和密钥要自己补哦');
+  const section = card('推荐添加', '点一下填好草稿，免 key 的能直接用，需要 key 的会标出来');
   const list = el('div', 'settings-mcp-recommended-list');
 
   MCP_RECOMMENDED_TEMPLATES.forEach((template) => {
@@ -787,16 +814,30 @@ function renderMcpRecommendedSection() {
     // 顶部：图标 + 名称 + 添加按钮
     const head = el('div', 'settings-mcp-recommended-head');
     const iconWrap = el('div', 'settings-mcp-recommended-icon');
-    const iconMap = { sense: 'eye', context7: 'book', deepwiki: 'compass', github: 'github' };
+    // 图标名取自 core/ui.js 的 ICON_PATHS 里真实存在的项，避免回退成三点
+    const iconMap = {
+      sense: 'eye',
+      context7: 'search',
+      deepwiki: 'mcp',
+      gitmcp: 'mcp',
+      'microsoft-learn': 'memory'
+    };
     iconWrap.append(safeIcon(iconMap[template.id] || 'star', 18));
     const nameBox = el('div', 'settings-mcp-recommended-namebox');
     nameBox.append(el('div', 'settings-mcp-recommended-name', template.name));
 
-    // 标签
+    // 标签 + 免 key / 需要 key 徽章
     const tagsRow = el('div', 'settings-mcp-recommended-tags');
     (template.tags || []).forEach((tag) => {
       tagsRow.append(el('span', 'settings-mcp-recommended-tag', tag));
     });
+    const isFree = template.authType === 'none';
+    const authBadge = el(
+      'span',
+      `settings-mcp-recommended-auth ${isFree ? 'is-free' : 'is-key'}`,
+      isFree ? '免 key' : '需要 key'
+    );
+    tagsRow.append(authBadge);
     nameBox.append(tagsRow);
     head.append(iconWrap, nameBox);
 
@@ -807,9 +848,11 @@ function renderMcpRecommendedSection() {
     // 说明
     item.append(el('p', 'settings-mcp-recommended-desc', template.description));
 
-    // 需要手动填地址的提示
+    // 需要手动填地址的提示，或已有 URL 时的补充说明
     if (template.requiresManualUrl) {
       item.append(el('p', 'settings-mcp-recommended-hint', template.hint || '需要自己填地址'));
+    } else if (template.hint) {
+      item.append(el('p', 'settings-mcp-recommended-hint', template.hint));
     }
 
     list.append(item);
@@ -3314,6 +3357,23 @@ function injectStyle() {
       font-size: 11px;
       font-weight: 500;
       line-height: 1.4;
+    }
+    .settings-mcp-recommended-auth {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+    .settings-mcp-recommended-auth.is-free {
+      background: var(--accent-light);
+      color: var(--accent-dark);
+    }
+    .settings-mcp-recommended-auth.is-key {
+      background: var(--bg-card);
+      color: var(--text-secondary);
     }
     .settings-mcp-recommended-add {
       flex: 0 0 auto;
