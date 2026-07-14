@@ -58,7 +58,11 @@ const LOCAL_STORAGE_KEYS = [
   'app_anniversaries',
   'anniversary_list',
   'app_dream_last_gen',
-  'app_dream_config'
+  'app_dream_config',
+  'app_anniversary_visuals',
+  'app_anniversary_profile',
+  'app_game_hub_visual',
+  'app_game_visuals'
 ];
 
 const INDEXED_DB_STORES = [

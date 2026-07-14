@@ -746,7 +746,7 @@ async function testMcpServer(id) {
 
   showToast('正在连接 MCP 服务器...');
   try {
-    await resetSession();
+    await resetSession(server.id);
     const tools = await listMcpTools(server.id);
     if (Array.isArray(tools)) {
       showToast(`连上啦，找到 ${tools.length} 个工具`);
@@ -879,7 +879,7 @@ function openMcpEditor(server) {
     toolsLoading = true;
     renderToolsPanel();
     try {
-      await resetSession();
+      await resetSession(current.id);
       const tools = await listMcpTools(current.id);
       toolsCache = Array.isArray(tools) ? tools : [];
       // 合并 toolSettings：新发现的工具填默认值，已保存的不覆盖
