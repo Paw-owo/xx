@@ -833,7 +833,7 @@ async function doSend(input, body, ch) {
     const sysPrompt = `${worldbookPrompt ? worldbookPrompt + '\n\n' : ''}我是${ch.name || 'AI'}。我刚才做了一个梦，梦的内容是：${currentDream.content}\n\n现在用户把我从梦里叫醒了。我要用迷迷糊糊、半梦半醒的语气回应，可能会分不清梦境和现实，说话有点奇怪。我会保持我的人设性格，但在刚醒来的状态下会有些恍惚。称呼用户为${ch.nicknameForUser || '你'}。`;
     const msgs = [{ role: 'system', content: sysPrompt }, ...wakeMessages];
     const config = buildApiCfg(ch);
-    const reply = await silentRequest(config, msgs);
+    const reply = await silentRequest({ ...config, messages: msgs });
     typing.remove();
     const replyText = typeof reply === 'string' ? reply : (reply?.content || reply?.text || '...嗯？');
     wakeMessages.push({ role: 'assistant', content: replyText });
@@ -894,16 +894,26 @@ ${recentText || '（还没有对话记录）'}
 {"content":"梦境正文","summary":"一句话摘要15字以内","mood":"sweet或weird或funny或sad或adventure或chaos","keywords":["关键词1","关键词2","关键词3"]}`;
 
     const config = buildApiCfg(ch);
-    const result = await silentRequest(config, [
-      { role: 'system', content: '你是一个梦境创作者。请只回复JSON格式的内容，不要有其他文字。' },
-      { role: 'user', content: prompt }
-    ]);
+    const result = await silentRequest({
+      ...config,
+      messages: [
+        { role: 'system', content: '你是一个梦境创作者。请只回复JSON格式的内容，不要有其他文字。' },
+        { role: 'user', content: prompt }
+      ],
+      json: true
+    });
 
     let dream;
     try {
-      const raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      // json:true 时 silentRequest 返回解析后的对象；否则返回字符串需手动提取 JSON
+      let parsed = null;
+      if (result && typeof result === 'object' && !Array.isArray(result)) {
+        parsed = result;
+      } else {
+        const raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      }
       dream = {
         id: generateId('dream'), characterId: ch.id,
         content: String(parsed.content || '').slice(0, 800),
@@ -986,21 +996,13 @@ function buildApiCfg(ch) {
   const settings = getData('app_settings') || {};
   if (ch?.apiConfig && !ch.apiConfig.useGlobal) {
     const cfg = ch.apiConfig;
-    // 优先通过 endpointId 在 settings.apiEndpoints 中查找端点（对齐 thread-ai/core/api 机制）
-    if (cfg.endpointId) {
-      const ep = (settings.apiEndpoints || []).find(e => e.id === cfg.endpointId);
-      if (ep) {
-        return { provider: ep.provider || cfg.provider || 'openai', endpoint: ep.endpoint || '', apiKey: ep.apiKey || '', model: cfg.model || ep.model || settings.defaultModel || '' };
-      }
-    }
-    // 兼容旧字段 endpoint/apiKey（无 endpointId 或端点未找到时兜底）
-    return { provider: cfg.provider || 'openai', endpoint: cfg.endpoint || '', apiKey: cfg.apiKey || '', model: cfg.model || '' };
+    // silentRequest 通过 endpointId 在 getAvailableSources 中查找端点配置
+    // 只返回 endpointId + model，对齐 silentRequest 签名
+    return { endpointId: cfg.endpointId || '', model: cfg.model || '' };
   }
   const cc = getData(`chat_${ch.id}_config`) || {};
-  const eid = cc.apiEndpointId || settings.defaultApiEndpointId;
-  const ep = (settings.apiEndpoints || []).find(e => e.id === eid);
-  if (ep) return { provider: ep.provider || 'openai', endpoint: ep.endpoint || '', apiKey: ep.apiKey || '', model: ep.model || settings.defaultModel || '' };
-  return { provider: 'openai', endpoint: '', apiKey: '', model: settings.defaultModel || '' };
+  const eid = cc.apiEndpointId || settings.defaultApiEndpointId || '';
+  return { endpointId: eid, model: settings.defaultModel || '' };
 }
 
 // depends: ../core/storage.js(getData,setData,generateId,getNow,getByIndexDB,getAllDB,setDB,deleteDB)；../core/ui.js(showToast,showBottomSheet,hideBottomSheet,showConfirm,createIcon)；../core/api.js(silentRequest)

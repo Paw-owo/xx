@@ -4,7 +4,7 @@
 // 推送失败只 console.warn，不影响任何业务流程
 // 启动时由 index.html 调用 initPushBridge() 初始化一次
 
-import { getData } from './storage.js';
+import { getData, setData } from './storage.js';
 import { on } from './app-bus.js';
 
 const CLOUD_KEY = 'app_cloud_server';
@@ -191,4 +191,4 @@ export function initPushBridge() {
   });
 }
 
-// depends: core/storage.js -> getData; core/app-bus.js -> on
+// depends: core/storage.js -> getData, setData; core/app-bus.js -> on
