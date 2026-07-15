@@ -755,6 +755,34 @@ export async function getUsableMcpTools() {
 }
 
 /**
+ * 获取抽屉展示用的工具列表（所有 enabled 服务器下的全部工具，含需审批的）
+ * 与 getUsableMcpTools 同一数据源（getMcpServers + getPersistedTools），
+ * 但不过滤 requireApproval —— 抽屉要展示所有已接入工具，AI 侧才过滤需审批的。
+ * 同步函数（不依赖网络），供 thread-sheets openMcpSheet 直接调用。
+ * @returns {Array<{name,description,serverName,serverId,requireApproval,enabled}>}
+ */
+export function getMcpDrawerItems() {
+  const servers = getMcpServers();
+  if (!servers.length) return [];
+
+  const result = [];
+  for (const server of servers) {
+    const tools = getPersistedTools(server.id);
+    for (const tool of tools) {
+      result.push({
+        serverId: server.id,
+        serverName: server.name || 'MCP',
+        name: tool.name || '',
+        description: tool.description || '',
+        enabled: tool.enabled !== false,
+        requireApproval: tool.requireApproval === true
+      });
+    }
+  }
+  return result;
+}
+
+/**
  * 构建给 AI 的可用工具上下文（只包含 enabled:true 且 requireApproval:false 的工具）
  * 遍历所有已启用服务器，聚合工具说明，不写死工具名。
  * 任何失败都静默返回空串，不阻塞主聊天流程。

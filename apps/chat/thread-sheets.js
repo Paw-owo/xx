@@ -11,6 +11,7 @@ import { getData, setData, getNow } from '../../core/storage.js';
 import { createIcon, showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
 import { sendThreadMessage, sendTransferMessage } from './thread-actions.js';
 import { openRelationshipLockSheet } from './thread-relationship.js';
+import { getMcpDrawerItems } from '../../core/mcp.js';
 
 const SHEET_STYLE_ID = 'chat-thread-sheets-style';
 
@@ -512,14 +513,22 @@ export function openMcpSheet(state, options = {}) {
   injectStyle();
 
   const sheet = el('div', 'thread-sheet-wrap');
-  const list = normalizeArray(options.items || getData('chat_mcp_tools') || []);
+  // BUG1 修复：抽屉与 AI 侧统一数据源，都读 getMcpServers（app_settings.mcpServers）
+  // 不再读 chat_mcp_tools（旧 key，从未被 MCP 设置流程写入）
+  // 只要 server enabled 就显示为已接入，需审批的工具标注"需确认"
+  const rawItems = options.items && options.items.length
+    ? options.items
+    : getMcpDrawerItems();
+  const list = normalizeArray(rawItems || []);
 
   sheet.append(
     createSheetHead('MCP', '这里放外部工具入口。', options),
     list.length
       ? createChipGrid(list.map((item) => ({
           title: String(item.title || item.name || '工具').trim(),
-          desc: String(item.desc || item.description || '').trim(),
+          desc: String(
+            item.desc || item.description || ''
+          ).trim() + (item.requireApproval ? '（需确认）' : ''),
           icon: String(item.icon || 'web')
         })), async (item) => {
           if (!options.containerEl) hideBottomSheet();

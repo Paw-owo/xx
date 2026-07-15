@@ -118,12 +118,22 @@ export function parseStreamThinkTags(text) {
 // 只在明确标签/协议边界判断，不粗暴删普通中文
 // thread-ai.js 的 sanitizeThinkingText 和 thinking-chain.js 的 sanitizeDisplayText
 // 都委托到本函数，消除两份漂移 copy
+//
+// BUG2 修复：覆盖英文原始推理泄漏 + 内部工具名泄漏
+//  - 英文原始推理链（"The user asked me to..."）→ 替换为中性中文占位
+//  - 内部工具名（resolve-library-id / mcp_tool_call 等）→ 剥离
 export function sanitizeThinkingText(text) {
   let out = String(text || '');
   // 剥残留的 think/thinking 标签（含未闭合）
   out = out.replace(/<\/?think(?:ing)?(?:_summary)?\b[^>]*>/gi, '');
   // 剥常见协议字段泄漏（如 "正式"、"正文"、"用户正在回应" 等行首协议标记）
   out = out.replace(/^[\s>]*(正式|正文|用户正在回应|assistant|user|system)\s*[:：]\s*/gim, '');
+  // 剥内部工具名 / 协议关键词（中英文都剥，绝不暴露中间层）
+  out = out.replace(/resolve-library-id|get-library-docs|mcp_tool_call|search_[a-z_]+/gi, '');
+  // BUG2：检测英文原始推理链 → 替换为中性中文占位，绝不裸露英文 chain
+  if (isEnglishReasoning(out)) {
+    return '想了一小会';
+  }
   // 修复问题 B/F：合并异常单字/单词换行，恢复连续中文可读段落
   // reasoning_content 流式时若残留 token 间 \n，会把"你 / 在 / 要求"拆成竖排
   out = mergeTokenNewlines(out);
@@ -132,6 +142,22 @@ export function sanitizeThinkingText(text) {
   // 行首尾多余空白
   out = out.split('\n').map((line) => line.trim()).join('\n').trim();
   return out;
+}
+
+// 检测文本是否是英文原始推理链（而非中文思考）
+// 判定标准：非空白字符中 ASCII 字母占比 > 60%，且长度 > 8（排除短词误判）
+// 英文原始 reasoning 是模型内部 chain-of-thought，不应裸露给用户
+function isEnglishReasoning(text) {
+  const s = String(text || '').trim();
+  if (s.length <= 8) return false;
+  // 统计非空白字符
+  const nonSpace = s.replace(/\s/g, '');
+  if (!nonSpace.length) return false;
+  // ASCII 字母数量
+  const asciiLetters = (nonSpace.match(/[a-zA-Z]/g) || []).length;
+  const ratio = asciiLetters / nonSpace.length;
+  // ASCII 字母占比 > 60% → 英文原始推理
+  return ratio > 0.6;
 }
 
 // 合并 token 级换行：把"CJK 短词\nCJK 短词\n..."恢复成连续段落
