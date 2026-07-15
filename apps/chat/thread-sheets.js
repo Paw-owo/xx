@@ -11,7 +11,7 @@ import { getData, setData, getNow } from '../../core/storage.js';
 import { createIcon, showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
 import { sendThreadMessage, sendTransferMessage } from './thread-actions.js';
 import { openRelationshipLockSheet } from './thread-relationship.js';
-import { getMcpDrawerItems } from '../../core/mcp.js';
+import { getMcpDrawerItems, getMcpServerGroups, setMcpServerEnabled } from '../../core/mcp.js';
 
 const SHEET_STYLE_ID = 'chat-thread-sheets-style';
 
@@ -506,42 +506,119 @@ export function openClearContextSheet(state, options = {}) {
 }
 
 // ═══════════════════════════════════════
-// 【MCP】工具入口占位抽屉
+// 【MCP】工具入口抽屉（按服务器分组）
 // ═══════════════════════════════════════
 
 export function openMcpSheet(state, options = {}) {
   injectStyle();
+  renderMcpServerList(state, options);
+}
 
+// 一级列表：按 server 分组，一行一个 server
+function renderMcpServerList(state, options) {
   const sheet = el('div', 'thread-sheet-wrap');
-  // BUG1 修复：抽屉与 AI 侧统一数据源，都读 getMcpServers（app_settings.mcpServers）
-  // 不再读 chat_mcp_tools（旧 key，从未被 MCP 设置流程写入）
-  // 只要 server enabled 就显示为已接入，需审批的工具标注"需确认"
-  const rawItems = options.items && options.items.length
-    ? options.items
-    : getMcpDrawerItems();
-  const list = normalizeArray(rawItems || []);
+  // 与设置页同一数据源 app_settings.mcpServers
+  // 显示所有已配置服务器（含 enabled:false），开关状态由 server.enabled 体现
+  const groups = getMcpServerGroups();
 
   sheet.append(
-    createSheetHead('MCP', '这里放外部工具入口。', options),
-    list.length
-      ? createChipGrid(list.map((item) => ({
-          title: String(item.title || item.name || '工具').trim(),
-          desc: String(
-            item.desc || item.description || ''
-          ).trim() + (item.requireApproval ? '（需确认）' : ''),
-          icon: String(item.icon || 'web')
-        })), async (item) => {
-          if (!options.containerEl) hideBottomSheet();
-          if (typeof item.onClick === 'function') {
-            await item.onClick(state, item);
-            return;
-          }
-          showToast('这个工具还没接上');
-        }, '还没有工具。')
-      : createEmptyTip('这里还没有接入外部工具。')
+    createSheetHead('MCP', '外部工具服务器。', options)
   );
 
+  if (!groups.length) {
+    sheet.append(createEmptyTip('这里还没有接入外部工具。'));
+    renderSheet(sheet, options.containerEl);
+    return;
+  }
+
+  const list = el('div', 'mcp-server-list');
+  groups.forEach((server) => {
+    list.append(createMcpServerRow(server, state, options));
+  });
+  sheet.append(list);
+
   renderSheet(sheet, options.containerEl);
+}
+
+// 单个 server 行：图标 + 名称 + 工具数胶囊 + 开关
+function createMcpServerRow(server, state, options) {
+  const row = el('button', 'mcp-server-row');
+  row.type = 'button';
+
+  const left = el('div', 'mcp-server-left');
+  const iconWrap = el('span', 'mcp-server-icon');
+  iconWrap.appendChild(createIcon('web', 20));
+  const text = el('div', 'mcp-server-text');
+  text.append(
+    el('span', 'mcp-server-name', server.name || '未命名服务器'),
+    el('span', 'mcp-server-url', server.url || '')
+  );
+  left.append(iconWrap, text);
+
+  // 工具数胶囊：启用数/总数
+  const capsule = el('span', 'mcp-server-capsule');
+  capsule.textContent = `工具: ${server.enabledCount}/${server.toolCount}`;
+
+  // server 级开关
+  const toggle = el('span', `mcp-server-toggle ${server.enabled ? 'on' : ''}`);
+  toggle.appendChild(el('i', 'mcp-toggle-dot'));
+
+  row.append(left, capsule, toggle);
+
+  // 点击开关区域：切换 enabled，不进入次级页
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const next = !server.enabled;
+    setMcpServerEnabled(server.id, next);
+    toggle.classList.toggle('on', next);
+    server.enabled = next;
+    showToast(next ? '已启用' : '已停用');
+  });
+
+  // 点击行：进入次级工具列表
+  row.addEventListener('click', () => {
+    renderMcpToolList(server, state, options);
+  });
+
+  return row;
+}
+
+// 次级视图：列出该 server 下的工具
+function renderMcpToolList(server, state, options) {
+  const sheet = el('div', 'thread-sheet-wrap');
+  const head = createSheetHead(server.name || '工具列表', `${server.toolCount} 个工具`, {
+    ...options,
+    onBackToTools: () => renderMcpServerList(state, options)
+  });
+  sheet.append(head);
+
+  if (!server.tools || !server.tools.length) {
+    sheet.append(createEmptyTip('这个服务器还没拉到工具。'));
+    renderSheet(sheet, options.containerEl);
+    return;
+  }
+
+  const list = el('div', 'mcp-tool-list');
+  server.tools.forEach((tool) => {
+    list.append(createMcpToolRow(tool));
+  });
+  sheet.append(list);
+
+  renderSheet(sheet, options.containerEl);
+}
+
+// 单个工具行：工具名 + 描述 + 状态标签
+function createMcpToolRow(tool) {
+  const row = el('div', 'mcp-tool-row');
+  const text = el('div', 'mcp-tool-text');
+  text.append(
+    el('span', 'mcp-tool-name', tool.name || '未命名工具'),
+    el('span', 'mcp-tool-desc', tool.description || '暂无描述')
+  );
+  const status = el('span', `mcp-tool-status ${tool.enabled ? '' : 'off'}`);
+  status.textContent = !tool.enabled ? '已停用' : (tool.requireApproval ? '需确认' : '可用');
+  row.append(text, status);
+  return row;
 }
 
 // ═══════════════════════════════════════
@@ -847,6 +924,26 @@ function injectStyle() {
     .editable-card-content{font-size:13px;color:var(--text-secondary);line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
     .editable-card-del{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:24px;border-radius:50%;background:rgba(255,80,80,0.12);color:rgb(255,80,80);display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;transition:all 0.2s ease}
     .editable-card-del:active{transform:translateY(-50%) scale(0.9)}
+    .mcp-server-list{display:flex;flex-direction:column;gap:10px}
+    .mcp-server-row{width:100%;display:flex;align-items:center;gap:12px;padding:14px;border-radius:18px;background:var(--bg-card);box-shadow:var(--shadow-sm);text-align:left;transition:all 200ms ease}
+    .mcp-server-row:active{transform:scale(0.98)}
+    .mcp-server-left{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+    .mcp-server-icon{width:40px;height:40px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border-radius:14px;background:var(--surface-muted);color:var(--accent)}
+    .mcp-server-text{min-width:0;display:flex;flex-direction:column;gap:3px}
+    .mcp-server-name{color:var(--text-primary);font-size:15px;font-weight:600;line-height:1.35;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .mcp-server-url{color:var(--text-hint);font-size:11px;line-height:1.4;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .mcp-server-capsule{flex:0 0 auto;padding:5px 12px;border-radius:999px;background:var(--surface-muted);color:var(--text-secondary);font-size:12px;font-weight:500;line-height:1.4}
+    .mcp-server-toggle{flex:0 0 auto;width:44px;height:26px;border-radius:13px;background:var(--surface-muted);position:relative;transition:background 200ms ease;cursor:pointer}
+    .mcp-server-toggle.on{background:var(--accent)}
+    .mcp-toggle-dot{position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:var(--bg-card);box-shadow:var(--shadow-sm);transition:transform 200ms ease}
+    .mcp-server-toggle.on .mcp-toggle-dot{transform:translateX(18px)}
+    .mcp-tool-list{display:flex;flex-direction:column;gap:8px}
+    .mcp-tool-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:16px;background:var(--bg-card);box-shadow:var(--shadow-sm)}
+    .mcp-tool-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .mcp-tool-name{color:var(--text-primary);font-size:13px;font-weight:600;line-height:1.35;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .mcp-tool-desc{color:var(--text-secondary);font-size:11px;line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+    .mcp-tool-status{flex:0 0 auto;padding:4px 10px;border-radius:999px;background:var(--surface-muted);color:var(--text-secondary);font-size:11px;font-weight:500}
+    .mcp-tool-status.off{opacity:0.6}
     @media(max-width:430px){.thread-chip-grid{grid-template-columns:1fr}.thread-sheet-actions{grid-template-columns:1fr}}
     @media(prefers-reduced-motion:reduce){.thread-chip-card,.thread-sheet-btn,.thread-sheet-back-btn,.editable-card,.editable-toolbar-btn{transition:none}}
   `;

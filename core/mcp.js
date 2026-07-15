@@ -6,7 +6,7 @@
 // ensureSession 统一入口：先试 streamable HTTP，失败回退 SSE，保证自建服务器不受影响
 // imports: getData from './storage.js'
 
-import { getData } from './storage.js';
+import { getData, setData } from './storage.js';
 
 /* ── 常量 ── */
 const MCP_TIMEOUT = 20000;
@@ -780,6 +780,75 @@ export function getMcpDrawerItems() {
     }
   }
   return result;
+}
+
+/**
+ * 按服务器分组返回（抽屉一级列表用）
+ * 与设置页同一数据源（app_settings.mcpServers），不过滤 enabled:false 的服务器——
+ * 抽屉要展示所有已配置服务器，开关状态由 server.enabled 体现。
+ * 同一 server 只出现一次；同一 server 下同名工具去重。
+ * @returns {Array<{id,name,url,enabled,tools:Array<{name,description,enabled,requireApproval}>,toolCount,enabledCount}>}
+ */
+export function getMcpServerGroups() {
+  const settings = getData('app_settings');
+  const servers = Array.isArray(settings?.mcpServers) ? settings.mcpServers : [];
+
+  const result = [];
+  const seenServerIds = new Set();
+
+  for (const server of servers) {
+    if (!server || !server.id) continue;
+    // 去重：同一 server.id 只出现一次（修掉重复遍历导致的重复卡片）
+    if (seenServerIds.has(server.id)) continue;
+    seenServerIds.add(server.id);
+
+    const toolSettings = getToolSettings(server.id);
+    const rawTools = Array.isArray(server.tools) ? server.tools : [];
+
+    // 同一 server 下同名工具去重（保留第一个）
+    const seenToolNames = new Set();
+    const tools = [];
+    for (const raw of rawTools) {
+      const toolName = raw?.name || '';
+      if (!toolName || seenToolNames.has(toolName)) continue;
+      seenToolNames.add(toolName);
+      const cfg = toolSettings[toolName] || { enabled: true, requireApproval: false };
+      tools.push({
+        name: toolName,
+        description: raw.description || '',
+        enabled: cfg.enabled !== false,
+        requireApproval: cfg.requireApproval === true
+      });
+    }
+
+    result.push({
+      id: server.id,
+      name: server.name || server.url || server.id,
+      url: server.url || '',
+      enabled: server.enabled !== false,
+      tools,
+      toolCount: tools.length,
+      enabledCount: tools.filter((t) => t.enabled).length
+    });
+  }
+  return result;
+}
+
+/**
+ * 切换某个 MCP 服务器的 enabled 状态，写回同一数据源 app_settings.mcpServers
+ * 与设置页 toggleMcp 同一写入路径，保证抽屉和设置页数据一致。
+ * @param {string} serverId
+ * @param {boolean} enabled
+ */
+export function setMcpServerEnabled(serverId, enabled) {
+  if (!serverId) return;
+  const settings = getData('app_settings') || {};
+  const servers = Array.isArray(settings.mcpServers) ? settings.mcpServers : [];
+  const next = servers.map((s) => {
+    if (!s || s.id !== serverId) return s;
+    return { ...s, enabled: !!enabled, updatedAt: new Date().toISOString() };
+  });
+  setData('app_settings', { ...settings, mcpServers: next });
 }
 
 /**
