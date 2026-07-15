@@ -43,6 +43,9 @@ import {
   summarizeText
 } from './thinking-pure.js';
 
+// render 纯函数共享模块：splitCodeBlocks 拆气泡 + MCP 工具 JSON 片段检测
+import { containsMcpToolCallFragment } from './render-pure.js';
+
 // ═══════════════════════════════════════
 // 【基础配置】聊天 AI 常量和运行状态
 // ═══════════════════════════════════════
@@ -225,6 +228,13 @@ function createStreamAccumulator() {
         }
         content = result.content;
         this.tailBuffer = result.tailBuffer || '';
+      }
+
+      // BUG1 修复：流式期检测到 MCP 工具调用 JSON 片段时，display 内容置空
+      // rawContent 保留完整原文供 handleMcpToolRequest 解析判断
+      // 工具 JSON 是内部控制消息，绝不能进正文气泡（即使是残片也不显示）
+      if (content && containsMcpToolCallFragment(content)) {
+        content = '';
       }
 
       return { content, thinking, thinkingSummary };
@@ -526,13 +536,18 @@ async function requestPrivateReply(state, options = {}) {
           } else {
             // 工具请求但失败：降级为普通回复（重新请求一次，不带工具协议）
             // 兜底失败抛错，让外层 catch 走 markMessageError，不静默吞错
-            // 移除 MCP 协议段，避免模型再次输出工具 JSON
+            // 移除 MCP 协议段和工具列表段，替换为"无工具"禁止调用约束，避免模型再次输出工具 JSON
             const cleanMessages = promptMessages.map(m => {
               if (m.role === 'system') {
-                // 去掉工具协议行和工具列表行
-                return { ...m, content: String(m.content || '')
-                  .replace(/如果我需要用上面列出的工具来辅助回答[^]*?不需要工具时直接正常回复。/g, '')
-                  .replace(/我可以用以下工具辅助回答[^]*?不会在回复里报工具名）：\n[\s\S]*?(?=\n\n|$)/g, '') };
+                const cleaned = String(m.content || '')
+                  // 去掉工具调用协议段（有工具时）
+                  .replace(/工具调用协议（内部协议[^]*?不需要工具时直接正常回复，不调用。/g, '')
+                  // 去掉无工具禁止段（无工具时）
+                  .replace(/当前没有可用外部工具[^]*?直接用自然语言回复。/g, '')
+                  // 去掉可用工具列表段
+                  .replace(/可用工具列表（需要时调用[^]*?(?=\n\n|$)/g, '');
+                // 追加无工具禁止调用约束，防止模型再次幻觉工具调用
+                return { ...m, content: cleaned + '\n\n当前没有可用外部工具，不要调用任何工具，不要输出工具调用 JSON，直接用自然语言回复。' };
               }
               return m;
             });
@@ -1324,12 +1339,19 @@ async function buildPrompt({
     mcpToolsPrompt = await buildMcpToolsContext();
   } catch (_) { mcpToolsPrompt = ''; }
 
-  // 工具调用协议规则（只在有可用工具时追加，避免无工具时误导 AI）
-  // 中性能力说明，不使用"悄悄用一下"等表演语气
-  // 严格隔离：工具调用 JSON 是内部控制消息，不是最终回复
-  const mcpToolProtocol = mcpToolsPrompt
-    ? '工具调用协议（内部协议，不是最终回复）：如果我判断需要调用上面列出的工具，只输出严格 JSON（不夹其他文字、不用 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。这是内部控制消息，不会出现在最终回复里。拿到工具结果后，我用自然语言组织最终回复，不在回复中暴露工具名、参数、JSON 或原始返回。不需要工具时直接正常回复，不调用。'
-    : '';
+  // BUG3 修复：无可用工具时，显式告诉 AI"当前没有可用外部工具，不要调用任何工具"
+  // 避免 AI 基于训练数据幻觉调用不存在的工具（如 resolve-library-id）
+  // 有工具时才给出工具调用协议；无工具时给出禁止调用约束
+  let mcpToolProtocol = '';
+  if (mcpToolsPrompt) {
+    // 工具调用协议规则（只在有可用工具时追加）
+    // 中性能力说明，不使用"悄悄用一下"等表演语气
+    // 严格隔离：工具调用 JSON 是内部控制消息，不是最终回复
+    mcpToolProtocol = '工具调用协议（内部协议，不是最终回复）：如果我判断需要调用上面列出的工具，只输出严格 JSON（不夹其他文字、不用 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。这是内部控制消息，不会出现在最终回复里。拿到工具结果后，我用自然语言组织最终回复，不在回复中暴露工具名、参数、JSON 或原始返回。不需要工具时直接正常回复，不调用。';
+  } else {
+    // 无可用工具：明确禁止调用，防止幻觉
+    mcpToolProtocol = '当前没有可用外部工具，不要调用任何工具，不要输出工具调用 JSON，直接用自然语言回复。';
+  }
 
   const system = [
     buildIdentityPrompt(activeCharacter, userName, userProfile),
@@ -1770,15 +1792,17 @@ async function handleMcpToolRequest(firstResult, ctx) {
     usableTools = await getUsableMcpTools();
   } catch (_) { usableTools = []; }
   const matched = usableTools.find((t) => t.name === toolCall.tool);
-  if (!matched) {
-    // 工具不存在或已被禁用/需审批：不暴露 JSON，降级为普通回复
+  // BUG2 修复：调用前校验——工具名为空或不在可用列表 → 不发起调用，走兜底
+  if (!matched || !matched.name || !matched.serverId) {
     return { handled: true, finalResult: null, toolRecord: null };
   }
 
   // 调用工具（callMcpTool 内部会二次校验 enabled/requireApproval）
+  // BUG2 修复：matched.name 才是工具名字段（getUsableMcpTools 返回 {name, serverId, ...}）
+  // 之前误用 matched.tool 导致服务端收到 undefined → [-32603] params.name expected string
   let toolResult = null;
   try {
-    toolResult = await callMcpTool(matched.serverId, matched.tool, toolCall.arguments);
+    toolResult = await callMcpTool(matched.serverId, matched.name, toolCall.arguments || {});
   } catch (_) { toolResult = null; }
 
   // 被禁用/需审批/失败：不暴露 JSON，降级为普通回复
@@ -1801,7 +1825,7 @@ async function handleMcpToolRequest(firstResult, ctx) {
   // 构造过程链节点记录：只存安全元信息，不存原始参数/JSON/key
   const toolRecord = cleanForDB({
     name: 'mcp',
-    toolName: matched.tool,
+    toolName: matched.name,
     serviceName: matched.serverName || '',
     status: 'done',
     summary: summarizeText(toolText, 80),
@@ -2000,6 +2024,12 @@ function parseAIText(text, userName = '你') {
   let content = raw;
   if (thinkingMatch) content = content.replace(thinkingMatch[0], '').trim();
   if (summaryMatch) content = content.replace(summaryMatch[0], '').trim();
+
+  // BUG1 兜底：parseAIText 入口剥离任何残留的 MCP 工具调用 JSON（完整 + 残片）
+  // 工具 JSON 是内部控制消息，绝不能出现在最终回复内容里
+  if (containsMcpToolCallFragment(content)) {
+    content = '';
+  }
 
   let thinkingSummary = summaryMatch
     ? cleanPerspectiveText(summaryMatch[1].trim(), userName)
@@ -2932,5 +2962,7 @@ export const __testHooks = {
   buildGrudgePrompt,
   buildProactivePrompt,
   // 记仇判断
-  detectGrudgeSignal
+  detectGrudgeSignal,
+  // MCP 工具调用解析（供 BUG1/BUG2 测试）
+  parseMcpToolCall
 };
