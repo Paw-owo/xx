@@ -249,7 +249,24 @@ def main():
         log(f"禁用后 select.value = {sel_val}")
         ch = read_character(page, CHAR_ID)
         log(f"禁用后 DB 中角色 apiConfig = {ch.get('apiConfig') if ch else None}")
+        # 提示文本
+        hint_text = api_panel.locator('.character-editor-hint').first.evaluate("el => el.textContent || ''") if api_panel.locator('.character-editor-hint').count() else ''
+        log(f"禁用后提示文本: {hint_text}")
         page.screenshot(path='/workspace/tests/_d_step5_disabled_dropdown.png')
+
+        # 断言：endpointId 保留 + 不静默切到别的端点
+        assert sel_val == ep_id, f"endpointId 被静默改动: {sel_val} != {ep_id}"
+        assert ch.get('apiConfig', {}).get('endpointId') == ep_id, "DB 中 endpointId 被静默抹掉"
+        # 断言：当前选项明确标记分组已停用
+        sel_opt = next((o for o in opts if o['v'] == ep_id), None)
+        assert sel_opt and '所在分组已停用' in sel_opt['t'], f"选项未标记分组停用: {sel_opt}"
+        assert sel_opt['sel'] is True, "分组停用项未被保持选中"
+        # 断言：停用分组的其他 endpoint 不作为正常可选项出现（本测试只建了1个付费端点，所以可选项里不应出现它）
+        normal_paid = [o for o in opts if o['v'] and o['v'] != ep_id and '付费' in o['t'] and '已停用' not in o['t'] and '不在池中' not in o['t']]
+        assert not normal_paid, f"停用分组的端点仍作为正常可选项: {normal_paid}"
+        # 断言：有自然不可用提示
+        assert hint_text and '所在分组已停用' in hint_text and 'API 池' in hint_text, f"缺少自然提示: {hint_text}"
+        log("断言通过：分组停用时 endpointId 保留 + 选项标记分组停用 + 自然提示 + 同组端点不作为正常可选项")
 
         # 关闭角色编辑返回
         page.locator('.bottom-sheet button:has-text("取消")').first.dispatch_event('click')
@@ -280,7 +297,20 @@ def main():
         log(f"恢复后 select.value = {sel_val}")
         ch = read_character(page, CHAR_ID)
         log(f"恢复后 DB 中角色 apiConfig = {ch.get('apiConfig') if ch else None}")
+        hint_count = api_panel.locator('.character-editor-hint').count()
+        log(f"恢复后提示节点数: {hint_count}")
         page.screenshot(path='/workspace/tests/_d_step6_restored_dropdown.png')
+
+        # 断言：恢复后原 endpoint 自动回到普通可用显示 + 仍被选中
+        restored_opt = next((o for o in opts if o['v'] == ep_id), None)
+        assert restored_opt, f"恢复后端点选项消失: {opts}"
+        assert '已停用' not in restored_opt['t'] and '分组已停用' not in restored_opt['t'], f"恢复后选项仍带停用标记: {restored_opt}"
+        assert restored_opt['sel'] is True, "恢复后未被保持选中"
+        assert sel_val == ep_id, f"恢复后 select.value 改变: {sel_val}"
+        assert hint_count == 0, "恢复后仍残留不可用提示"
+        # 未重新保存角色，DB 中 endpointId 应保持原值
+        assert ch.get('apiConfig', {}).get('endpointId') == ep_id, "恢复后 DB endpointId 改变"
+        log("断言通过：恢复启用后原端点自动恢复正常可用显示 + 仍被选中 + 无残留提示 + 无需重新保存")
 
         # ---------- 清理：恢复 useGlobal，删除端点 ----------
         log("=== 清理 ===")
