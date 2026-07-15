@@ -2,6 +2,7 @@
 // imports:
 //   from '../core/storage.js': getData, setData, generateId, getNow, getAllDB, getDB, setDB, deleteDB, getByIndexDB, compressImage
 //   from '../core/ui.js': showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
+//   from '../core/api.js': getApiEndpointMetas
 
 import {
   getData,
@@ -26,6 +27,8 @@ import {
 } from '../core/ui.js';
 
 import { addMemory, editMemory, deleteMemory } from '../core/memory.js';
+
+import { getApiEndpointMetas } from '../core/api.js';
 
 const STYLE_ID = 'characters-style';
 const USER_PROFILES_KEY = 'user_profiles';
@@ -917,8 +920,6 @@ function renderTtsEditor(draft) {
 
 function renderApiEditor(draft) {
   const box = el('div', 'character-editor-panel');
-  const settings = getSettings();
-  const endpoints = Array.isArray(settings.apiEndpoints) ? settings.apiEndpoints : [];
 
   const useGlobal = switchButton(draft.apiConfig.useGlobal !== false, (active) => {
     draft.apiConfig.useGlobal = active;
@@ -930,27 +931,13 @@ function renderApiEditor(draft) {
   if (draft.apiConfig.useGlobal === false) {
     const endpointSelect = document.createElement('select');
     endpointSelect.className = 'input-card';
+    endpointSelect.disabled = true;
 
-    const emptyOption = document.createElement('option');
-    emptyOption.value = '';
-    emptyOption.textContent = endpoints.length ? '选择 API 端点' : '设置里还没有端点';
-    endpointSelect.appendChild(emptyOption);
-
-    endpoints.forEach((endpoint) => {
-      const option = document.createElement('option');
-      option.value = endpoint.id;
-      option.textContent = endpoint.name || endpoint.endpoint || '未命名端点';
-      option.selected = draft.apiConfig.endpointId === endpoint.id;
-      endpointSelect.appendChild(option);
-    });
-
-    endpointSelect.addEventListener('change', () => {
-      draft.apiConfig.endpointId = endpointSelect.value;
-      const current = endpoints.find((item) => item.id === endpointSelect.value);
-      if (current && !draft.apiConfig.model) {
-        draft.apiConfig.model = current.model || '';
-      }
-    });
+    // 加载态：避免在拿到 api_pool 真实列表前误渲染空下拉
+    const loadingOption = document.createElement('option');
+    loadingOption.value = '';
+    loadingOption.textContent = '正在读取接口列表…';
+    endpointSelect.appendChild(loadingOption);
 
     const modelInput = input('模型名，可覆盖端点默认模型', draft.apiConfig.model || '');
     modelInput.addEventListener('change', () => {
@@ -961,9 +948,93 @@ function renderApiEditor(draft) {
       field('API 端点', endpointSelect),
       field('模型', modelInput)
     );
+
+    // 异步从 API 池统一入口加载安全元信息（不含 key）
+    // 唯一来源：core/api.js getApiEndpointMetas → api_pool (IndexedDB)
+    populateEndpointSelect(endpointSelect, draft, modelInput);
   }
 
   return box;
+}
+
+// 从 API 池异步填充端点下拉；处理 endpointId 失效（被删/禁用）的明确提示与保留
+async function populateEndpointSelect(select, draft, modelInput) {
+  let metas = [];
+  try {
+    metas = await getApiEndpointMetas();
+  } catch (_) {
+    metas = [];
+  }
+
+  const currentId = String(draft.apiConfig.endpointId || '');
+  const matched = metas.find((m) => String(m.id) === currentId) || null;
+  // 失效：保存过 endpointId 但已不在池中，或对应端点被禁用
+  const isStale = Boolean(currentId) && (!matched || matched.status === 'disabled');
+  // 可选列表：只列未禁用的端点，避免选到 callAPI 会拒绝的端点
+  const selectable = metas.filter((m) => m.status !== 'disabled');
+
+  select.innerHTML = '';
+
+  // 失效提示：始终把原 endpointId 放进选项 value，保证 select.value 停在原 id 上，
+  // 不静默切到别的端点、也不静默清空；选中态停在提示项
+  if (isStale) {
+    const stale = document.createElement('option');
+    stale.value = currentId;
+    stale.textContent = matched
+      ? `原指定接口“${matched.name || '未命名'}”当前已禁用，请在下方重选`
+      : (selectable.length ? '原指定接口已不在池中，请在下方重选' : '原指定接口已不在池中，且池里没有可用接口');
+    stale.selected = true;
+    select.appendChild(stale);
+  }
+
+  // 池里没有可选端点：停在此处，禁用下拉（endpointId 已通过上面 stale 项保留）
+  if (!selectable.length) {
+    if (!isStale) {
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = 'API 池里还没有可用接口';
+      select.appendChild(empty);
+    }
+    select.disabled = true;
+    return;
+  }
+
+  if (!isStale) {
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '选择 API 端点';
+    placeholder.selected = !currentId;
+    select.appendChild(placeholder);
+  }
+
+  selectable.forEach((meta) => {
+    const option = document.createElement('option');
+    option.value = meta.id;
+    const groupTag = meta.groupType === 'free' ? '免费' : '付费';
+    option.textContent = `${meta.name || '未命名接口'} · ${groupTag}`;
+    if (!isStale && meta.id === currentId) {
+      option.selected = true;
+    }
+    select.appendChild(option);
+  });
+
+  select.disabled = false;
+
+  select.addEventListener('change', () => {
+    const nextId = select.value;
+    // 失效提示项的 value 等于原 endpointId：用户没真正改动时不覆盖
+    if (nextId && nextId !== currentId) {
+      draft.apiConfig.endpointId = nextId;
+      const current = selectable.find((m) => m.id === nextId);
+      if (current && !draft.apiConfig.model) {
+        draft.apiConfig.model = current.model || '';
+        modelInput.value = draft.apiConfig.model;
+      }
+    } else if (!nextId) {
+      // 选回占位项：清空指定，回退到全局
+      draft.apiConfig.endpointId = '';
+    }
+  });
 }
 
 async function renderMemoryEditor(draft, isExisting) {
@@ -1771,16 +1842,6 @@ function normalizeCharacterList(list) {
   return normalizeArray(list)
     .map(normalizeCharacter)
     .filter((character) => character.id);
-}
-
-function getSettings() {
-  const saved = getData('app_settings') || {};
-
-  return {
-    defaultApiEndpointId: saved.defaultApiEndpointId || '',
-    defaultModel: saved.defaultModel || '',
-    apiEndpoints: Array.isArray(saved.apiEndpoints) ? saved.apiEndpoints : []
-  };
 }
 
 function getPromptPreview(character) {

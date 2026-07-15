@@ -1,6 +1,6 @@
 // core/api.js
 // imports: getData, setData, getAllDB, setDB, deleteDB, getNow, generateId from './storage.js'
-// exports: streamMessage, silentRequest, fetchModels, smartModelsUrl, buildHeaders, parseErrorResponse, getFallbackSources, callAPI, getMergedPoolModels, testPoolEndpoint, testAllPoolEndpoints, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, getApiPoolItems, getPoolGroups, setPoolGroups
+// exports: streamMessage, silentRequest, fetchModels, smartModelsUrl, buildHeaders, parseErrorResponse, getFallbackSources, callAPI, getMergedPoolModels, testPoolEndpoint, testAllPoolEndpoints, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, getApiPoolItems, getApiEndpointMetas, getPoolGroups, setPoolGroups
 
 import { getData, setData, getAllDB, setDB, deleteDB, getNow, generateId } from './storage.js';
 
@@ -294,6 +294,26 @@ export async function getApiPoolItems() {
   await ensureApiPoolMigrated();
   const list = await getAllDB('api_pool').catch(() => []);
   return Array.isArray(list) ? list.map(normalizePoolItem) : [];
+}
+
+// ═══════════════════════════════════════
+// 【统一元信息入口】供角色编辑器等选择 UI 使用
+//   只返回安全元信息（不含 key、不含 endpoint URL），统一以 api_pool 为唯一来源
+//   调用方据此渲染下拉、判断 endpointId 是否仍可用
+// ═══════════════════════════════════════
+
+export async function getApiEndpointMetas() {
+  const items = await getApiPoolItems();
+  return items.map((item) => ({
+    id: item.id,
+    name: item.name,
+    groupType: item.groupType,
+    groupName: item.groupName,
+    provider: item.provider,
+    model: item.model,
+    models: Array.isArray(item.models) ? item.models : [],
+    status: item.status
+  }));
 }
 
 function getPoolLastSuccess() {
