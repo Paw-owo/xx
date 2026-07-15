@@ -8,12 +8,16 @@
   :root {
     --bg-card: #ffffff;
     --bg-main: #f5f5f7;
+    --bg-secondary: #e8e8ec;
     --text-primary: #1a1a1a;
     --text-secondary: #555;
     --text-hint: #999;
     --surface-muted: #f0f0f2;
     --accent: #6c5ce7;
+    --accent-light: #e8e4f8;
     --accent-dark: #5849c2;
+    --shadow-sm: 0 1px 4px rgba(0,0,0,0.05);
+    --shadow-md: 0 2px 12px rgba(0,0,0,0.08);
   }
   body { margin:0; padding:16px; background:var(--bg-main); font-family:system-ui,sans-serif; }
   #test-root { max-width:420px; margin:0 auto; }
@@ -130,6 +134,25 @@
     memoryWrites: [],
     grudgeWrites: []
   }, { label: '模式E：竖排风险（大量换行）', roleName: '小醒', messageId: 'msg-vert' });
+
+  // 模式 F：流式运行中（running 状态，验证脉冲动画 + 状态标记）
+  mount('running-mode', {
+    role: 'assistant',
+    content: '',
+    thinking: '正在想你说的',
+    thinkingSummary: '',
+    toolCalls: [{
+      name: 'mcp',
+      toolName: 'search_weather',
+      serviceName: 'web',
+      status: 'running',
+      summary: '正在查天气',
+      _source: 'tool'
+    }],
+    memoryWrites: [],
+    grudgeWrites: [],
+    isStreaming: true
+  }, { label: '模式F：流式运行中（running 状态）', roleName: '小醒', messageId: 'msg-running' });
 
   // 通知测试脚本已就绪
   window.dispatchEvent(new Event('test-ready'));
