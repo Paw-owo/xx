@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Thinking Chain UI Test</title>
+<style>
+  :root {
+    --bg-card: #ffffff;
+    --bg-main: #f5f5f7;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555;
+    --text-hint: #999;
+    --surface-muted: #f0f0f2;
+    --accent: #6c5ce7;
+    --accent-dark: #5849c2;
+  }
+  body { margin:0; padding:16px; background:var(--bg-main); font-family:system-ui,sans-serif; }
+  #test-root { max-width:420px; margin:0 auto; }
+  .test-section { margin-bottom:24px; }
+  .test-label { font-size:12px; color:var(--text-hint); margin-bottom:6px; }
+</style>
+</head>
+<body>
+<div id="test-root"></div>
+<script type="module">
+  import { hasThinkingChain, createThinkingCard } from '../apps/chat/thinking-chain.js';
+
+  const root = document.getElementById('test-root');
+
+  // 测试消息容器
+  window.__testMessages = {};
+
+  function mount(key, message, options = {}) {
+    const section = document.createElement('div');
+    section.className = 'test-section';
+    section.dataset.testKey = key;
+
+    const label = document.createElement('div');
+    label.className = 'test-label';
+    label.textContent = options.label || key;
+    section.appendChild(label);
+
+    if (hasThinkingChain(message)) {
+      const card = createThinkingCard(message, {
+        roleName: options.roleName || 'TA',
+        messageId: options.messageId || key
+      });
+      section.appendChild(card);
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'test-empty';
+      empty.textContent = '(无 thinking 入口)';
+      section.appendChild(empty);
+    }
+
+    root.appendChild(section);
+    window.__testMessages[key] = { message, section };
+    return section;
+  }
+
+  // 模式 A：有真实动作节点（过程链模式）
+  mount('chain-mode', {
+    role: 'assistant',
+    content: '我帮你查了一下今天的天气，顺便记住了你喜欢晴天。',
+    thinking: '用户问天气，我需要调工具查一下，然后记住用户的偏好。',
+    thinkingSummary: '查天气记偏好',
+    toolCalls: [{
+      name: 'mcp',
+      toolName: 'search_weather',
+      serviceName: 'web',
+      status: 'done',
+      summary: '查询了今天天气',
+      result: '今天晴天，25度',
+      characterId: 'char-1',
+      _source: 'tool'
+    }],
+    memoryWrites: [{
+      name: '新增记忆',
+      action: 'add',
+      status: 'done',
+      summary: '用户喜欢晴天',
+      result: '用户喜欢晴天',
+      characterId: 'char-1',
+      _source: 'memory'
+    }],
+    grudgeWrites: []
+  }, { label: '模式A：有动作节点（过程链）', roleName: '小醒', messageId: 'msg-chain' });
+
+  // 模式 B：普通 thinking（无动作节点）
+  mount('thinking-only', {
+    role: 'assistant',
+    content: '你好呀，今天怎么啦？',
+    thinking: '用户跟我打招呼，我要友好地回应，问问对方今天怎么样。',
+    thinkingSummary: '打招呼',
+    toolCalls: [],
+    memoryWrites: [],
+    grudgeWrites: []
+  }, { label: '模式B：普通 thinking（无动作）', roleName: '小醒', messageId: 'msg-think' });
+
+  // 模式 C：无 thinking（不显示入口）
+  mount('no-thinking', {
+    role: 'assistant',
+    content: '好的，我知道了。',
+    thinking: '',
+    thinkingSummary: '',
+    toolCalls: [],
+    memoryWrites: [],
+    grudgeWrites: []
+  }, { label: '模式C：无 thinking（不应显示入口）', roleName: '小醒', messageId: 'msg-none' });
+
+  // 模式 D：含标签泄漏的 thinking（验证清洗）
+  mount('dirty-thinking', {
+    role: 'assistant',
+    content: '你好。',
+    thinking: '<think>正式：我要想想\n正文：然后回复\n用户正在回应：你好</think>',
+    thinkingSummary: '',
+    toolCalls: [],
+    memoryWrites: [],
+    grudgeWrites: []
+  }, { label: '模式D：含标签/协议泄漏的 thinking', roleName: '小醒', messageId: 'msg-dirty' });
+
+  // 模式 E：竖排风险（大量换行）
+  mount('vertical-risk', {
+    role: 'assistant',
+    content: '嗯。',
+    thinking: '想\n\n\n\n想\n\n\n\n想\n\n\n\n想',
+    thinkingSummary: '',
+    toolCalls: [],
+    memoryWrites: [],
+    grudgeWrites: []
+  }, { label: '模式E：竖排风险（大量换行）', roleName: '小醒', messageId: 'msg-vert' });
+
+  // 通知测试脚本已就绪
+  window.dispatchEvent(new Event('test-ready'));
+</script>
+</body>
+</html>

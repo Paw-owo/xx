@@ -21,10 +21,23 @@ const THINKING_STYLE_ID = 'chat-thinking-chain-style-v6';
 // 当前打开的思维链 sheet 句柄；与具体 sheet 实例绑定，关闭时成对清理 esc 监听
 let activeSheetHandle = null;
 
+// 安全展示兼容：旧消息的 thinking 可能含残留标签/协议文本/过多换行
+// 在展示层做最后一道清洗，不修改原始数据库
+// 与 thread-ai.js 的 sanitizeThinkingText 保持一致逻辑
+function sanitizeDisplayText(text) {
+  let out = String(text || '');
+  out = out.replace(/<\/?think(?:ing)?(?:_summary)?\b[^>]*>/gi, '');
+  out = out.replace(/^[\s>]*(正式|正文|用户正在回应|assistant|user|system)\s*[:：]\s*/gim, '');
+  out = out.replace(/\n{3,}/g, '\n\n');
+  out = out.split('\n').map((line) => line.trim()).join('\n').trim();
+  return out;
+}
+
 export function hasThinkingChain(message) {
   if (!message) return false;
   if (message.role === 'user') return false;
-  if (String(message.thinking || '').trim()) return true;
+  // 用清洗后的文本判断：纯标签/协议的 thinking 不算有效 thinking
+  if (sanitizeDisplayText(message.thinking)) return true;
   if (collectTools(message).length > 0) return true;
   return false;
 }
@@ -42,7 +55,7 @@ export function createThinkingCard(message, options = {}) {
   card.dataset.running = isRunning ? 'true' : 'false';
 
   const tools = collectTools(message);
-  const thinkingText = String(message?.thinking || '').trim();
+  const thinkingText = sanitizeDisplayText(message?.thinking);
 
   if (thinkingText || tools.length) {
     card.appendChild(createPreview(message, {
@@ -261,7 +274,7 @@ function createThinkingSheetContent(message, options = {}) {
     el('span', 'chat-thinking-sheet-intro-text', options.isRunning ? '我还在慢慢整理这一句要怎么回。' : '这是我刚刚心里闪过的一点点思路。')
   );
 
-  const text = String(message?.thinking || '').trim();
+  const text = sanitizeDisplayText(String(message?.thinking || ''));
   const textBlock = el('div', 'chat-thinking-sheet-paragraph', text || '这一小会没有留下更多心里话。');
 
   card.append(intro, textBlock);
@@ -358,9 +371,9 @@ function hashString(text) {
 }
 
 function getThinkingPreviewText(message) {
-  const custom = String(message?.thinkingSummary || '').trim();
+  const custom = sanitizeDisplayText(String(message?.thinkingSummary || ''));
   if (custom) return custom.length > 15 ? `${custom.slice(0, 15).trim()}…` : custom;
-  const text = String(message?.thinking || '').replace(/\s+/g, ' ').trim();
+  const text = sanitizeDisplayText(String(message?.thinking || '')).replace(/\s+/g, ' ').trim();
   if (text) return text.length > 15 ? `${text.slice(0, 15).trim()}…` : text;
   return FIXED_SUMMARY_TEXT;
 }
