@@ -568,7 +568,10 @@ function rpcPostAndWait(session, serverId, rpcBody, timeout = MCP_TIMEOUT) {
 
     fetch(session.messageUrl, {
       method: 'POST',
-      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream', session.apiKeyHeader),
+      // SSE 模式：sessionId 已在 messageUrl 的 query 参数里，不需要通过 Mcp-Session-Id 头传递。
+      // 传 null 避免发送 Mcp-Session-Id 头——该头不在服务器 CORS Allow-Headers 里，
+      // 浏览器会因 OPTIONS 预检失败而拒绝 POST（curl 不做预检所以测不出这个问题）。
+      headers: buildHeaders(null, session.apiKey, 'application/json, text/event-stream', session.apiKeyHeader),
       body: JSON.stringify(rpcBody)
     }).then((response) => {
       // POST 到 messages 端点正常返回 202 Accepted，响应体无 result

@@ -180,6 +180,26 @@ console.log('\n[组 4] 防回归 — 历史死配置不应影响连接');
   assert(noDeadFields, 'buildHeaders 不产出 sseEndpoint/messageEndpoint 死字段');
 }
 
+console.log('\n[组 5] SSE 模式 POST 不发 Mcp-Session-Id 头（CORS 预检根因修复）');
+
+// 用例 16：SSE 模式 rpcPostAndWait 必须传 null sessionId（sessionId 在 query 里，不需要头）
+// 服务器 CORS Allow-Headers 不含 Mcp-Session-Id，发了会触发浏览器 OPTIONS 预检失败
+{
+  // 复现 rpcPostAndWait 修复后的调用：buildHeaders(null, apiKey, accept, apiKeyHeader)
+  const h = buildHeaders(null, 'test-key', 'application/json, text/event-stream', 'x-phone-token');
+  assertNo(h, 'mcp-session-id', 'SSE 模式 POST 不发 Mcp-Session-Id 头（避免 CORS 预检失败）');
+  assertHas(h, 'x-phone-token', 'SSE 模式 POST 仍发 X-Phone-Token 认证头');
+  assertHas(h, 'content-type', 'SSE 模式 POST 发 Content-Type');
+}
+
+// 用例 17：对比 streamable 模式仍然发 Mcp-Session-Id（streamable 需要，远程公共 MCP 允许）
+{
+  // streamable 模式 rpcCallStreamable：buildHeaders(session.sessionId, ...)
+  const h = buildHeaders('streamable-sid', 'test-key', 'application/json, text/event-stream', '');
+  assertHas(h, 'mcp-session-id', 'streamable 模式仍发 Mcp-Session-Id（远程公共 MCP 协议要求）');
+  assertHas(h, 'authorization', 'streamable 模式默认 Bearer 认证');
+}
+
 console.log(`\n结果：${pass} 通过 / ${fail} 失败`);
 if (fail > 0) {
   process.exit(1);
