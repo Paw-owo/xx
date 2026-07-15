@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # tests/test_thinking_chain_ui.py
-# 浏览器 UI 测试：验证 thinking 过程链系统的渲染（折叠卡片式链式步骤）
+# 浏览器 UI 测试：验证 thinking 过程链系统的渲染
 # 运行：python3 tests/test_thinking_chain_ui.py
 # 需要先启动本地服务器：python3 -m http.server 8765
 
@@ -33,127 +33,117 @@ def run_tests():
         page.goto(TEST_URL, wait_until="networkidle")
         page.wait_for_timeout(800)
 
-        print("\n[UI 用例 1] 模式A：有动作节点 → 显示折叠卡片，展开后有步骤")
+        print("\n[UI 用例 1] 模式A：有动作节点 → 显示过程链")
         section = page.locator('[data-test-key="chain-mode"]')
         section.wait_for()
-        header = section.locator('.chat-thinking-header')
-        header.wait_for()
-        assert_cond(header.count() > 0, "显示思考过程标题栏")
+        preview_btn = section.locator('.chat-thinking-preview-btn')
+        preview_btn.wait_for()
+        assert_cond(preview_btn.count() > 0, "显示 thinking 预览按钮")
 
-        # 标题栏默认收起
-        steps_container = section.locator('.chat-thinking-steps')
-        expanded_state = steps_container.get_attribute('data-expanded')
-        assert_cond(expanded_state == 'false', "步骤容器默认收起")
+        tool_nodes = section.locator('.chat-thinking-preview-node')
+        node_count = tool_nodes.count()
+        assert_cond(node_count == 2, f"过程链显示 2 个节点（MCP + 记忆），实际: {node_count}")
 
-        # 点击展开
-        header.click()
-        page.wait_for_timeout(400)
-        expanded_state = steps_container.get_attribute('data-expanded')
-        assert_cond(expanded_state == 'true', "点击标题栏后步骤容器展开")
+        btn_text = preview_btn.text_content()
+        assert_cond('<think' not in btn_text, "预览按钮文本无标签")
+        assert_cond('正式' not in btn_text, "预览按钮文本无协议词")
 
-        # 步骤数：thinking + MCP + 记忆 = 3 步
-        steps = section.locator('.chat-thinking-step-wrap')
-        step_count = steps.count()
-        assert_cond(step_count == 3, f"展开后显示 3 个步骤（thinking + MCP + 记忆），实际: {step_count}")
-
-        # 标题文本无标签/协议词泄漏
-        header_text = header.text_content()
-        assert_cond('<think' not in header_text, "标题栏文本无标签")
-        assert_cond('正式' not in header_text, "标题栏文本无协议词")
-
-        print("\n[UI 用例 2] 模式B：普通 thinking → 显示卡片，展开后 1 步")
+        print("\n[UI 用例 2] 模式B：普通 thinking → 显示 thinking 按钮，无过程链节点")
         section = page.locator('[data-test-key="thinking-only"]')
         section.wait_for()
-        header = section.locator('.chat-thinking-header')
-        assert_cond(header.count() > 0, "显示思考过程标题栏")
+        preview_btn = section.locator('.chat-thinking-preview-btn')
+        assert_cond(preview_btn.count() > 0, "显示 thinking 预览按钮")
 
-        header.click()
-        page.wait_for_timeout(400)
-        steps = section.locator('.chat-thinking-step-wrap')
-        step_count = steps.count()
-        assert_cond(step_count == 1, f"普通 thinking 展开后 1 步，实际: {step_count}")
+        tool_nodes = section.locator('.chat-thinking-preview-node')
+        node_count = tool_nodes.count()
+        assert_cond(node_count == 0, f"无动作节点时过程链为空，实际: {node_count}")
 
         print("\n[UI 用例 3] 模式C：无 thinking → 不显示入口")
         section = page.locator('[data-test-key="no-thinking"]')
         section.wait_for()
         empty = section.locator('.test-empty')
         assert_cond(empty.count() > 0, "无 thinking 时不显示入口")
-        header = section.locator('.chat-thinking-header')
-        assert_cond(header.count() == 0, "无思考过程标题栏")
+        preview_btn = section.locator('.chat-thinking-preview-btn')
+        assert_cond(preview_btn.count() == 0, "无 thinking 预览按钮")
 
         print("\n[UI 用例 4] 模式D：含标签/协议泄漏 → 清洗后不显示标签")
         section = page.locator('[data-test-key="dirty-thinking"]')
         section.wait_for()
-        header = section.locator('.chat-thinking-header')
-        assert_cond(header.count() > 0, "有 thinking 文本时显示卡片")
+        preview_btn = section.locator('.chat-thinking-preview-btn')
+        assert_cond(preview_btn.count() > 0, "有 thinking 文本时显示按钮")
 
-        header.click()
+        preview_btn.click()
         page.wait_for_timeout(400)
 
-        # 展开步骤详情看清洗后的内容
-        first_step = section.locator('.chat-thinking-step').first
-        first_step.click()
+        sheet = page.locator('.chat-thinking-sheet')
+        sheet.wait_for()
+        assert_cond(sheet.is_visible(), "thinking sheet 打开")
+
+        paragraph = sheet.locator('.chat-thinking-sheet-paragraph')
+        para_text = paragraph.text_content()
+        assert_cond('<think' not in para_text, "抽屉内容无 <think 标签")
+        assert_cond('</think' not in para_text, "抽屉内容无 </think 标签")
+        assert_cond('正式：' not in para_text, '抽屉内容无"正式："协议')
+        assert_cond('正文：' not in para_text, '抽屉内容无"正文："协议')
+        assert_cond('用户正在回应：' not in para_text, '抽屉内容无"用户正在回应："协议')
+
+        page.locator('.chat-thinking-sheet-close').click()
         page.wait_for_timeout(400)
 
-        detail_text = section.locator('.chat-thinking-step-detail-text').first.text_content()
-        assert_cond('<think' not in detail_text, "详情内容无 <think 标签")
-        assert_cond('</think' not in detail_text, "详情内容无 </think 标签")
-        assert_cond('正式：' not in detail_text, '详情内容无"正式："协议')
-        assert_cond('正文：' not in detail_text, '详情内容无"正文："协议')
-        assert_cond('用户正在回应：' not in detail_text, '详情内容无"用户正在回应："协议')
-
-        print("\n[UI 用例 5] 模式E：竖排风险 → 详情不竖排")
+        print("\n[UI 用例 5] 模式E：竖排风险 → 抽屉不竖排")
         section = page.locator('[data-test-key="vertical-risk"]')
         section.wait_for()
-        header = section.locator('.chat-thinking-header')
-        header.click()
-        page.wait_for_timeout(400)
-        first_step = section.locator('.chat-thinking-step').first
-        first_step.click()
+        preview_btn = section.locator('.chat-thinking-preview-btn')
+        preview_btn.click()
         page.wait_for_timeout(400)
 
-        detail_text = section.locator('.chat-thinking-step-detail-text').first.text_content()
+        sheet = page.locator('.chat-thinking-sheet')
+        sheet.wait_for()
+
+        paragraph = sheet.locator('.chat-thinking-sheet-paragraph')
+        para_text = paragraph.text_content()
         import re
-        assert_cond(not re.search(r'\n{3,}', detail_text), "详情内容无 3+ 连续换行（不竖排）")
+        assert_cond(not re.search(r'\n{3,}', para_text), "抽屉内容无 3+ 连续换行（不竖排）")
 
-        detail_el = section.locator('.chat-thinking-step-detail-text').first
-        detail_box = detail_el.bounding_box()
-        assert_cond(detail_box and detail_box['width'] > 150, f"详情区有正常宽度（>150px），实际: {detail_box['width'] if detail_box else 'None'}")
+        sheet_box = sheet.bounding_box()
+        assert_cond(sheet_box and sheet_box['width'] > 200, f"抽屉有正常宽度（>200px），实际: {sheet_box['width'] if sheet_box else 'None'}")
 
-        writing_mode = detail_el.evaluate("el => window.getComputedStyle(el).writingMode")
+        para_box = paragraph.bounding_box()
+        assert_cond(para_box and para_box['width'] > 150, f"内容区有正常宽度（>150px），实际: {para_box['width'] if para_box else 'None'}")
+
+        writing_mode = paragraph.evaluate("el => window.getComputedStyle(el).writingMode")
         assert_cond('vertical' not in writing_mode, f"writing-mode 不是竖排，实际: {writing_mode}")
 
-        print("\n[UI 用例 6] 步骤点击 → 展开详情")
-        section = page.locator('[data-test-key="chain-mode"]')
-        header = section.locator('.chat-thinking-header')
-        header.click()
+        page.locator('.chat-thinking-sheet-close').click()
         page.wait_for_timeout(400)
 
-        steps = section.locator('.chat-thinking-step-wrap')
-        # 点第二个步骤（MCP 工具）
-        second_step_row = steps.nth(1).locator('.chat-thinking-step')
-        second_step_row.click()
+        print("\n[UI 用例 6] 过程链节点点击 → 展开详情")
+        section = page.locator('[data-test-key="chain-mode"]')
+        tool_nodes = section.locator('.chat-thinking-preview-node')
+        first_node = tool_nodes.first
+        first_node.click()
         page.wait_for_timeout(400)
 
-        detail_state = steps.nth(1).locator('.chat-thinking-step-detail').get_attribute('data-expanded')
-        assert_cond(detail_state == 'true', "点击步骤后详情展开")
+        sheet = page.locator('.chat-thinking-sheet')
+        sheet.wait_for()
+        assert_cond(sheet.is_visible(), "点击节点后 sheet 打开")
 
-        detail_text = steps.nth(1).locator('.chat-thinking-step-detail-text').text_content()
-        assert_cond('apiKey' not in detail_text, "节点详情不含 apiKey")
-        assert_cond('header' not in detail_text, "节点详情不含 header")
+        sheet_text = sheet.text_content()
+        assert_cond('apiKey' not in sheet_text, "节点详情不含 apiKey")
+        assert_cond('arguments' not in sheet_text, "节点详情不含原始 arguments")
+        assert_cond('header' not in sheet_text, "节点详情不含 header")
 
-        print("\n[UI 用例 7] 状态标记：done 圆点打勾")
+        page.locator('.chat-thinking-sheet-close').click()
+        page.wait_for_timeout(400)
+
+        print("\n[UI 用例 7] 过程链模式优先显示节点")
         section = page.locator('[data-test-key="chain-mode"]')
-        dots = section.locator('.chat-thinking-step-dot[data-status="done"]')
-        assert_cond(dots.count() > 0, "已完成步骤圆点为 done 状态")
+        preview_btn = section.locator('.chat-thinking-preview-btn')
+        tool_nodes = section.locator('.chat-thinking-preview-node')
+        assert_cond(preview_btn.count() > 0, "thinking 按钮显示")
+        assert_cond(tool_nodes.count() > 0, "过程链节点显示")
 
-        print("\n[UI 用例 8] 图标为 SVG（非 emoji）")
-        svgs = section.locator('.chat-thinking-step-icon svg')
-        assert_cond(svgs.count() > 0, "步骤图标是 SVG 元素")
-        header_svgs = section.locator('.chat-thinking-header-icon svg')
-        assert_cond(header_svgs.count() > 0, "标题栏图标是 SVG 元素")
-
-        print("\n[UI 用例 9] 无控制台错误")
+        print("\n[UI 用例 8] 无控制台错误")
         assert_cond(len(console_errors) == 0, f"无控制台错误，实际: {len(console_errors)} 个")
         for e in console_errors:
             print(f"    错误: {e}")
