@@ -139,16 +139,28 @@ function resolveMessageUrl(sseUrl, endpoint) {
 }
 
 // ═══════════════════════════════════════
-// 【请求头】支持 apiKey 认证，不写死 token
+// 【请求头】支持自定义认证头名
+//   apiKeyHeader 为空/未传 → 默认 Authorization: Bearer <apiKey>
+//   apiKeyHeader 有值（如 'x-phone-token'）→ 用该名直接作 header，值为 apiKey 原值
+//   兼容服务器期望 x-api-key / X-Phone-Token / x-phone-token 等自定义头
 // ═══════════════════════════════════════
 
-function buildHeaders(sessionId, apiKey, accept) {
+function buildHeaders(sessionId, apiKey, accept, apiKeyHeader) {
   const headers = {
     'Content-Type': 'application/json'
   };
   if (accept) headers['Accept'] = accept;
   if (sessionId) headers['Mcp-Session-Id'] = sessionId;
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  if (apiKey) {
+    const headerName = String(apiKeyHeader || '').trim().toLowerCase();
+    if (headerName) {
+      // 用户指定了自定义头名：直接用原值，不加 Bearer 前缀
+      headers[headerName] = String(apiKey);
+    } else {
+      // 默认 Bearer 认证
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+  }
   return headers;
 }
 
@@ -188,6 +200,7 @@ async function ensureSseSession(serverId) {
   const sseUrl = normalizeSseUrl(server.url);
   if (!sseUrl) return null;
   const apiKey = server.apiKey || '';
+  const apiKeyHeader = server.apiKeyHeader || '';
 
   const session = {
     transport: 'sse',
@@ -196,6 +209,7 @@ async function ensureSseSession(serverId) {
     messageUrl: '',
     sessionId: '',
     apiKey,
+    apiKeyHeader,
     abortController: null,
     reader: null,
     pending: new Map()
@@ -208,12 +222,19 @@ async function ensureSseSession(serverId) {
 
     const response = await fetch(sseUrl, {
       method: 'GET',
-      headers: buildHeaders(null, apiKey, 'text/event-stream'),
+      headers: buildHeaders(null, apiKey, 'text/event-stream', apiKeyHeader),
       signal: controller.signal
     });
 
     if (!response.ok) {
-      toast(`MCP SSE 连接失败 (${response.status})`);
+      // 读取响应正文，给用户脱敏后的真实原因（不暴露凭据）
+      let detail = '';
+      try {
+        const errText = await response.text();
+        detail = String(errText || '').slice(0, 200).trim();
+      } catch (_) {}
+      const hint = detail ? `：${detail}` : '';
+      toast(`MCP SSE 连接失败 (HTTP ${response.status})${hint}`);
       return null;
     }
 
@@ -359,7 +380,7 @@ function parseStreamableResponse(text, expectedId) {
 
 // 尝试建立 streamable HTTP 会话：POST initialize 到原始 URL
 // 成功返回 session，失败返回 null（让上层回退 SSE）
-async function tryStreamableSession(serverId, rawUrl, apiKey) {
+async function tryStreamableSession(serverId, rawUrl, apiKey, apiKeyHeader) {
   let response;
   let initBody;
   const controller = new AbortController();
@@ -373,7 +394,7 @@ async function tryStreamableSession(serverId, rawUrl, apiKey) {
 
     response = await fetch(rawUrl, {
       method: 'POST',
-      headers: buildHeaders(null, apiKey, 'application/json, text/event-stream'),
+      headers: buildHeaders(null, apiKey, 'application/json, text/event-stream', apiKeyHeader),
       body: JSON.stringify(initBody),
       signal: controller.signal
     });
@@ -416,6 +437,7 @@ async function tryStreamableSession(serverId, rawUrl, apiKey) {
     endpointUrl: rawUrl,
     sessionId,
     apiKey,
+    apiKeyHeader: apiKeyHeader || '',
     serverInfo: parsed.result?.serverInfo || null,
     capabilities: parsed.result?.capabilities || null,
     // SSE 相关字段保留空值，避免外部代码访问报错
@@ -435,7 +457,7 @@ async function rpcCallStreamable(session, rpcBody) {
   try {
     const response = await fetch(session.endpointUrl, {
       method: 'POST',
-      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream'),
+      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream', session.apiKeyHeader),
       body: JSON.stringify(rpcBody),
       signal: controller.signal
     });
@@ -471,6 +493,7 @@ async function ensureSession(serverId) {
   const rawUrl = String(server.url || '').trim().replace(/\/+$/, '');
   if (!rawUrl) return null;
   const apiKey = server.apiKey || '';
+  const apiKeyHeader = server.apiKeyHeader || '';
 
   // 先试 streamable HTTP：POST initialize 到原始 URL
   // 只对"看起来像 streamable 端点"的 URL 尝试（避免对自建 SSE 服务器浪费一次 POST）
@@ -478,7 +501,7 @@ async function ensureSession(serverId) {
   const looksStreamable = /\/(mcp|docs|api\/mcp)$/i.test(rawUrl) || !/\/mcp\/sse$/i.test(rawUrl);
 
   if (looksStreamable) {
-    const streamableSession = await tryStreamableSession(serverId, rawUrl, apiKey);
+    const streamableSession = await tryStreamableSession(serverId, rawUrl, apiKey, apiKeyHeader);
     if (streamableSession) {
       sessions.set(serverId, streamableSession);
       return streamableSession;
@@ -545,7 +568,7 @@ function rpcPostAndWait(session, serverId, rpcBody, timeout = MCP_TIMEOUT) {
 
     fetch(session.messageUrl, {
       method: 'POST',
-      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream'),
+      headers: buildHeaders(session.sessionId, session.apiKey, 'application/json, text/event-stream', session.apiKeyHeader),
       body: JSON.stringify(rpcBody)
     }).then((response) => {
       // POST 到 messages 端点正常返回 202 Accepted，响应体无 result
@@ -606,12 +629,16 @@ async function rpcCall(serverId, method, params, isRetry = false) {
       cleanupSession(serverId);
       return rpcCall(serverId, method, params, true);
     }
-    if (error.name === 'AbortError' || /超时/.test(error.message || '')) {
-      toast('MCP 请求超时');
-    } else if (error.message?.includes('Failed to fetch')) {
-      toast('MCP 连接失败，请检查服务器地址或 CORS 配置');
+    const msg = String(error?.message || '');
+    if (error.name === 'AbortError' || /超时/.test(msg)) {
+      toast('MCP 请求超时（服务器没在 20 秒内响应）');
+    } else if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) {
+      // Failed to fetch 通常是 CORS 拦截或网络不通
+      toast('MCP 连接失败：被浏览器拦截或网络不通（检查 CORS 是否放行当前网址）');
+    } else if (msg) {
+      toast(`MCP 请求出错：${msg.slice(0, 120)}`);
     } else {
-      toast('MCP 请求出错');
+      toast('MCP 请求出错（未知原因）');
     }
     return null;
   }
@@ -643,7 +670,9 @@ export async function listMcpTools(serverId) {
   }
   const rpc = await rpcCall(serverId, 'tools/list');
   if (!rpc) {
-    throw new Error('没拉到工具，检查一下地址或连接方式呀');
+    // rpcCall 返回 null 表示连接或请求失败，具体原因已通过 toast 提示
+    // 这里抛错让设置页 catch 能展示兜底文案，同时阻止后续逻辑
+    throw new Error('MCP 连接失败，看上面那条提示的具体原因～');
   }
   if (!rpc.ok) {
     throw new Error(rpc.error?.message || '服务器拒绝了 tools/list 请求');
@@ -915,5 +944,13 @@ export function resetSession(serverId) {
     }
   }
 }
+
+// 测试钩子：只暴露纯函数，供回归测试验证认证头拼装与 URL 归一化
+// 不暴露任何含密钥/会话状态的对象
+export const __testHooks = {
+  buildHeaders,
+  normalizeSseUrl,
+  resolveMessageUrl
+};
 
 // depends: core/storage.js -> getData
