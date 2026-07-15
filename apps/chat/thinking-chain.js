@@ -349,9 +349,11 @@ function renderDetail(container, message, options = {}, stepIndex, onBack) {
 
   // 正文内容（按类型渲染）
   if (step.type === 'think') {
-    // thinking 文本
-    const text = el('div', 'tc-detail-text', step.detail || '这一小会没有留下更多心里话。');
-    body.appendChild(text);
+    // thinking 文本：来自真实 reasoning_content，buildSteps 已保证非空才进到这步
+    // 不再写兜底文案；detail 为空就不渲染这一块（宁可空着也不编内容）
+    if (step.detail) {
+      body.appendChild(el('div', 'tc-detail-text', step.detail));
+    }
   } else {
     // 工具/记忆/记仇/APP：summary + 参数 + 结果 + 错误
     if (step.summary) {
@@ -379,7 +381,8 @@ function renderDetail(container, message, options = {}, stepIndex, onBack) {
 function createDetailSection(label, text, isError) {
   const section = el('div', 'tc-detail-section');
   section.appendChild(el('div', `tc-detail-section-label ${isError ? 'tc-text-error' : ''}`, label));
-  const code = el('div', `tc-detail-code ${isError ? 'tc-detail-code-error' : ''}`, text || '没有留下内容。');
+  // 不写兜底文案；text 为空就不渲染代码块内容（真实数据为准，不编内容）
+  const code = el('div', `tc-detail-code ${isError ? 'tc-detail-code-error' : ''}`, text || '');
   section.appendChild(code);
   return section;
 }
@@ -457,22 +460,6 @@ function resolveDetailTitle(source, action) {
 // 以下函数保留原实现，仅做展示层适配
 // ═══════════════════════════════════════
 
-function buildFingerprint(message) {
-  const thinking = String(message?.thinking || '').trim();
-  const summary = String(message?.thinkingSummary || '').trim();
-  const tools = collectTools(message);
-  const toolHash = tools.map((t) => `${t.name}:${t.status}:${String(t.result || '').slice(0, 40)}`).join('|');
-  return hashString(`${summary}|${thinking}|${toolHash}`).slice(0, 12);
-}
-
-function hashString(text) {
-  let value = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    value = (value * 31 + text.charCodeAt(index)) % 1000000007;
-  }
-  return value.toString(36);
-}
-
 function isMessageRunning(message) {
   if (message?.isPending === true) return true;
   if (message?.isStreaming === true) return true;
@@ -488,7 +475,7 @@ function collectTools(message) {
   normalizeToolCalls(message?.memoryWrites).forEach((memory) => {
     tools.push({
       ...memory,
-      name: resolveMemoryToolName(memory),
+      // 保留真实动作名（新增记忆/更新记忆/删除记忆），不再用拟人文案覆盖
       status: memory.status || memory.state || 'done',
       result: memory.content || memory.summary || memory.text || '',
       detailSummary: memory.detailSummary || memory.summary || '',
@@ -498,7 +485,7 @@ function collectTools(message) {
   normalizeToolCalls(message?.grudgeWrites).forEach((grudge) => {
     tools.push({
       ...grudge,
-      name: resolveGrudgeToolName(grudge),
+      // 保留真实动作名，不再用拟人文案覆盖
       status: grudge.status || grudge.state || 'done',
       result: grudge.reason || grudge.content || grudge.text || '',
       detailSummary: grudge.detailSummary || grudge.summary || '',
@@ -508,37 +495,62 @@ function collectTools(message) {
   return tools;
 }
 
-function resolveMemoryToolName(memory) {
-  const raw = normalizeText(memory?.name || memory?.action || memory?.type || '').toLowerCase();
-  if (/(删|删除|移除)/.test(raw)) return '轻轻删掉一条记忆';
-  if (/(改|编辑|更新|修正)/.test(raw)) return '顺手改了改记忆';
-  return '悄悄记下一笔';
+// 解析工具/记忆/记仇的真实名字（用于步骤标题），不再返回拟人文案
+// MCP 工具真实名在 toolName 字段（name 是 'mcp' 占位），非 MCP 工具 name 即真实名
+function resolveRealToolName(tool, source) {
+  if (source === 'memory' || source === 'grudge') {
+    return normalizeText(tool?.name || tool?.action || tool?.type || '记忆更新');
+  }
+  // 工具：优先 toolName（MCP 真实名），其次 name（非 MCP 真实名）
+  const realName = normalizeText(tool?.toolName || tool?.name || tool?.title || tool?.action);
+  return realName || '工具';
 }
 
-function resolveGrudgeToolName(grudge) {
-  const raw = normalizeText(grudge?.name || grudge?.action || grudge?.type || '').toLowerCase();
-  if (/(删|删除|移除)/.test(raw)) return '把小本本翻掉一页';
-  if (/(改|编辑|更新|修正)/.test(raw)) return '把小本本改了改';
-  return '在小本本上画圈圈';
+// 步骤标题（概要页显示的那行）：工具类必须带真实工具名
+// think 用友好标签「分析意图」，其余用真实名
+function buildStepTitle(source, action, realName, status) {
+  if (source === 'memory' || source === 'grudge') return realName;
+  // 工具类：「调用 <真实名>」
+  return `调用 ${realName}`;
 }
 
-function resolveToolDisplayName(tool, index) {
-  const source = String(tool?._source || 'tool').toLowerCase();
-  const rawName = normalizeText(tool?.name || tool?.toolName || tool?.title || tool?.action).toLowerCase();
+// 步骤图标：按 source/action 选图标（图标不是文案，保留）
+function resolveStepIcon(source, action) {
+  if (source === 'memory') {
+    if (action === 'memory_delete') return 'memory-delete';
+    if (action === 'memory_edit') return 'memory-edit';
+    return 'memory';
+  }
+  if (source === 'grudge') return 'grudge';
+  if (action === 'search') return 'search';
+  if (action === 'mcp') return 'mcp';
+  if (action === 'transfer') return 'transfer';
+  if (action === 'gift') return 'gift';
+  if (action === 'shop_buy') return 'shop';
+  if (action === 'call_summary') return 'call';
+  if (action === 'proactive') return 'proactive';
+  return 'tool';
+}
 
-  if (source === 'memory') return resolveMemoryToolName(tool);
-  if (source === 'grudge') return resolveGrudgeToolName(tool);
+// 把工具参数/结果格式化成可读文本：对象 → 缩进 2 空格 JSON，JSON 字符串 → 美化
+function prettyToolField(value) {
+  if (value && typeof value === 'object') {
+    try { return JSON.stringify(value, null, 2); } catch (_) { return ''; }
+  }
+  if (typeof value === 'string') {
+    const s = value.trim();
+    if (s && (s.startsWith('{') || s.startsWith('['))) {
+      try { return JSON.stringify(JSON.parse(s), null, 2); } catch (_) { return s; }
+    }
+    return s;
+  }
+  return String(value || '').trim();
+}
 
-  if (/(mcp|外部工具|server|web.*tool)/.test(rawName)) return '叫了外部小工具';
-  if (/(搜|搜索|search|上网|网页|web|资料)/.test(rawName)) return '去查了查';
-  if (/(转账|付款|pay|红包)/.test(rawName)) return '递了一张小票据';
-  if (/(礼物|gift)/.test(rawName)) return '递了一份小礼物';
-  if (/(商店|购买|下单|buy|shop|小物)/.test(rawName)) return '去小物商店逛了逛';
-  if (/(电话|通话|call|summary|总结)/.test(rawName)) return '把电话收成一小段记忆';
-  if (/(主动消息|proactive)/.test(rawName)) return '想主动和你说句话';
-
-  const name = normalizeText(tool?.name || tool?.toolName || tool?.title || tool?.action);
-  return name || `第 ${index + 1} 步`;
+// 截断超长结果：保留前 500 字符 + ...（仅工具类；记忆内容不截断）
+function truncateResult(text, max = 500) {
+  const s = String(text || '');
+  return s.length > max ? s.slice(0, max) + '...' : s;
 }
 
 function normalizeToolCalls(value) {
@@ -559,98 +571,44 @@ function buildToolDetailData(tool, index, message, options = {}) {
   const source = String(tool?._source || inferToolSource(tool)).toLowerCase();
   const status = getToolStatus(tool);
   const action = detectActionType(tool, source);
-  const query = normalizeToolField(tool?.arguments || tool?.input || tool?.params || tool?.query || tool?.payload || tool?.request);
-  const result = normalizeToolField(tool?.result || tool?.output || tool?.content || tool?.summary || tool?.text || tool?.description);
+  const realName = resolveRealToolName(tool, source);
+  // 参数：真实 arguments，格式化成缩进 2 空格 JSON
+  const query = prettyToolField(tool?.arguments || tool?.input || tool?.params || tool?.query || tool?.payload || tool?.request);
+  // 结果：真实返回值；工具类截断 500，记忆/记仇内容不截断
+  const rawResult = normalizeToolField(tool?.result || tool?.output || tool?.content || tool?.summary || tool?.text || tool?.description);
+  const result = (source === 'memory' || source === 'grudge') ? rawResult : truncateResult(rawResult, 500);
   const error = normalizeToolField(tool?.error || tool?.message);
-  const amount = normalizeAmount(tool);
-  const targetName = normalizeText(tool?.characterName || tool?.targetName || tool?.receiverName || tool?.toName || tool?.memberName);
-  const itemName = normalizeText(tool?.itemName || tool?.name || tool?.giftName || tool?.productName || tool?.title);
-  const modelName = normalizeText(tool?.model || tool?.modelName);
-  const endpointName = normalizeText(tool?.endpoint || tool?.server || tool?.provider || tool?.serviceName);
+  const endpointName = normalizeText(tool?.serviceName || tool?.server || tool?.provider || tool?.endpoint);
 
-  const meta = TOOL_COPY_MAP[action] || TOOL_COPY_MAP.default;
-  const title = resolveToolDisplayTitle(meta, tool, index, source, action, status);
-  const subtitle = resolveToolSubtitle(meta, tool, { status, query, result, amount, targetName, itemName, endpointName });
-  const summary = resolveToolSummary(meta, tool, { status, query, result, amount, targetName, itemName, endpointName });
-  const resultLabel = resolveResultLabel(action, source);
-  const extraRows = [];
+  const title = buildStepTitle(source, action, realName, status);
+  const icon = resolveStepIcon(source, action);
+  const resultLabel = resolveResultLabel(source, action);
 
-  if (status === 'running') {
-    extraRows.push({ label: '状态', value: '还在慢慢处理' });
-  } else if (status === 'error') {
-    extraRows.push({ label: '状态', value: '这一步卡了一下' });
-  } else {
-    extraRows.push({ label: '状态', value: '已经弄好啦' });
-  }
-
-  if (modelName) extraRows.push({ label: '模型', value: modelName });
+  // extraRows：真实状态 + 来源（不再有拟人文案）
+  const extraRows = [{ label: '状态', value: status }];
   if (endpointName) extraRows.push({ label: '来源', value: endpointName });
-  if (amount > 0) extraRows.push({ label: '金额', value: `¥${formatAmount(amount)}` });
-  if (targetName) extraRows.push({ label: '对象', value: targetName });
-  if (action === 'transfer' && itemName) extraRows.push({ label: '标题', value: itemName });
-  if (['gift', 'shop_buy'].includes(action) && itemName) extraRows.push({ label: '小物', value: itemName });
 
   return {
     source,
     action,
     status,
-    icon: meta.icon,
+    icon,
     title,
-    subtitle,
-    summary,
+    summary: '',          // 不再用拟人 summary；详情页直接展示参数+结果
     query,
     result,
     resultLabel,
     error,
-    extraRows
+    extraRows,
+    realName
   };
 }
 
-function resolveToolDisplayTitle(meta, tool, index, source, action, status) {
-  if (status === 'running' && meta.runningTitle) return meta.runningTitle;
-  if (status === 'error' && meta.errorTitle) return meta.errorTitle;
-  if (meta.titleBuilder) return meta.titleBuilder(tool, index);
-  return meta.title || resolveToolDisplayName(tool, index);
-}
-
-function resolveToolSubtitle(meta, tool, context) {
-  if (typeof meta.subtitleBuilder === 'function') {
-    return meta.subtitleBuilder(tool, context);
-  }
-  if (context.status === 'running') {
-    if (context.query) return summarizeText(context.query, 18);
-    return '还在办这一步';
-  }
-  if (context.status === 'error') {
-    return '这一步刚刚有点卡';
-  }
-  if (context.result) return summarizeText(context.result, 18);
-  if (context.query) return summarizeText(context.query, 18);
-  return meta.subtitle || '点开看看细节';
-}
-
-function resolveToolSummary(meta, tool, context) {
-  if (typeof meta.summaryBuilder === 'function') {
-    return meta.summaryBuilder(tool, context);
-  }
-  if (context.status === 'running') {
-    return meta.runningSummary || '我正在悄悄做这一步，还没有完全收尾。';
-  }
-  if (context.status === 'error') {
-    return meta.errorSummary || '这一步刚刚卡了一下，暂时没顺利走完。';
-  }
-  return meta.summary || '这一步已经处理好了。';
-}
-
-function resolveResultLabel(action, source) {
-  if (source === 'memory') return '我记下了什么';
-  if (source === 'grudge') return '我记到小本本里的内容';
-  if (action === 'search') return '我翻到的内容';
-  if (action === 'mcp') return '工具给我的结果';
-  if (action === 'transfer') return '这张小卡片里写了什么';
-  if (action === 'gift' || action === 'shop_buy') return '这份小礼物的内容';
-  if (action === 'call_summary') return '我整理好的电话记忆';
-  return '我处理出来的内容';
+// 详情页各 section 的中性标签（不再用拟人文案）
+function resolveResultLabel(source, action) {
+  if (source === 'memory') return '记忆内容';
+  if (source === 'grudge') return '记仇内容';
+  return '返回值';
 }
 
 function normalizeToolField(value) {
@@ -698,17 +656,6 @@ function detectActionType(tool, source) {
   return 'tool';
 }
 
-function normalizeAmount(tool) {
-  const raw = Number(tool?.amount || tool?.price || tool?.transferAmount || tool?.itemPrice || 0);
-  return Number.isFinite(raw) ? raw : 0;
-}
-
-function summarizeText(text, max = 20) {
-  const clean = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!clean) return '';
-  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
-}
-
 function normalizeText(value) {
   if (typeof value === 'string') return value.replace(/\s+/g, ' ').trim();
   if (value && typeof value === 'object') {
@@ -719,12 +666,6 @@ function normalizeText(value) {
     }
   }
   return String(value || '').replace(/\s+/g, ' ').trim();
-}
-
-function formatAmount(value) {
-  const number = Number(value || 0);
-  if (!Number.isFinite(number)) return '0.00';
-  return number.toFixed(2);
 }
 
 // ═══════════════════════════════════════
@@ -880,156 +821,6 @@ function addCircle(svg, cx, cy, r) {
 }
 
 // ═══════════════════════════════════════
-// 【工具文案映射】保留原实现
-// ═══════════════════════════════════════
-
-const TOOL_COPY_MAP = {
-  search: {
-    icon: 'search',
-    runningTitle: '去查了查',
-    title: '去查了查',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我正在翻外面的资料，怕漏掉关键信息。';
-      if (context.status === 'error') return '我本来想去外面找点资料，结果这一步刚刚卡了一下。';
-      return '我先去外面补了一点资料，再回来把答案整理得更贴你。';
-    }
-  },
-  mcp: {
-    icon: 'mcp',
-    runningTitle: '叫了外部小工具',
-    title: '叫了外部小工具',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我正在让外部工具帮我办这一步，还没完全收回来。';
-      if (context.status === 'error') return '我本来想让外部工具帮忙，结果它刚刚没接稳。';
-      return '我借了一下外部小工具的手，把这一步悄悄办完了。';
-    }
-  },
-  memory_add: {
-    icon: 'memory',
-    runningTitle: '正在记下一笔',
-    title: '记下一小笔',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我觉得这件事以后可能还会用到，所以先记着。';
-      if (context.status === 'error') return '我本来想把这件事记住，结果这一笔刚刚没落稳。';
-      return '我把这次聊出来的重要点放进记忆里了，这样下次不用你再重说一遍。';
-    }
-  },
-  memory_edit: {
-    icon: 'memory-edit',
-    runningTitle: '正在改记忆',
-    title: '顺手改了改记忆',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在把旧记录改得更准一点，免得以后用错。';
-      if (context.status === 'error') return '我本来想把旧记录改准一点，结果这一步卡住了。';
-      return '我把旧记忆里不够准的地方轻轻改好了，后面就不会别扭。';
-    }
-  },
-  memory_delete: {
-    icon: 'memory-delete',
-    runningTitle: '正在删记忆',
-    title: '轻轻删掉一条记忆',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在把过时或者不准的旧记录收掉。';
-      if (context.status === 'error') return '我本来想把不合适的旧记录删掉，结果这一页卡住了。';
-      return '我把一条不再适合留下的旧记忆收走了，省得以后跑偏。';
-    }
-  },
-  grudge_add: {
-    icon: 'grudge',
-    runningTitle: '正在写小本本',
-    title: '在小本本上画圈圈',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我有一点点在意，所以先往小本本里放一笔。';
-      if (context.status === 'error') return '我本来想把这件在意的事记到小本本里，结果刚刚卡了一下。';
-      return '这件让我有点在意的事，我已经记到小本本里了。';
-    }
-  },
-  grudge_edit: {
-    icon: 'grudge',
-    runningTitle: '正在改小本本',
-    title: '把小本本改了改',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在整理小本本里的旧内容，让它更贴近现在的心情。';
-      if (context.status === 'error') return '我本来想调整一下小本本里的内容，结果这一笔卡住了。';
-      return '我把小本本里的旧内容理顺了一点，更贴近现在的心情。';
-    }
-  },
-  grudge_delete: {
-    icon: 'grudge',
-    runningTitle: '正在翻掉一页',
-    title: '把小本本翻掉一页',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在把一件已经不想继续记着的事轻轻放下。';
-      if (context.status === 'error') return '我本来想把这一页翻过去，结果刚刚没翻顺。';
-      return '有一页我已经不想继续记着了，就轻轻翻过去啦。';
-    }
-  },
-  transfer: {
-    icon: 'transfer',
-    runningTitle: '正在递小票据',
-    title: '递了一张小票据',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在整理这张转账小卡片，准备把小心意递过去。';
-      if (context.status === 'error') return '我本来想把这张小票据递过去，结果刚刚卡了一下。';
-      return '我把这份转账小心意整理成卡片，方便你一眼看清。';
-    }
-  },
-  gift: {
-    icon: 'gift',
-    runningTitle: '正在递小礼物',
-    title: '递了一份小礼物',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在把这份礼物的小卡片整理好。';
-      if (context.status === 'error') return '我本来想把礼物递过去，结果这一步有点卡。';
-      return '我把这份礼物的小卡片收拾好了，内容和小图也会一起带上。';
-    }
-  },
-  shop_buy: {
-    icon: 'shop',
-    runningTitle: '正在逛小物商店',
-    title: '去小物商店逛了逛',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我正在商店里挑东西，想看看哪一件更合适。';
-      if (context.status === 'error') return '我本来想去商店里挑东西，结果这一趟刚刚卡住了。';
-      return '我从小物商店里挑了合适的东西，顺手把卡片也整理好了。';
-    }
-  },
-  call_summary: {
-    icon: 'call',
-    runningTitle: '正在整理电话余温',
-    title: '把电话收成一小段记忆',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我在把刚刚通话里的情绪和重点收成一小段记忆。';
-      if (context.status === 'error') return '我本来想把电话里的重点收一下，结果刚刚卡住了。';
-      return '通话结束后，我把那一点点余温和重点收进了记忆里。';
-    }
-  },
-  proactive: {
-    icon: 'proactive',
-    runningTitle: '想主动和你说话',
-    title: '想主动和你说句话',
-    summaryBuilder() {
-      return '这是我自己想先开口的一小步，不是被硬推出来的。';
-    }
-  },
-  tool: {
-    icon: 'tool',
-    runningTitle: '悄悄办点小事',
-    title: '悄悄办点小事',
-    summaryBuilder(tool, context) {
-      if (context.status === 'running') return '我正在把这一步慢慢办完。';
-      if (context.status === 'error') return '这一步本来快弄好了，结果刚刚卡了一下。';
-      return '我顺手把这一步办好了。';
-    }
-  },
-  default: {
-    icon: 'tool',
-    title: '悄悄办点小事',
-    summary: '我顺手把这一步办好了。'
-  }
-};
-
-// ═══════════════════════════════════════
 // 【样式注入】Pill + Bottom Sheet
 // 全部走 CSS 变量，不硬编码色值
 // error 色用 color-mix 兜底（项目无 --color-error 变量）
@@ -1106,7 +897,7 @@ function injectStyle() {
       left:0;right:0;bottom:0;
       z-index:10041;
       width:100vw;
-      max-height:80vh;
+      height:55vh;
       display:flex;
       flex-direction:column;
       border-radius:28px 28px 0 0;

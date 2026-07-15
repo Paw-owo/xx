@@ -154,21 +154,24 @@ console.log('\n[2] 抽屉与 AI 侧数据源一致');
 }
 
 // ═══════════════════════════════════════
-// 3. thinking 输入含英文原始推理 + 工具名 → 输出不含英文原句、不含内部工具名
+// 3. thinking 清洗：内部工具名剥离 + 真实 reasoning 原样透传（不再替换为占位）
 // ═══════════════════════════════════════
-console.log('\n[3] thinking 清洗：英文推理 + 工具名');
+console.log('\n[3] thinking 清洗：工具名剥离 + reasoning 透传');
 {
   // 英文原始推理链（真机复现的泄漏文本）
+  // Round 7 起：气泡只显示 pill，过程链 sheet 需要真实 reasoning_content，
+  // 所以英文 reasoning 原样透传（不再替换为"想了一小会"），只剥内部工具名
   const englishReasoning = 'The user asked me to use MCP to query the library. I already called resolve-library-id to get the library ID, and now I need to call get-library-docs to fetch the documentation. Let me think about how to summarize this for the user.';
 
   const cleaned = sanitizeThinkingText(englishReasoning);
   console.log('    清洗后:', JSON.stringify(cleaned));
-  assertNo(cleaned, 'The user asked me', '英文原句"The user asked me"被清洗');
-  assertNo(cleaned, 'resolve-library-id', '内部工具名 resolve-library-id 被清洗');
-  assertNo(cleaned, 'get-library-docs', '内部工具名 get-library-docs 被清洗');
-  assertNo(cleaned, 'MCP', '协议词 MCP 被清洗（英文推理整体替换）');
-  assertNo(cleaned, 'called', '英文推理词 called 不残留');
-  assertHas(cleaned, '想了一小会', '英文推理被替换为中性中文占位"想了一小会"');
+  // 内部工具名仍被剥离
+  assertNo(cleaned, 'resolve-library-id', '内部工具名 resolve-library-id 被剥离');
+  assertNo(cleaned, 'get-library-docs', '内部工具名 get-library-docs 被剥离');
+  // 真实英文 reasoning 原样保留（不再用占位文案替换）
+  assertHas(cleaned, 'The user asked me', '英文 reasoning 原句保留（真实透传）');
+  assertHas(cleaned, 'called', '英文 reasoning 词 called 保留');
+  assertNo(cleaned, '想了一小会', '不再用"想了一小会"占位替换真实 reasoning');
 
   // 混合中英文（中文为主 + 少量英文工具名）→ 保留中文，剥工具名
   const mixed = '我需要查一下这个库的文档。先调用 resolve-library-id 获取库 ID，再用 get-library-docs 拉文档。';
@@ -183,11 +186,10 @@ console.log('\n[3] thinking 清洗：英文推理 + 工具名');
   assertHas(cleanedChinese, '用户想让我总结对话内容', '纯中文思考保留不误杀');
   assertHas(cleanedChinese, '提取关键信息', '纯中文思考保留不误杀');
 
-  // 英文短词（如工具参数值）不误判为推理
+  // 英文短词原样保留（不再有"误判为推理"的替换逻辑）
   const shortEnglish = 'OK';
   const cleanedShort = sanitizeThinkingText(shortEnglish);
-  // 短文本不会被替换（长度 <= 8）
-  assert(cleanedShort === 'OK', '短英文文本不误判为推理链');
+  assert(cleanedShort === 'OK', '短英文文本原样保留');
 
   // mcp_tool_call 协议词被剥离
   const withProtocol = '我要调用 mcp_tool_call 工具来查资料。';

@@ -1822,14 +1822,17 @@ async function handleMcpToolRequest(firstResult, ctx) {
     }
   ];
 
-  // 构造过程链节点记录：只存安全元信息，不存原始参数/JSON/key
+  // 构造过程链节点记录：存真实工具名 + 来源 + 真实参数 + 真实返回值（截断 500）
+  // arguments 是 AI 构造的调用参数（query 等），不含 MCP server 侧密钥（密钥在 server 配置）
+  const rawResult = String(toolText || '');
   const toolRecord = cleanForDB({
     name: 'mcp',
     toolName: matched.name,
     serviceName: matched.serverName || '',
     status: 'done',
     summary: summarizeText(toolText, 80),
-    result: summarizeText(toolText, 200),
+    arguments: toolCall.arguments || {},
+    result: rawResult.length > 500 ? rawResult.slice(0, 500) + '...' : rawResult,
     characterId: character?.id || '',
     _source: 'tool'
   });
