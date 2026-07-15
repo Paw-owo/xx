@@ -936,7 +936,7 @@ async function testMcpServer(id) {
       showToast('连上啦，但没有读到工具列表');
     }
   } catch (error) {
-    showToast(formatApiError(error?.message || 'MCP 连接失败'));
+    showToast(formatApiEditorError(error, 'MCP 连接失败'));
   }
 }
 
