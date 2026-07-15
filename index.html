@@ -1189,6 +1189,7 @@
     import { initChatEventBridge } from './core/chat-event-bridge.js';
     import { initAnniversaryBridge } from './core/anniversary-bridge.js';
     import { initPushBridge } from './core/push.js';
+    import { createEdgeFlipScheduler, createClickSuppressor, clampPageIndex } from './core/desktop-drag.js';
 
     const LOCK_PASSWORD = '0326';
     const CUSTOM_FONT_KEY = 'app_custom_font';
@@ -1272,6 +1273,30 @@
     let applyingImages = false;
     let lastViewportWidth = window.innerWidth;
     let lastViewportHeight = window.innerHeight;
+
+    // ═══ 桌面拖拽统一控制器 ═══
+    // 单一状态源：dragState / dockDragState / clickSuppressor
+    // 点击抑制：拖拽结束后 suppress()，由 document 捕获阶段 click 拦截并 consume()（清除）。
+    //   不再用 120ms 定时器清 dragState（真机上合成 click 时序不可靠，会漏拦导致误开 APP）。
+    //   浏览器对大位移拖拽通常不再合成 click，suppress 会残留 → 下一次 pointerdown 调 reset() 清除。
+    // 纯逻辑实现在 ./core/desktop-drag.js，此处仅做 DOM 绑定，保证测试覆盖真实生产代码。
+    const clickSuppressor = createClickSuppressor();
+    // 边缘翻页调度器（图标与小组件共用同一套）
+    const edgeScheduler = createEdgeFlipScheduler();
+
+    // 桌面固定两页（0 / 1），不支持越界或新建空白页
+    function getDesktopPageCount() { return 2; }
+
+    // 执行翻页：dir=-1 上一页，dir=+1 下一页；首末页不越界、不新建空白页
+    function flipDesktopPage(dir) {
+      const next = clampPageIndex(currentPage, dir, getDesktopPageCount());
+      if (next === currentPage) return false;
+      currentPage = next;
+      // 用 instant 保证拖拽中坐标系可靠（smooth 动画中途释放会算错局部坐标）
+      pagesEl.scrollTo({ left: next * (pagesEl.clientWidth || window.innerWidth), behavior: 'instant' });
+      updatePageDots();
+      return true;
+    }
 
     window.showToast = showToast;
 
@@ -1461,8 +1486,8 @@
         .desktop-icon::before,.desktop-icon::after,.desktop-icon-art::before,.desktop-icon-art::after{content:none!important;display:none!important}
         .desktop-icon-art,.desktop-icon-art:hover,.desktop-icon-art:focus,.desktop-icon-art:focus-visible,.desktop-icon-art:active,.dock .desktop-icon-art,.dock .desktop-icon-art:hover,.dock .desktop-icon-art:focus,.dock .desktop-icon-art:focus-visible,.dock .desktop-icon-art:active{outline:0!important;border-color:transparent!important}
         .desktop-icon-art.has-custom-image,.desktop-icon-art.has-custom-image:hover,.desktop-icon-art.has-custom-image:focus,.desktop-icon-art.has-custom-image:focus-visible,.desktop-icon-art.has-custom-image:active{background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-        .desktop-icon-image{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;margin:0!important;padding:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important}
-        .desktop-item,.desktop-widget,.desktop-icon{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important}
+        .desktop-icon-image{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;margin:0!important;padding:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important;pointer-events:none!important}
+        .desktop-item,.desktop-widget,.desktop-icon{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important}
         #app-layer *,#app-layer *::before,#app-layer *::after,.placeholder-app *,.placeholder-app *::before,.placeholder-app *::after{border-color:transparent!important}
         #app-layer button,#app-layer input,#app-layer textarea,#app-layer select,#app-layer [role="button"],#app-layer .app-back,#app-layer .placeholder-icon,#app-layer .placeholder-card,#app-layer .desktop-icon,#app-layer .desktop-icon-art,#app-layer .desktop-widget,.placeholder-app button,.placeholder-app input,.placeholder-app textarea,.placeholder-app select{-webkit-appearance:none!important;appearance:none!important;outline:0!important;border-color:transparent!important}
         #app-layer button:focus,#app-layer button:focus-visible,#app-layer button:active,#app-layer input:focus,#app-layer input:focus-visible,#app-layer textarea:focus,#app-layer textarea:focus-visible,#app-layer select:focus,#app-layer select:focus-visible,#app-layer [role="button"]:focus,#app-layer [role="button"]:focus-visible,#app-layer [role="button"]:active,.placeholder-app button:focus,.placeholder-app button:focus-visible,.placeholder-app button:active{outline:0!important;border-color:transparent!important}
@@ -1543,7 +1568,7 @@
         artEl.classList.toggle('has-custom-image', Boolean(customImage));
         if (customImage) {
           const image = document.createElement('img');
-          image.className = 'desktop-icon-image'; image.alt = ''; image.src = customImage;
+          image.className = 'desktop-icon-image'; image.alt = ''; image.src = customImage; image.draggable = false;
           image.style.opacity = String(getOpacityFromRecord(custom));
           image.addEventListener('error', () => { artEl.innerHTML = ''; artEl.classList.remove('has-custom-image'); artEl.appendChild(createIcon(app.icon, 28)); });
           artEl.appendChild(image);
@@ -1920,39 +1945,76 @@
       if (element.dataset.kind === 'dock') return;
       if (event.target.closest('.desktop-delete-dot')) return;
 
-      const startPage = Number(element.closest('.desktop-page')?.dataset.page || currentPage) || 0;
       const startX = event.clientX;
       const startY = event.clientY;
       const itemW = element.offsetWidth || 72;
       const itemH = element.offsetHeight || 72;
+      // 记录起始样式 / 父节点，用于中断时回滚（不写脏数据）
+      const startLeft = element.style.left || '';
+      const startTop = element.style.top || '';
+      const startPos = element.style.position || '';
+      const startParent = element.parentElement;
       let moved = false;
       let holdTimer = null;
       let holdFired = false;
+      let finished = false;
+      const pointerId = event.pointerId;
 
-      try { element.setPointerCapture?.(event.pointerId); } catch (_) {}
+      try { element.setPointerCapture?.(pointerId); } catch (_) {}
 
-      // 长按延时期间允许横向翻页，进入拖拽后改为禁用滚动
-      const prevTouchAction = element.style.touchAction || '';
-      element.style.touchAction = 'pan-x';
-
-      const cleanup = () => {
+      // 统一收尾：commit=true 落位并保存；commit=false 中断回滚不写数据
+      // 幂等（finished 守卫），pointerup / pointercancel / 页面失焦都可安全调用
+      const finish = (commit) => {
+        if (finished) return;
+        finished = true;
         if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-        element.style.touchAction = prevTouchAction;
+        edgeScheduler.clear();
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        try { element.releasePointerCapture?.(pointerId); } catch (_) {}
+
+        if (!moved) { return; }
+
+        if (commit) {
+          // 落位到当前可见页（currentPage 已被边缘翻页同步更新）
+          const targetPage = currentPage;
+          const targetLayer = getLayer(targetPage);
+          element.style.position = '';
+          if (element.parentElement !== targetLayer) { targetLayer.appendChild(element); }
+          // fixed 视口坐标 → 目标页 layer 局部坐标
+          const layerRect = targetLayer.getBoundingClientRect();
+          const lastCenterX = parseFloat(element.style.left || '0') + itemW / 2;
+          const lastCenterY = parseFloat(element.style.top || '0') + itemH / 2;
+          const localX = lastCenterX - layerRect.left - itemW / 2;
+          const localY = lastCenterY - layerRect.top - itemH / 2;
+          const position = clampPosition(element, Math.max(0, localX), Math.max(0, localY));
+          placeDesktopItem(element, position.x, position.y);
+          saveDesktopItemPosition(element, targetPage, position.x, position.y);
+        } else {
+          // 中断回滚：恢复起始位置与父节点，不保存数据
+          element.style.position = startPos;
+          element.style.left = startLeft;
+          element.style.top = startTop;
+          if (startParent && element.parentElement !== startParent) { startParent.appendChild(element); }
+        }
+
+        element.classList.remove('dragging');
+        pagesEl.classList.remove('dragging');
+        silentEdit = true;
+        updateEditingClass();
+        // 拖拽发生过则抑制随后的合成 click，防止误开下方 / 原位置 APP
+        clickSuppressor.suppress();
+        dragState = null;
       };
 
       const onMove = (moveEvent) => {
         const deltaX = moveEvent.clientX - startX;
         const deltaY = moveEvent.clientY - startY;
 
-        // 长按未触发前：横向轻滑优先翻页，不进入拖拽
+        // 长按未触发前：横向轻滑取消长按（让正常翻页手势可在空白处接管）
         if (!holdFired) {
-          if (Math.abs(deltaX) > 12 && Math.abs(deltaY) < Math.abs(deltaX)) {
-            cleanup();
-            return;
-          }
+          if (Math.abs(deltaX) > 12 && Math.abs(deltaY) < Math.abs(deltaX)) { finish(false); return; }
           return;
         }
 
@@ -1960,13 +2022,12 @@
         if (!moved) {
           moved = true;
           editing = true;
-          dragState = { element, startPage, kind: element.dataset.kind, id: element.dataset.kind === 'icon' ? element.dataset.appId : element.dataset.widgetId };
+          dragState = { element, kind: element.dataset.kind, id: element.dataset.kind === 'icon' ? element.dataset.appId : element.dataset.widgetId };
           element.classList.add('dragging');
           pagesEl.classList.add('dragging');
           updateEditingClass();
-          // 进入拖拽后用 fixed 定位脱离页面容器，避免 scrollLeft 偏移和 overflow 裁切
+          // fixed 定位脱离页面容器，避免 scrollLeft 偏移和 overflow 裁切，跟手更顺
           element.style.position = 'fixed';
-          element.style.touchAction = 'none';
         }
 
         // 始终用视口坐标定位，跟随手指/鼠标
@@ -1974,57 +2035,21 @@
         const vy = moveEvent.clientY - itemH / 2;
         element.style.left = `${Math.max(0, Math.min(window.innerWidth - itemW, vx))}px`;
         element.style.top = `${Math.max(0, Math.min(window.innerHeight - itemH, vy))}px`;
+        // 边缘翻页：进入热区并停留才翻，离开立即取消；首末页不越界
+        edgeScheduler.schedule(moveEvent.clientX, window.innerWidth, (dir) => {
+          flipDesktopPage(dir);
+        });
       };
 
-      const onUp = () => {
-        cleanup();
-        if (!moved) return;
-
-        // 滞回判断目标页：startPage 为 pointerdown 时记录的起始页
-        // 从第一页拖出需 > 0.6 才落第二页；从第二页拖回需 < 0.4 才落第一页；否则回原页
-        const lastCenterX = parseFloat(element.style.left || '0') + itemW / 2;
-        const pageWidth = pagesEl.clientWidth || window.innerWidth;
-        let targetPage = startPage;
-        if (startPage === 0 && lastCenterX > pageWidth * 0.6) targetPage = 1;
-        else if (startPage === 1 && lastCenterX < pageWidth * 0.4) targetPage = 0;
-
-        const targetLayer = getLayer(targetPage);
-        // 恢复 absolute 定位
-        element.style.position = '';
-        if (element.parentElement !== targetLayer) { targetLayer.appendChild(element); }
-
-        // 将视口坐标转换为目标页 layer 的局部坐标
-        const layerRect = targetLayer.getBoundingClientRect();
-        const localX = lastCenterX - layerRect.left - itemW / 2;
-        const localY = parseFloat(element.style.top || '0') - layerRect.top;
-        const position = clampPosition(element, Math.max(0, localX), Math.max(0, localY));
-
-        placeDesktopItem(element, position.x, position.y);
-        saveDesktopItemPosition(element, targetPage, position.x, position.y);
-
-        element.classList.remove('dragging');
-        pagesEl.classList.remove('dragging');
-
-        // 跨页落位后滚动到目标页，让图标可见
-        if (targetPage !== startPage) {
-          pagesEl.scrollTo({ left: targetPage * (pagesEl.clientWidth || window.innerWidth), behavior: 'instant' });
-          currentPage = targetPage;
-          updatePageDots();
-        }
-
-        // 保留编辑态可见删除圆点，但进入静默态停止抖动
-        silentEdit = true;
-        updateEditingClass();
-
-        window.setTimeout(() => { dragState = null; }, 120);
-      };
+      const onUp = () => finish(true);
+      const onCancel = () => finish(false);
 
       // 350ms 长按后才允许进入拖拽，避免横向轻滑误触发编辑态
       holdTimer = window.setTimeout(() => { holdFired = true; }, 350);
 
       window.addEventListener('pointermove', onMove, { passive: false });
       window.addEventListener('pointerup', onUp, { passive: true });
-      window.addEventListener('pointercancel', onUp, { passive: true });
+      window.addEventListener('pointercancel', onCancel, { passive: true });
     }
 
     function handleDockIconPointerDown(event, element) {
@@ -2035,26 +2060,40 @@
       let moved = false;
       let holdTimer = null;
       let holdFired = false;
-      try { element.setPointerCapture?.(event.pointerId); } catch (_) {}
+      let finished = false;
+      const pointerId = event.pointerId;
+      try { element.setPointerCapture?.(pointerId); } catch (_) {}
 
-      const cleanup = () => {
+      const finish = (commit) => {
+        if (finished) return;
+        finished = true;
         if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
-        window.removeEventListener('pointercancel', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        try { element.releasePointerCapture?.(pointerId); } catch (_) {}
+
+        if (!moved) { return; }
+        element.classList.remove('dock-dragging');
+        element.style.transform = '';
+        if (commit) {
+          saveDockOrder([...dockEl.querySelectorAll('.desktop-icon[data-app-id]')].map((item) => item.dataset.appId));
+        }
+        // 保留编辑态但停止抖动，与桌面拖拽一致
+        silentEdit = true;
+        updateEditingClass();
+        // 拖拽发生过则抑制随后的合成 click，防止误开 APP
+        clickSuppressor.suppress();
+        dockDragState = null;
       };
 
       const onMove = (moveEvent) => {
         const deltaX = moveEvent.clientX - startX;
         const deltaY = moveEvent.clientY - startY;
 
-        // 长按未触发前：横向轻滑不进入拖拽
+        // 长按未触发前：移动取消长按
         if (!holdFired) {
-          if (Math.hypot(deltaX, deltaY) > 12) {
-            if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-            cleanup();
-            return;
-          }
+          if (Math.hypot(deltaX, deltaY) > 12) { finish(false); return; }
           return;
         }
 
@@ -2068,26 +2107,15 @@
         dockEl.insertBefore(element, before ? target : target.nextSibling);
       };
 
-      const onUp = () => {
-        cleanup();
-        if (!moved) return;
-        element.classList.remove('dock-dragging');
-        element.style.transform = '';
-        saveDockOrder([...dockEl.querySelectorAll('.desktop-icon[data-app-id]')].map((item) => item.dataset.appId));
-
-        // 保留编辑态但停止抖动，与桌面拖拽一致
-        silentEdit = true;
-        updateEditingClass();
-
-        window.setTimeout(() => { dockDragState = null; }, 120);
-      };
+      const onUp = () => finish(true);
+      const onCancel = () => finish(false);
 
       // 350ms 长按后才允许进入拖拽
       holdTimer = window.setTimeout(() => { holdFired = true; }, 350);
 
       window.addEventListener('pointermove', onMove, { passive: false });
       window.addEventListener('pointerup', onUp, { passive: true });
-      window.addEventListener('pointercancel', onUp, { passive: true });
+      window.addEventListener('pointercancel', onCancel, { passive: true });
     }
 
     function saveDesktopItemPosition(element, page, x, y) {
@@ -2110,6 +2138,44 @@
       window.addEventListener('desktop:refresh', async () => { loadTheme(); applyDesktopScale(); await applyCustomFontFromStorage(); await refreshDesktop(); });
       window.addEventListener('app-settings-updated', async () => { loadTheme(); applyDesktopScale(); await applyCustomFontFromStorage(); await refreshDesktop(); });
       window.addEventListener('app-images-updated', applyAllImages);
+
+      // 捕获阶段拦截拖拽结束后的合成 click，防止误开下方/原位置 APP
+      // 比定时器更可靠：不依赖 click 与 pointerup 的时序，只吃掉拖拽后的第一个 click
+      document.addEventListener('click', (event) => {
+        if (!clickSuppressor.consume()) return;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
+      // 浏览器对大位移拖拽通常不再合成 click，此时 suppress 会残留；
+      // 在下一次手势开始时清除，保证下次真实点击不被误吃
+      document.addEventListener('pointerdown', () => { clickSuppressor.reset(); }, true);
+
+      // 页面隐藏 / 失焦 / 后台时强制结束进行中的拖拽，防状态残留卡死桌面
+      const abortDragOnInterrupt = () => {
+        if (dragState || dockDragState) {
+          edgeScheduler.clear();
+          // 触发一次合成 pointercancel 让各 handler 的 onCancel 收尾（回滚不保存）
+          const targets = [];
+          if (dragState?.element) targets.push(dragState.element);
+          if (dockDragState?.appId) { const el = dockEl.querySelector(`.desktop-icon[data-app-id="${dockDragState.appId}"]`); if (el) targets.push(el); }
+          for (const el of targets) { try { el.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, cancelable: true })); } catch (_) {} }
+        }
+      };
+      window.addEventListener('visibilitychange', abortDragOnInterrupt);
+      window.addEventListener('blur', abortDragOnInterrupt);
+      window.addEventListener('pagehide', abortDragOnInterrupt);
+
+      // 桌面元素阻止浏览器长按图片预览 / 保存菜单 / 原生拖拽
+      // 仅在桌面根节点内生效，不影响 #app-layer 内的图片查看与无障碍
+      desktopEl.addEventListener('contextmenu', (event) => {
+        if (event.target.closest('.desktop-item, .desktop-widget, .desktop-icon, .desktop-icon-image')) event.preventDefault();
+      });
+      desktopEl.addEventListener('dragstart', (event) => {
+        if (event.target.closest('.desktop-item, .desktop-widget, .desktop-icon, .desktop-icon-image')) event.preventDefault();
+      });
+      desktopEl.addEventListener('selectstart', (event) => {
+        if (event.target.closest('.desktop-item, .desktop-widget, .desktop-icon, .desktop-icon-image')) event.preventDefault();
+      });
     }
 
     function handleWindowResize() {
