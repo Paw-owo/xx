@@ -957,7 +957,7 @@ function renderApiEditor(draft) {
   return box;
 }
 
-// 从 API 池异步填充端点下拉；处理 endpointId 失效（被删/禁用）的明确提示与保留
+// 从 API 池异步填充端点下拉；处理 endpointId 失效（被删/接口禁用/分组停用）的明确提示与保留
 async function populateEndpointSelect(select, draft, modelInput) {
   let metas = [];
   try {
@@ -968,10 +968,20 @@ async function populateEndpointSelect(select, draft, modelInput) {
 
   const currentId = String(draft.apiConfig.endpointId || '');
   const matched = metas.find((m) => String(m.id) === currentId) || null;
-  // 失效：保存过 endpointId 但已不在池中，或对应端点被禁用
-  const isStale = Boolean(currentId) && (!matched || matched.status === 'disabled');
-  // 可选列表：只列未禁用的端点，避免选到 callAPI 会拒绝的端点
-  const selectable = metas.filter((m) => m.status !== 'disabled');
+  // 可选列表：接口未禁用 且 所在分组未停用，避免选到 callAPI 会拒绝的端点
+  const selectable = metas.filter((m) => m.status !== 'disabled' && m.groupEnabled !== false);
+  // 失效三态：分组停用 / 接口禁用 / 已不在池中
+  let staleReason = '';
+  if (currentId) {
+    if (!matched) {
+      staleReason = 'gone';
+    } else if (matched.status === 'disabled') {
+      staleReason = 'disabled';
+    } else if (matched.groupEnabled === false) {
+      staleReason = 'groupDisabled';
+    }
+  }
+  const isStale = Boolean(staleReason);
 
   select.innerHTML = '';
 
@@ -980,11 +990,35 @@ async function populateEndpointSelect(select, draft, modelInput) {
   if (isStale) {
     const stale = document.createElement('option');
     stale.value = currentId;
-    stale.textContent = matched
-      ? `原指定接口“${matched.name || '未命名'}”当前已禁用，请在下方重选`
-      : (selectable.length ? '原指定接口已不在池中，请在下方重选' : '原指定接口已不在池中，且池里没有可用接口');
+    const name = matched?.name || '未命名';
+    if (staleReason === 'groupDisabled') {
+      const groupTag = matched.groupType === 'free' ? '免费' : '付费';
+      stale.textContent = `${name} · ${groupTag}（所在分组已停用）`;
+    } else if (staleReason === 'disabled') {
+      stale.textContent = `${name}（该接口已停用）`;
+    } else {
+      stale.textContent = selectable.length
+        ? '原指定接口已不在池中，请在下方重选'
+        : '原指定接口已不在池中，且池里没有可用接口';
+    }
     stale.selected = true;
     select.appendChild(stale);
+  }
+
+  // 自然提示：把不可用原因讲清楚，引导用户去 API 池或重选
+  if (isStale) {
+    const hint = document.createElement('div');
+    hint.className = 'character-editor-hint';
+    if (staleReason === 'groupDisabled') {
+      hint.textContent = `原指定接口“${matched?.name || '未命名'}”所在分组已停用，可以去 API 池重新打开，或在下面换一个呀。`;
+    } else if (staleReason === 'disabled') {
+      hint.textContent = `原指定接口“${matched?.name || '未命名'}”当前已停用，可以去 API 池看看，或在下面换一个呀。`;
+    } else {
+      hint.textContent = selectable.length
+        ? '原指定接口已经不在池中啦，请在下面换一个。'
+        : '原指定接口已经不在池中，且池里暂时没有可用接口，可以先去 API 池加一个。';
+    }
+    select.parentElement?.appendChild(hint);
   }
 
   // 池里没有可选端点：停在此处，禁用下拉（endpointId 已通过上面 stale 项保留）
@@ -2373,6 +2407,13 @@ function injectStyle() {
       display: flex;
       flex-direction: column;
       gap: var(--spacing-md);
+    }
+
+    .character-editor-hint {
+      margin-top: 6px;
+      font-size: var(--font-size-sm);
+      line-height: 1.6;
+      color: var(--text-hint);
     }
 
     .editor-avatar {

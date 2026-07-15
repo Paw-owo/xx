@@ -304,6 +304,7 @@ export async function getApiPoolItems() {
 
 export async function getApiEndpointMetas() {
   const items = await getApiPoolItems();
+  const groups = getPoolGroups();
   return items.map((item) => ({
     id: item.id,
     name: item.name,
@@ -312,7 +313,8 @@ export async function getApiEndpointMetas() {
     provider: item.provider,
     model: item.model,
     models: Array.isArray(item.models) ? item.models : [],
-    status: item.status
+    status: item.status,
+    groupEnabled: groups[item.groupType]?.enabled !== false
   }));
 }
 
