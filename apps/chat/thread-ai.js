@@ -46,6 +46,9 @@ import {
 // render 纯函数共享模块：splitCodeBlocks 拆气泡 + MCP 工具 JSON 片段检测
 import { containsMcpToolCallFragment } from './render-pure.js';
 
+// ask_user 纯函数共享模块：<ask_user> 块解析（流式期 + 发AI 兜底剥离）
+import { parseAskUserBlocks, stripAskUserBlocks } from './ask-user-pure.js';
+
 // ═══════════════════════════════════════
 // 【基础配置】聊天 AI 常量和运行状态
 // ═══════════════════════════════════════
@@ -237,18 +240,35 @@ function createStreamAccumulator() {
         content = '';
       }
 
-      return { content, thinking, thinkingSummary };
+      // <ask_user> 块解析：未闭合时 pending=true，开标签后不进 content（避免残片）；
+      // 闭合后剥到 askUser，content 剔除块；JSON 失败保留原文不崩
+      let askUser = null;
+      let askUserPending = false;
+      if (content) {
+        const ar = parseAskUserBlocks(content);
+        content = ar.content;
+        askUser = ar.askUser;
+        askUserPending = ar.pending;
+      }
+
+      return { content, thinking, thinkingSummary, askUser, askUserPending };
     },
 
     applyTo(message) {
       if (!message) return;
 
-      const { content, thinking, thinkingSummary } = this.parse();
+      const { content, thinking, thinkingSummary, askUser, askUserPending } = this.parse();
 
       message.content = content;
       // 流式渲染期也清洗 thinking，防止分片标签/协议/竖排泄漏到界面
       message.thinking = sanitizeThinkingText(thinking);
       message.isStreaming = true;
+
+      // <ask_user> 块：闭合后才写 message.askUser（pending 期间不写，避免半截 JSON）
+      // 一旦写入就稳定，后续 chunk 不再覆盖（块已闭合完整）
+      if (!askUserPending && askUser) {
+        message.askUser = askUser;
+      }
 
       if (thinkingSummary) {
         message.thinkingSummary = thinkingSummary.length > 15
@@ -440,38 +460,63 @@ async function requestPrivateReply(state, options = {}) {
     groupId: ''
   });
 
+  // prelude 区间：startAIJob 已注册 job 并设 aiGenerating=true，若此区间抛错，
+  // 必须调 finishAIJob 释放（否则 aiGenerating 永远 true、activeAIJobs 残留）。
+  // 用 preludeError 标记，主体 try 不再重复处理 prelude 错误。
+  let preludeError = null;
   state.aiGenerating = true;
 
-  const activeLock = await getActiveRelationshipLock(characterId);
-  const messages = await loadPrivateMessages(characterId);
-  const userMessage = getLastUserMessage(messages);
-  const userProfile = loadUserProfileForCharacter(character);
-  const userName = getUserDisplayName(userProfile);
+  let activeLock = null;
+  let messages = [];
+  let userMessage = null;
+  let userProfile = null;
+  let userName = '';
+  let placeholder = null;
 
-  if (!userMessage && !options.continue && !options.proactive) {
-    finishAIJob(state, job);
-    return null;
+  try {
+    activeLock = await getActiveRelationshipLock(characterId);
+    messages = await loadPrivateMessages(characterId);
+    userMessage = getLastUserMessage(messages);
+    userProfile = loadUserProfileForCharacter(character);
+    userName = getUserDisplayName(userProfile);
+
+    if (!userMessage && !options.continue && !options.proactive) {
+      finishAIJob(state, job);
+      return null;
+    }
+
+    placeholder = createAssistantPlaceholder({
+      characterId,
+      groupId: '',
+      character,
+      content: '',
+      thinking: '',
+      thinkingSummary: '',
+      toolCalls: [],
+      isPending: true,
+      status: 'pending',
+      versionGroupId: options.versionGroupId || '',
+      versionStatus: 'active'
+    });
+
+    job.placeholderIds.push(placeholder.id);
+
+    await safeSetMessage(PRIVATE_STORE, placeholder);
+    await syncPrivateState(state, characterId);
+    state.renderOnly?.();
+  } catch (e) {
+    preludeError = e;
   }
 
-  const placeholder = createAssistantPlaceholder({
-    characterId,
-    groupId: '',
-    character,
-    content: '',
-    thinking: '',
-    thinkingSummary: '',
-    toolCalls: [],
-    isPending: true,
-    status: 'pending',
-    versionGroupId: options.versionGroupId || '',
-    versionStatus: 'active'
-  });
-
-  job.placeholderIds.push(placeholder.id);
-
-  await safeSetMessage(PRIVATE_STORE, placeholder);
-  await syncPrivateState(state, characterId);
-  state.renderOnly?.();
+  if (preludeError) {
+    // prelude 抛错：清理已建 placeholder，释放 job，rethrow 让上层 requestAIReplySafely 处理
+    if (placeholder?.id) {
+      await deleteDB(PRIVATE_STORE, placeholder.id).catch(() => null);
+    }
+    if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
+    finishAIJob(state, job);
+    throw preludeError;
+  }
 
   try {
     const promptMessages = await buildPrompt({
@@ -579,7 +624,9 @@ async function requestPrivateReply(state, options = {}) {
         });
       }
     } catch (apiError) {
-      if (isAbortError(apiError) || isJobStopped(job)) {
+      // 仅「用户主动停止」(job.stopped / job.controller.signal.aborted) 才走停止文案；
+      // 超时 abort（内部 timeout controller abort，job.controller 未 abort）应走错误分支给友好提示
+      if (isJobStopped(job)) {
         await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
         if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
         return null;
@@ -619,6 +666,7 @@ async function requestPrivateReply(state, options = {}) {
       thinking: parsed.thinking || '',
       thinkingSummary: parsed.thinkingSummary || summarizeText(parsed.thinking || '', 15),
       toolCalls: [...(parsed.toolCalls || []), ...pendingToolRecords],
+      askUser: parsed.askUser || undefined,
       memoryWrites: [],
       grudgeWrites: [],
       proactive: Boolean(options.proactive),
@@ -706,7 +754,8 @@ async function requestPrivateReply(state, options = {}) {
 
     return finalMessage;
   } catch (error) {
-    if (isAbortError(error) || isJobStopped(job)) {
+    // 仅「用户主动停止」走停止文案；超时/网络 abort 走错误分支（deleteDB + rethrow）
+    if (isJobStopped(job)) {
       await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
       if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
       return null;
@@ -744,19 +793,36 @@ async function requestGroupReply(state, options = {}) {
     groupId
   });
 
+  // prelude 区间兜底：若 loadGroupMessages/resolveGroupMembers 等抛错，
+  // 必须调 finishAIJob 释放 job，否则 aiGenerating 永远 true、activeAIJobs 残留
+  let preludeError = null;
   state.aiGenerating = true;
 
-  const groupMessages = await loadGroupMessages(groupId);
-  const userMessage = getLastUserMessage(groupMessages);
+  let groupMessages = [];
+  let userMessage = null;
+  let speakers = [];
+  const replies = [];
 
-  if (!userMessage && !options.continue) {
-    finishAIJob(state, job);
-    return [];
+  try {
+    groupMessages = await loadGroupMessages(groupId);
+    userMessage = getLastUserMessage(groupMessages);
+
+    if (!userMessage && !options.continue) {
+      finishAIJob(state, job);
+      return [];
+    }
+
+    const members = await resolveGroupMembers(group);
+    speakers = chooseGroupSpeakers(members, groupMessages);
+  } catch (e) {
+    preludeError = e;
   }
 
-  const members = await resolveGroupMembers(group);
-  const speakers = chooseGroupSpeakers(members, groupMessages);
-  const replies = [];
+  if (preludeError) {
+    if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
+    finishAIJob(state, job);
+    throw preludeError;
+  }
 
   try {
     for (const character of speakers) {
@@ -863,7 +929,8 @@ async function requestGroupReply(state, options = {}) {
             });
           }
         } catch (apiError) {
-          if (isAbortError(apiError) || isJobStopped(job)) {
+          // 仅「用户主动停止」走停止文案；超时 abort 走错误分支给友好提示
+          if (isJobStopped(job)) {
             await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
             if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
             break;
@@ -904,6 +971,7 @@ async function requestGroupReply(state, options = {}) {
           thinking: parsed.thinking || '',
           thinkingSummary: parsed.thinkingSummary || summarizeText(parsed.thinking || '', 15),
           toolCalls: [...(parsed.toolCalls || []), ...pendingToolRecords],
+          askUser: parsed.askUser || undefined,
           memoryWrites: [],
           grudgeWrites: [],
           characterName: character.name || 'TA',
@@ -987,7 +1055,8 @@ async function requestGroupReply(state, options = {}) {
           });
         } catch (_) {}
       } catch (error) {
-        if (isAbortError(error) || isJobStopped(job)) {
+        // 仅「用户主动停止」走停止文案；超时/网络 abort 走错误分支
+        if (isJobStopped(job)) {
           await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
           if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
           break;
@@ -1301,6 +1370,9 @@ function stringifyToolDetail(value) {
 // 【Prompt构建】身份、人设、世界书、记忆、上下文
 // ═══════════════════════════════════════
 
+// AI 主动提问协议：当信息不足/需要用户拍板时，在回复末尾追加 <ask_user> 块
+const ASK_USER_PROMPT = '主动提问协议：当你需要用户拿主意、信息不足以给出好建议、或想让用户在几个方向中选一个时，可以在回复末尾追加 <ask_user>...</ask_user> 块，包含 1-4 个问题。格式：{"questions":[{"id":"q1","text":"问题","type":"single|multi","options":["A","B"],"allow_input":true}]}。type 为 single 单选、multi 多选；没 options 就是纯输入题（type 可省略）；allow_input 为 true 时允许用户在选项之外自由输入。用中文、简短、贴合当前对话。日常闲聊别用，只在真的需要用户决定时用。这块不会出现在用户看到的正文里，会渲染成一张提问卡片。';
+
 async function buildPrompt({
   mode,
   character,
@@ -1367,6 +1439,7 @@ async function buildPrompt({
     buildModePrompt(mode, group, activeCharacter, options, userName, userProfile),
     mcpToolsPrompt,
     mcpToolProtocol,
+    ASK_USER_PROMPT,
     options.proactive ? buildProactivePrompt(options.proactiveReason, messages, userName, activeCharacter) : ''
   ].filter(Boolean).join('\n\n');
 
@@ -1730,10 +1803,11 @@ function formatMessageForPrompt(message, mode, userName = '你') {
   if (message.type === 'rps') return `${prefix}[石头剪刀布] ${message.content || ''}`.trim();
 
   if (message.quoteText) {
-    return `${prefix}引用「${message.quoteText}」\n${message.content || ''}`.trim();
+    return `${prefix}引用「${message.quoteText}」\n${stripAskUserBlocks(message.content || '')}`.trim();
   }
 
-  return `${prefix}${message.content || ''}`.trim();
+  // 兜底剥离 <ask_user> 块：协议标记不发给 AI（流式期已剥到 askUser 字段，这里防 DB 残留）
+  return `${prefix}${stripAskUserBlocks(message.content || '')}`.trim();
 }
 
 // ═══════════════════════════════════════
@@ -1822,14 +1896,17 @@ async function handleMcpToolRequest(firstResult, ctx) {
     }
   ];
 
-  // 构造过程链节点记录：只存安全元信息，不存原始参数/JSON/key
+  // 构造过程链节点记录：存真实工具名 + 来源 + 真实参数 + 真实返回值（截断 500）
+  // arguments 是 AI 构造的调用参数（query 等），不含 MCP server 侧密钥（密钥在 server 配置）
+  const rawResult = String(toolText || '');
   const toolRecord = cleanForDB({
     name: 'mcp',
     toolName: matched.name,
     serviceName: matched.serverName || '',
     status: 'done',
     summary: summarizeText(toolText, 80),
-    result: summarizeText(toolText, 200),
+    arguments: toolCall.arguments || {},
+    result: rawResult.length > 500 ? rawResult.slice(0, 500) + '...' : rawResult,
     characterId: character?.id || '',
     _source: 'tool'
   });
@@ -1998,11 +2075,12 @@ function normalizeAIResult(result, userName = '你') {
       content: stripEmoji(parsed.content),
       thinking: stripEmoji(thinking),
       thinkingSummary: summary,
-      toolCalls: normalizeToolCalls(result.toolCalls || result.tools || result.choices?.[0]?.message?.tool_calls || [])
+      toolCalls: normalizeToolCalls(result.toolCalls || result.tools || result.choices?.[0]?.message?.tool_calls || []),
+      askUser: parsed.askUser || null
     };
   }
 
-  return { content: '', thinking: '', thinkingSummary: '', toolCalls: [] };
+  return { content: '', thinking: '', thinkingSummary: '', toolCalls: [], askUser: null };
 }
 
 // sanitizeThinkingText / mergeTokenNewlines 已提取到 ./thinking-pure.js，本文件通过 import 使用
@@ -2031,6 +2109,12 @@ function parseAIText(text, userName = '你') {
     content = '';
   }
 
+  // <ask_user> 块解析：剥到 askUser，content 剔除块；JSON 失败保留原文
+  let askUser = null;
+  const ar = parseAskUserBlocks(content);
+  content = ar.content;
+  askUser = ar.askUser;
+
   let thinkingSummary = summaryMatch
     ? cleanPerspectiveText(summaryMatch[1].trim(), userName)
     : '';
@@ -2043,7 +2127,8 @@ function parseAIText(text, userName = '你') {
     content: stripEmoji(content),
     thinking: stripEmoji(thinking),
     thinkingSummary,
-    toolCalls: []
+    toolCalls: [],
+    askUser
   };
 }
 

@@ -627,6 +627,13 @@ async function handleSend(input) {
   blurActiveInput();
   clearDraft();
 
+  // 并发互斥：在 saveMessageOnly 之前同步置 aiGenerating=true，
+  // 避免 await saveMessageOnly 期间用户再次回车进入第二条「正常发送」路径，
+  // 导致两个并发 AI job 互相 abort + aiGenerating 被前驱 job 的 finally 提前清零。
+  // 失败分支（saveMessageOnly 抛错）在 catch 里复位。
+  state.aiGenerating = true;
+  render();
+
   try {
     let saveMessageOnly = null;
     try {
@@ -650,16 +657,14 @@ async function handleSend(input) {
   } catch (error) {
     console.error('[chat-thread] save user message failed', error);
     showToast('发送没成功');
-    // 失败时恢复输入内容，UI 可恢复
+    // 失败时恢复输入内容与状态，UI 可恢复
+    state.aiGenerating = false;
     state.inputValue = text;
     input.value = text;
     autoResize(input);
     render();
     return;
   }
-
-  state.aiGenerating = true;
-  render();
 
   try {
     await sendThreadMessage(state, '', { triggerAI: true, skipSave: true });

@@ -12,7 +12,8 @@ import {
   setDB,
   getAllDB,
   getByIndexDB,
-  deleteDB
+  deleteDB,
+  removeData
 } from '../../core/storage.js';
 
 import {
@@ -26,6 +27,7 @@ import {
 import { checkThreadProactiveMessages } from './thread-ai.js';
 import { addMemory } from '../../core/memory.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
+import { buildAskUserStateKey, buildAskUserStateKeyPrefix } from './ask-user-pure.js';
 
 const LIST_STYLE_ID = 'chat-list-style';
 const HIDDEN_PRIVATE_KEY = 'chat_hidden_private_threads';
@@ -881,6 +883,7 @@ async function confirmNewConversation(item, openAfter = false) {
 
   clearPrivateUnread(item.id);
   clearLastRouteIfCharacter(item.id);
+  clearAskUserStateForThread(item.id);
 
   showToast('新对话准备好啦');
   await rerender();
@@ -898,6 +901,7 @@ async function confirmClearMessages(item) {
   await deleteMessages(messages);
   clearPrivateUnread(item.id);
   clearLastRouteIfCharacter(item.id);
+  clearAskUserStateForThread(item.id);
 
   showToast('聊天记录清空啦');
   await rerender();
@@ -918,6 +922,7 @@ async function confirmDeleteCharacter(item) {
   if (!ok) return;
 
   await deleteCharacterEverywhere(item.id);
+  clearAskUserStateForThread(item.id);
   showToast('已经把 TA 从列表里移走了');
 
   // 先发统一事件，由路由层（chat.js 监听 characters:updated）统一刷新列表，
@@ -1040,6 +1045,7 @@ async function confirmClearGroupMessages(item) {
   await deleteGroupMessages(messages);
   clearGroupUnread(item.id);
   clearLastRouteIfGroup(item.id);
+  clearAskUserStateForThread(item.id);
 
   showToast('群消息清空啦');
   await rerender();
@@ -1050,6 +1056,7 @@ async function confirmDeleteGroup(item) {
   if (!ok) return;
 
   await deleteGroupEverywhere(item.id);
+  clearAskUserStateForThread(item.id);
   showToast('群聊删掉啦');
   await rerender();
 
@@ -1084,6 +1091,23 @@ async function deleteGroupMessages(messages) {
       .filter((message) => message?.id)
       .map((message) => deleteDB('group_messages', message.id).catch(() => null))
   );
+}
+
+// 清理某个会话的所有 ask_user 卡片状态（清空对话/删会话时调用，避免 localStorage 孤儿 key）
+function clearAskUserStateForThread(threadId) {
+  if (!threadId) return;
+  const prefix = buildAskUserStateKeyPrefix(threadId);
+  if (!prefix) return;
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) keys.push(k);
+    }
+    keys.forEach((k) => removeData(k));
+  } catch (_) {
+    // localStorage 不可用静默
+  }
 }
 
 async function saveConversationMemory(item, messages) {

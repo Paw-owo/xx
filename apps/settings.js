@@ -38,6 +38,7 @@ import { showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon } 
 import { fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups, fetchModelList } from '../core/api.js';
 import { resetSession, getMcpServers, listMcpTools, listMcpToolsWithDraft } from '../core/mcp.js';
 import { testCloudConnection } from '../core/storage-manager.js';
+import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
 
 // ═══════════════════════════════════════
 // 【常量】存储 key 和默认配置
@@ -2062,7 +2063,9 @@ async function clearAllData() {
     WALLPAPER_OPACITY_KEY, WIDGET_BACKGROUNDS_KEY, DESKTOP_SCALE_KEY,
     CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY, API_POOL_GROUPS_KEY,
     'app_theme', 'app_theme_preset', 'app_theme_mode', ...CHAT_LOCAL_KEYS,
-    'moments_unread_count', 'games_unread_count'
+    'moments_unread_count', 'games_unread_count',
+    // GitHub 工具配置和 Token：清空全部时一并清理，避免敏感凭据残留
+    ...GITHUB_TOOL_STORAGE_KEYS
   ].forEach(removeData);
 
   for (const store of DB_STORES) {

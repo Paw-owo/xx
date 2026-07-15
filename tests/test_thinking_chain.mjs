@@ -354,23 +354,37 @@ console.log('\n[用例 16] grudgeWrites 不泄漏到 content/thinking');
   assert(finalMessage.grudgeWrites[0].characterId === 'char-1', '记仇节点带 characterId 隔离');
 }
 
-console.log('\n[用例 17] MCP toolRecord 不含原始参数/JSON/key');
+console.log('\n[用例 17] MCP toolRecord 含真实参数、不含密钥/header（Round 8 真实数据透传）');
 {
+  // Round 8：过程链 sheet 需要展示真实参数 + 真实返回值
+  // 安全模型：arguments（AI 构造的调用参数，如 query）安全可存；
+  //          apiKey / header / 密钥（MCP server 侧配置）绝不存
+  // result 截断到 500 字符 + '...'
+  const longResult = 'x'.repeat(800);
   const toolRecord = {
     name: 'mcp',
-    toolName: 'search',
-    serviceName: 'web',
+    toolName: 'resolve-library-id',
+    serviceName: 'Context7',
     status: 'done',
-    summary: '查询了天气',
-    result: '查询了天气',
+    summary: '解析库 ID',
+    arguments: { libraryName: 'react' },   // 真实参数：AI 构造，安全
+    result: longResult.slice(0, 500) + '...',  // 真实返回值截断 500
     characterId: 'char-1',
     _source: 'tool'
   };
   const json = JSON.stringify(toolRecord);
-  assert(!json.includes('apiKey'), 'toolRecord 不含 apiKey');
-  assert(!json.includes('arguments'), 'toolRecord 不含原始 arguments');
-  assert(!json.includes('"params"'), 'toolRecord 不含原始 params');
-  assert(!json.includes('header'), 'toolRecord 不含 header');
+  // 真实参数必须保留（过程链展示用）
+  assert(json.includes('arguments'), 'toolRecord 含真实 arguments（AI 参数，安全）');
+  assert(json.includes('libraryName'), 'toolRecord 含真实参数字段 libraryName');
+  assert(json.includes('resolve-library-id'), 'toolRecord 含真实工具名 resolve-library-id');
+  assert(json.includes('Context7'), 'toolRecord 含真实来源 Context7');
+  // 密钥 / header / server 侧机密绝不存
+  assert(!json.includes('apiKey'), 'toolRecord 不含 apiKey（server 密钥）');
+  assert(!json.includes('header'), 'toolRecord 不含 header（server 机密）');
+  assert(!json.includes('Bearer'), 'toolRecord 不含 Bearer token');
+  // result 截断到 500
+  assert(toolRecord.result.length === 503, 'result 截断到 500 字符 + ...');
+  assert(toolRecord.result.endsWith('...'), 'result 末尾带 ... 标记截断');
 }
 
 console.log('\n[用例 18] 纯协议文本泄漏场景（不含真实 thinking，不应展示为 thinking）');

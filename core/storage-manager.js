@@ -62,7 +62,17 @@ const LOCAL_STORAGE_KEYS = [
   'app_anniversary_visuals',
   'app_anniversary_profile',
   'app_game_hub_visual',
-  'app_game_visuals'
+  'app_game_visuals',
+  'app_anniversary_greeted'
+];
+
+// 动态前缀键：按角色/群聊/会话隔离的配置，无法静态列举，需在 buildLocalSnapshot 时前缀扫描收集。
+// 漏掉会导致换设备/导入后角色配置（主动消息、TTS、可见条数、壁纸透明度）丢失，
+// 以及 app_anniversary_greeted 丢失导致当天纪念日重复问候+重复落库。
+const DYNAMIC_KEY_PREFIXES = [
+  'chat_',              // chat_<id>_config / chat_<id>_quick_replies / chat_ask_user_state_<tid>_<mid> / chat_group_<id>_visible_count 等
+  'app_bg_chat_opacity_', // 聊天壁纸透明度（按角色）
+  'push_msg_watermark_'   // 推送水位（按角色）
 ];
 
 const INDEXED_DB_STORES = [
@@ -226,12 +236,34 @@ export async function buildLocalSnapshot() {
   const localStorageData = {};
   const indexedDBData = {};
 
+  // 静态白名单键
   LOCAL_STORAGE_KEYS.forEach((key) => {
     const value = getData(key);
     if (value !== null && value !== undefined) {
       localStorageData[key] = value;
     }
   });
+
+  // 动态前缀键：扫描 localStorage 收集按角色/群聊隔离的配置键
+  // （chat_<id>_config / chat_ask_user_state_* / app_bg_chat_opacity_<id> / push_msg_watermark_<id> 等）
+  try {
+    const collected = new Set();
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      if (DYNAMIC_KEY_PREFIXES.some((p) => k.startsWith(p))) {
+        collected.add(k);
+      }
+    }
+    collected.forEach((key) => {
+      const value = getData(key);
+      if (value !== null && value !== undefined) {
+        localStorageData[key] = value;
+      }
+    });
+  } catch (_) {
+    // localStorage 不可用时静默，快照仍含静态键
+  }
 
   for (const storeName of INDEXED_DB_STORES) {
     try {
