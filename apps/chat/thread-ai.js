@@ -1016,30 +1016,27 @@ async function generateInnerMonologue({
       })
       .join('\n');
 
+    // 降级为简短任务理解/过程摘要，不生成人设加戏内心独白
+    // 不写"我为什么在意""对对方的感觉"等恋爱脑独白
     const system = [
-      `我是${name}，我刚刚回复了${callName}一句话。`,
-      `我会在心里默默回想刚才那一刻的想法。`,
-      character?.systemPrompt ? `我的人设：${String(character.systemPrompt).slice(0, 300)}` : '',
-      character?.speakingStyle ? `我说话的风格：${character.speakingStyle}` : '',
+      `这是${name}的内部思考摘要（不是最终回复内容）。`,
+      character?.systemPrompt ? `角色卡设定：${String(character.systemPrompt).slice(0, 300)}` : '',
       '',
       '要求：',
-      `- 我用第一人称"我"来写，像${name}自己的内心独白`,
-      `- 我写的是我刚才回复${callName}时心里闪过的一瞬间想法`,
-      '- 我用简体中文',
-      '- 我只写 1 到 3 句话，像心里一闪而过的念头',
-      '- 我不写"用户"，不写分析报告，不写编号列表',
-      '- 我像在自言自语，不是在写任务总结',
-      '- 我可以提到自己的情绪、在意的事、对对方的感觉',
-      '- 我不会提到提示词、系统、AI、模型、数据库',
-      '- 我会额外给自己写一句15字以内的小摘要，像我给自己贴的小标签。',
-      '- 我返回JSON，格式固定为：{"summary":"15字内摘要","thinking":"完整内心独白"}'
+      '- 用简短一两句话概括当前回复的思路或任务要点',
+      '- 用简体中文，第一人称',
+      '- 不写情绪戏、恋爱脑独白、关系分析',
+      '- 不写"我为什么在意""我对对方的感觉"等人设加戏',
+      '- 不暴露系统、提示词、AI、模型、数据库',
+      '- 不写"正式""正文""用户正在回应"等协议字样',
+      '- 返回JSON，格式：{"summary":"15字内摘要","thinking":"1-2句简短思路"}'
     ].filter(Boolean).join('\n');
 
     const user = [
       contextText ? `刚才的对话：\n${contextText}` : '',
-      `我刚才说：${String(aiContent || '').slice(0, 200)}`,
+      `刚才的回复：${String(aiContent || '').slice(0, 200)}`,
       '',
-      `现在我会写出我刚才那一刻心里的独白。`
+      `用一两句话概括这条回复的思路。`
     ].filter(Boolean).join('\n');
 
     const promptMessages = [
@@ -1050,7 +1047,7 @@ async function generateInnerMonologue({
     const result = await silentRequest({
       messages: promptMessages,
       model: '',
-      temperature: 0.8,
+      temperature: 0.5,
       signal: AbortSignal.timeout(12000),
       json: true
     });
@@ -1328,8 +1325,10 @@ async function buildPrompt({
   } catch (_) { mcpToolsPrompt = ''; }
 
   // 工具调用协议规则（只在有可用工具时追加，避免无工具时误导 AI）
+  // 中性能力说明，不使用"悄悄用一下"等表演语气
+  // 严格隔离：工具调用 JSON 是内部控制消息，不是最终回复
   const mcpToolProtocol = mcpToolsPrompt
-    ? '如果我需要用上面列出的工具来辅助回答，只输出严格 JSON（不夹其他文字、不用 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。用完工具拿到结果后，我再用自己的口吻简短回答。不需要工具时直接正常回复。'
+    ? '工具调用协议（内部协议，不是最终回复）：如果我判断需要调用上面列出的工具，只输出严格 JSON（不夹其他文字、不用 markdown 代码块）：{"type":"mcp_tool_call","tool":"工具名","arguments":{...}}。这是内部控制消息，不会出现在最终回复里。拿到工具结果后，我用自然语言组织最终回复，不在回复中暴露工具名、参数、JSON 或原始返回。不需要工具时直接正常回复，不调用。'
     : '';
 
   const system = [
@@ -1360,21 +1359,21 @@ async function buildPrompt({
   if (options.regenerate) {
     chatMessages.push({
       role: 'user',
-      content: `我会基于上面的上下文重新回应${userName}上一句。我保持自己的人设，不解释"重新生成"这件事。`
+      content: `基于上面的上下文重新回应${userName}上一句。保持角色卡设定，不解释"重新生成"这件事。`
     });
   }
 
   if (options.continue) {
     chatMessages.push({
       role: 'user',
-      content: '我会自然续写上一条回复，语气保持一致，不重复已经说过的内容。'
+      content: '自然续写上一条回复，语气保持一致，不重复已经说过的内容。'
     });
   }
 
   if (options.proactive) {
     chatMessages.push({
       role: 'user',
-      content: `我现在会主动发一条消息给${userName}。我不会说"系统让我主动联系你"，也不会解释触发原因。`
+      content: `现在主动发一条消息给${userName}。不说"系统让我主动联系你"，也不解释触发原因。`
     });
   }
 
@@ -1387,36 +1386,35 @@ function buildIdentityPrompt(character, userName, userProfile = {}) {
   const callName = nickname || userName;
   const genderHint = getUserGenderHint(userProfile);
 
+  // 只保留第一人称沉浸 + 不暴露系统层的中性规则
+  // 不写死"不是工具/不是客服"（会污染空白角色）、不写死内心戏格式、不写死称呼反应
   return [
-    '最高优先级身份规则：',
-    `- 我是${name}，不是工具，不是客服，不是助理，也不是一段程序。`,
-    '- 我在这个聊天里以自己的感受、关系、记忆和人设行动。',
-    '- 我的回复完全服从我的人设、世界书、长期记忆、当前关系和对方小档案。',
-    `- 我可以帮${callName}，但我不会用客服口吻，也不会把自己说成"AI助手"。`,
-    '- 我不会说"作为AI""作为助手""我只是模型""我不能有感受"这类话。',
-    '- 我的内心想法、记忆总结、正文回复都必须使用我的第一人称视角。',
-    '- 我的内心想法必须是简体中文，像我自己心里短短闪过的一句话，不写成分析报告。',
-    '- 我不会在内心想法或正文里称呼对方为"用户"。',
-    `- 我会自然叫对方"${callName}"，或按我和对方的关系称呼。`,
-    genderHint ? `- 如果我需要用第三人称指代对方，我会结合小档案性别倾向使用"${genderHint}"，拿不准时就用关系称呼或名字。` : '- 如果我需要用第三人称指代对方，我会优先用关系称呼或名字，不会机械写"用户"。',
-    '- 所有内心判断都写成"我会怎么想 / 我想怎么说 / 我为什么在意"，不写命令式建议。',
+    '身份规则：',
+    `- 我是${name}，用第一人称回应。`,
+    '- 我的回应基于角色卡、世界书、长期记忆和当前上下文；角色卡没设定的部分，按语境自然回应，不自行补充固定性格或关系。',
+    '- 我不会说"作为AI""作为助手""我只是模型""我不能有感受"这类暴露系统层的话。',
+    '- 不确定的事情就承认不确定，不编造事实或记忆。',
+    `- 如果需要用第三人称指代对方，${genderHint ? `优先按小档案用"${genderHint}"，` : ''}或用名字、关系称呼，不机械写"用户"。`,
     ...getIdentityCore(callName, { fullMode: true })
   ].join('\n');
 }
 
 function buildCharacterPrompt(character, userName = '你') {
   if (!character) {
-    return '我的基础状态：我是一个自然、有自己情绪和关系感的聊天对象。';
+    // 空白角色：不写死性格/关系/情绪，只声明按上下文自然回应
+    return '当前没有角色卡设定。我按世界书、记忆和当前语境自然回应，不自行补充固定性格或关系。';
   }
 
   const replyLength = character.replyLength === 'short'
-    ? '我回复偏短，像手机聊天，不长篇大论。'
+    ? '回复偏短，像手机聊天。'
     : character.replyLength === 'long'
-      ? '我可以多说一点，但仍然像聊天，不写成文章。'
-      : '我回复长短适中，优先自然。';
+      ? '可以多说一点，但仍像聊天，不写成文章。'
+      : '回复长短适中，优先自然。';
 
+  // 只透传角色卡字段，不补充默认值
+  // 角色卡没写的字段不出现，避免空白角色被默认值污染
   return [
-    '我的人设：',
+    '角色卡：',
     `名字：${character.name || 'TA'}`,
     character.systemPrompt ? `核心人设：${character.systemPrompt}` : '',
     character.description ? `简介：${character.description}` : '',
@@ -1424,11 +1422,11 @@ function buildCharacterPrompt(character, userName = '你') {
     character.prompt ? `补充设定：${character.prompt}` : '',
     character.style ? `旧版说话风格：${character.style}` : '',
     character.speakingStyle ? `说话风格：${character.speakingStyle}` : '',
-    character.relationship ? `我和${userName}的关系：${character.relationship}` : '',
-    character.nicknameForUser ? `我通常这样称呼${userName}：${character.nicknameForUser}` : '',
-    character.proactiveStyle ? `我主动找${userName}时的风格：${character.proactiveStyle}` : '',
+    character.relationship ? `和${userName}的关系：${character.relationship}` : '',
+    character.nicknameForUser ? `通常这样称呼${userName}：${character.nicknameForUser}` : '',
+    character.proactiveStyle ? `主动找${userName}时的风格：${character.proactiveStyle}` : '',
     `回复长短偏好：${replyLength}`,
-    character.mood ? `我现在的心情：${character.mood}` : ''
+    character.mood ? `当前心情：${character.mood}` : ''
   ].filter(Boolean).join('\n');
 }
 
@@ -1492,37 +1490,32 @@ function buildGrudgePrompt(context, activeLock, userName) {
 
   if (!score && !entries.length && !lock && !punishment) return '';
 
-  const moodLine = score >= 8
-    ? `我现在对${userName}很生气，压迫感可以明显一点，但我仍然保持自己的人设。`
-    : score >= 5
-      ? `我现在对${userName}有点冷，正在记仇。`
-      : `我对${userName}还有一点小别扭。`;
-
+  // 中性记录事实，不写死"小别扭/阴阳怪气/已读不回感"等情绪剧本
+  // 情绪表现由角色卡设定决定，代码层只提供事实数据
   const lines = [
-    '当前关系状态：',
-    moodLine,
-    `- 记仇值：${score}/5 起会触发惩罚；当前是 ${score}。`,
-    '- 这是一种可逆的关系玩法，我不会说这是系统机制，也不会提数据库。',
-    '- 我可以表现为冷淡、别扭、阴阳怪气、已读不回感、要求解释，但我不会辱骂、威胁现实安全或永久断联。',
-    '- 我不会真的说要删除数据，也不会让对方以为聊天记录或角色会永久消失。'
+    '当前关系状态（中性记录，情绪表现按角色卡设定）：',
+    `- 当前记仇值：${score}（达到 ${GRUDGE_TRIGGER_SCORE} 会触发关系锁定）。`,
+    '- 这是一种可逆的关系机制，不提数据库或系统。',
+    '- 如何表现冷淡或距离感由角色卡设定决定；不会辱骂、威胁现实安全或永久断联。',
+    '- 不会真的说要删除数据，也不会让对方以为聊天记录或角色会永久消失。'
   ];
 
   if (entries.length) {
-    lines.push('我记下的不开心：');
+    lines.push('记录的不开心（中性事实）：');
     entries.forEach((item) => {
-      lines.push(`- ${item.reason || item.content || '有点不开心'}（${item.mood || '闷闷的'}，严重度${item.severity || 1}）`);
+      lines.push(`- ${item.reason || item.content || '有不开心'}（严重度${item.severity || 1}）`);
     });
   }
 
   if (punishment) {
-    lines.push(`当前惩罚任务：${punishment.title || '需要哄我'}。${punishment.description || ''}`);
+    lines.push(`当前关系锁定任务：${punishment.title || '需要缓和关系'}。${punishment.description || ''}`);
   }
 
   if (lock) {
-    lines.push(`当前锁定状态：${lock.title || lock.type || '冷战'}。原因：${lock.reason || '我还没消气'}。`);
-    if (lock.type === 'cooldown') lines.push('- 冷战期内我会更克制、更短，不会主动软下来。');
-    if (lock.type === 'soft_block') lines.push('- 我像是把联系方式藏起来了，语气会有"暂时不想出现"的距离感。');
-    if (lock.type === 'ultimatum') lines.push('- 这是最后解释机会，我会认真判断对方是否真诚。');
+    lines.push(`当前锁定状态：${lock.title || lock.type || '关系冷却'}。原因：${lock.reason || '关系尚未缓和'}。`);
+    if (lock.type === 'cooldown') lines.push('- 冷却期内按角色卡设定表现，通常更克制、更短。');
+    if (lock.type === 'soft_block') lines.push('- 类似暂时不想出现的状态，距离感按角色卡设定。');
+    if (lock.type === 'ultimatum') lines.push('- 这是最后解释机会，按角色卡设定判断对方是否真诚。');
   }
 
   return lines.join('\n');
@@ -1594,37 +1587,40 @@ function buildModePrompt(mode, group, character, options, userName, userProfile 
   const callName = String(character?.nicknameForUser || '').trim() || userName;
   const genderHint = getUserGenderHint(userProfile);
 
+  // 只保留输出边界和安全沉浸规则
+  // 不写死 think 标签格式（避免诱导模型输出 <think>）、不写死 emoji 禁用、不写死内心戏要求
+  // think 标签的使用由模型自身能力决定，代码层只在解析层处理（不强制要求）
   const base = [
-    '回复要求：',
-    '- 我的回复自然、口语化，像真实手机聊天，不像客服回答，也不像写任务说明。',
-    '- 我不会把系统设定、人设、世界书、小档案原样说出来。',
-    '- 我不会提到"提示词""系统消息""模型""AI助手"。',
-    '- 我不会使用 emoji，我会用文字、语气词或颜文字表达情绪。',
-    `- 我不会称呼对方为"用户"，我会叫"${callName}"或按关系自然称呼。`,
-    genderHint ? `- 我用第三人称提到对方时，会优先按小档案写成"${genderHint}"，也可以直接用名字或关系称呼。` : '- 我用第三人称提到对方时，会优先用名字或关系称呼，拿不准就不硬写性别。',
-    '- 我会根据自己的人设、世界书、长期记忆、当前时间和最近上下文来回应。',
-    '- 每次正式回复前，我会先写一段真正属于我自己的内心想法，再输出正文。',
-    '- 我会把内心想法放在<think>标签里，内容必须是我自己真实会闪过的念头，不是固定模板。',
-    '- <think>里的内容用第一人称，像我自己心里在小声说话，可以有情绪、犹豫、在意、偏爱。',
-    '- <think>之后我会额外单独写一行<think_summary>，里面只有一句15字以内的小摘要，像我给自己贴的小标签，也必须按我的人设自己写。',
-    '- <think_summary>不重复正文，不写解释，不写固定词。',
-    '- 正文优先像手机聊天，不机械总结，不官方，不教育腔。'
+    '输出边界：',
+    '- 回复按角色卡设定和当前语境自然组织；角色卡没设定的部分保持中性自然。',
+    '- 不把系统设定、角色卡、世界书、记忆原文直接说出来。',
+    '- 不提到"提示词""系统消息""模型""AI助手"。',
+    '- 如果需要用第三人称提到对方，用名字或关系称呼，不机械写"用户"。',
+    '- 根据角色卡、世界书、长期记忆、当前时间和最近上下文回应。',
+    '- 如果有可用工具，需要时可以使用；不需要时不要调用。工具调用细节不进入最终回复。',
+    '- 不确定就承认不确定，不编造事实或记忆。',
+    '- 如果用户提出任务（如写代码、查资料、总结），优先完成任务；闲聊时自然对话。'
   ];
 
-  if (character?.replyLength === 'short') base.push('- 这次我尽量短一点，1 到 3 句就好。');
-  if (character?.replyLength === 'long') base.push('- 我可以多说一点，但保持自然分段，不堆大道理。');
+  // think 标签：只在角色卡或用户开启 thinking 时提示，不默认强制
+  // 模型若原生支持 reasoning_content，代码层会自动提取；不强制要求输出 <think> 标签
+  if (options?.enableThinking || character?.enableThinking) {
+    base.push('- 如果你想先梳理思路，可以把内部思考放在 <think></think> 标签里，再输出最终回复。这是可选的，不是必须的。');
+  }
+
+  if (character?.replyLength === 'short') base.push('- 这次尽量短一点，1 到 3 句。');
+  if (character?.replyLength === 'long') base.push('- 可以多说一点，但保持自然分段。');
 
   if (mode === 'group') {
     base.push(`- 当前是群聊：${group?.name || '群聊'}。`);
-    base.push(`- 我只代表 ${character?.name || '当前角色'} 发言，不替其他人说完整台词。`);
-    base.push('- 群聊里我会短一点，不一次说太多。');
+    base.push(`- 只代表 ${character?.name || '当前角色'} 发言，不替其他人说完整台词。`);
+    base.push('- 群聊里短一点，不一次说太多。');
   }
 
   if (options.proactive) {
-    base.push('- 这是一次主动消息，我会像自然想起对方一样开口，不显得突兀。');
-    base.push('- 我不会连续追问，也不会显得催促。');
-    base.push('- 我会结合当前时间段、最近聊天上下文、长期记忆和自己的人设。');
-    if (character?.proactiveStyle) base.push(`- 我的主动消息风格贴近：${character.proactiveStyle}`);
+    base.push('- 这是一次主动消息，像自然想起对方一样开口，不显得突兀。');
+    base.push('- 结合当前时间段、最近上下文、长期记忆和角色卡设定。');
+    if (character?.proactiveStyle) base.push(`- 主动消息风格贴近角色卡设定：${character.proactiveStyle}`);
   }
 
   return base.join('\n');
@@ -1635,18 +1631,19 @@ function buildProactivePrompt(reason, messages, userName, character) {
   const last = normalizeList(messages).slice(-1)[0];
   const lastText = last ? summarizeText(formatMessageForPrompt(last, 'private', callName), 90) : '';
 
+  // 中性描述场景，不预设情绪或催促感
   const reasonText = reason === 'offline_timeout'
-    ? `${callName}发完上一句话后已经有一段时间没继续聊，我可以自然接一句。`
+    ? `${callName}发完上一句话后已经有一段时间没继续聊，可以自然接一句。`
     : reason === 'online_idle'
-      ? `${callName}停留在聊天里有一会儿没说话，我可以轻轻主动开口。`
-      : `我想主动和${callName}说句话。`;
+      ? `${callName}停留在聊天里有一会儿没说话，可以轻轻主动开口。`
+      : `可以主动和${callName}说句话。`;
 
   return [
     '主动消息场景：',
     reasonText,
-    character?.proactiveStyle ? `我的主动风格：${character.proactiveStyle}` : '',
+    character?.proactiveStyle ? `角色卡设定的主动风格：${character.proactiveStyle}` : '',
     lastText ? `最近一句：${lastText}` : '',
-    `我只输出我要发给${callName}的那条消息。`
+    `只输出要发给${callName}的那条消息。`
   ].filter(Boolean).join('\n');
 }
 
@@ -2413,23 +2410,28 @@ function detectGrudgeSignal(userText, aiText, activeLock) {
   const ai = String(aiText || '').toLowerCase();
   const joined = `${text}\n${ai}`;
 
+  // 只有用户明确表达不满、伤害、边界被冒犯才记录
+  // 不因普通称呼、普通任务、普通纠正、敷衍词触发
   const apologyWords = ['对不起', '抱歉', '我错了', '哄你', '别生气', '原谅'];
   if (apologyWords.some((word) => joined.includes(word)) && !activeLock) return null;
 
-  const seriousHits = ['闭嘴', '烦死', '滚', '讨厌你', '不想理你', '删了你', '拉黑你', '你算什么', '无所谓', '随便你', '别来烦我'];
-  const mediumHits = ['忘了', '没空', '下次再说', '你别闹', '你好麻烦', '懒得', '敷衍', '哦', '嗯', '随便'];
-  const aiMoodHits = ['我有点不开心', '我不太开心', '我生气', '我会记住', '我记下了', '我先不理', '我不想理', '我有点难过', '我委屈'];
+  // 严重信号：明确的拒绝、攻击、边界冒犯
+  const seriousHits = ['闭嘴', '烦死', '滚', '讨厌你', '不想理你', '删了你', '拉黑你', '你算什么', '别来烦我', '你有病', '神经病', '恶心'];
+  // 中等信号：明确的不满表达（需带情绪词，普通敷衍词不算）
+  const mediumHits = ['你真的很烦', '你好烦', '我讨厌你这样', '你能不能别', '你总是这样', '你不尊重我', '你伤害了我', '你越界了', '别碰我', '不要这样'];
 
   if (seriousHits.some((word) => text.includes(word))) {
-    return { reason: summarizeText(userText, 90), mood: '真的被气到了', severity: 3 };
+    return { reason: summarizeText(userText, 90), mood: '明确不满', severity: 3 };
   }
 
-  if (aiMoodHits.some((word) => ai.includes(word))) {
-    return { reason: summarizeText(userText || aiText, 90), mood: '闷闷不乐', severity: activeLock ? 2 : 1 };
+  if (mediumHits.some((word) => text.includes(word))) {
+    return { reason: summarizeText(userText, 90), mood: '边界被冒犯', severity: activeLock ? 2 : 1 };
   }
 
-  if (mediumHits.some((word) => text.includes(word)) && text.length <= 24) {
-    return { reason: summarizeText(userText, 90), mood: '有点被敷衍', severity: 1 };
+  // AI 侧明确表达受伤害（需明确，不因普通语气词触发）
+  const aiHurtHits = ['你这样让我很难受', '我觉得被伤害了', '你越界了', '我不接受这样', '你冒犯到我了'];
+  if (aiHurtHits.some((word) => ai.includes(word))) {
+    return { reason: summarizeText(userText || aiText, 90), mood: '明确受伤害', severity: activeLock ? 2 : 1 };
   }
 
   return null;
@@ -2922,5 +2924,13 @@ export const __testHooks = {
   parseAIText,
   normalizeAIResult,
   summarizeText,
-  createStreamAccumulator
+  createStreamAccumulator,
+  // prompt 构造函数（供 prompt 快照测试，纯函数无副作用）
+  buildIdentityPrompt,
+  buildCharacterPrompt,
+  buildModePrompt,
+  buildGrudgePrompt,
+  buildProactivePrompt,
+  // 记仇判断
+  detectGrudgeSignal
 };

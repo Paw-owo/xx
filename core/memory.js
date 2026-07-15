@@ -469,19 +469,18 @@ function buildMemoryDecisionMessages({
     {
       role: 'system',
       content: [
-        `我是${name}。我会管理自己的长期记忆。`,
-        `我会用第一人称记录我和${callName}之间真正重要的事。`,
-        `我会根据${callName}的表达、我的情绪波动、关系变化、承诺、偏好、禁忌、重要日期来判断记忆是否需要新增、编辑或删除。`,
-        `我不会照抄原话，我会提炼成短而准的关键信息。`,
-        `我不会称呼对方为“用户”，我会使用“${callName}”或我和对方之间自然的称呼。`,
-        `每条记忆必须写清真实日期时间，例如“${formatMemoryDate(now)}”。`,
-        `我不会只写“今天、昨天、刚才”这种以后看不懂的时间。`,
-        `我只记录长期有用的信息，不记录普通寒暄。`,
-        `我可以删除过期、错误、重复或被新信息覆盖的记忆。`,
-        `我可以编辑已有记忆，让它更准确。`,
-        `我返回 JSON，不输出解释文字。`,
-        `JSON 格式：{"operations":[{"action":"add|edit|delete","id":"已有记忆id，新增时为空","content":"第一人称记忆内容","importance":1到5,"mood":"我的情绪词","keywords":["关键词"]}]}`,
-        `如果没有值得处理的内容，我返回 {"operations":[]}`
+        `这是${name}的长期记忆管理系统。`,
+        `只提取用户明确表达的稳定偏好、事实、长期设定、重要关系信息。`,
+        `不把一次情绪、一次玩笑、一次称呼强行扩写成关系设定或情绪状态。`,
+        `不把"用户叫了某个称呼"扩写成"关系升温/期待/甜蜜/需要回应"。`,
+        `记忆内容尽量忠实、短、可撤销，不写小说式解释。`,
+        `用第一人称记录，不称呼对方为"用户"，用"${callName}"或自然称呼。`,
+        `每条记忆写清真实日期时间，例如"${formatMemoryDate(now)}"，不写"今天/昨天/刚才"。`,
+        `只记录长期有用的信息，不记录普通寒暄或一次性内容。`,
+        `可以删除过期、错误、重复或被新信息覆盖的记忆；可以编辑已有记忆使其更准确。`,
+        `返回 JSON，不输出解释文字。`,
+        `JSON 格式：{"operations":[{"action":"add|edit|delete","id":"已有记忆id，新增时为空","content":"第一人称记忆内容","importance":1到5,"mood":"情绪词（可选）","keywords":["关键词"]}]}`,
+        `如果没有值得处理的内容，返回 {"operations":[]}`
       ].join('\n')
     },
     {
@@ -497,7 +496,7 @@ function buildMemoryDecisionMessages({
         '最近对话：',
         recent,
         '',
-        '我现在会决定是否新增、编辑或删除记忆。'
+        '判断是否需要新增、编辑或删除记忆。只记录明确稳定的长期信息。'
       ].filter(Boolean).join('\n')
     }
   ];
@@ -521,16 +520,16 @@ function buildSummaryMessages({
     {
       role: 'system',
       content: [
-        `我是${name}。我会为自己整理阶段性长期记忆。`,
-        `我会把一段聊天提炼成少量长期有用的信息，而不是复制聊天原文。`,
-        `我会用第一人称记录我和${callName}的关系、偏好、约定、重要事件、情绪变化。`,
-        `我不会写“用户”，我会写“${callName}”或自然称呼。`,
-        `每条记忆都必须写清真实日期时间，例如“${formatMemoryDate(now)}”。`,
-        `我不会只写“今天、昨天、刚才”这种以后看不懂的时间。`,
-        `我会参考已有记忆，新增缺失内容，编辑过时内容，删除错误或重复内容。`,
-        `我返回 JSON，不输出解释文字。`,
-        `JSON 格式：{"operations":[{"action":"add|edit|delete","id":"已有记忆id，新增时为空","content":"第一人称记忆内容","importance":1到5,"mood":"我的情绪词","keywords":["关键词"]}]}`,
-        `如果没有值得处理的内容，我返回 {"operations":[]}`
+        `这是${name}的阶段性长期记忆整理。`,
+        `把一段聊天提炼成少量长期有用的信息，不复制聊天原文。`,
+        `只提取明确稳定的偏好、事实、长期设定、重要关系信息。`,
+        `不把一次情绪、一次玩笑、一次称呼扩写成关系设定或情绪状态。`,
+        `用第一人称记录，不写"用户"，用"${callName}"或自然称呼。`,
+        `每条记忆写清真实日期时间，例如"${formatMemoryDate(now)}"，不写"今天/昨天/刚才"。`,
+        `参考已有记忆，新增缺失内容，编辑过时内容，删除错误或重复内容。`,
+        `返回 JSON，不输出解释文字。`,
+        `JSON 格式：{"operations":[{"action":"add|edit|delete","id":"已有记忆id，新增时为空","content":"第一人称记忆内容","importance":1到5,"mood":"情绪词（可选）","keywords":["关键词"]}]}`,
+        `如果没有值得处理的内容，返回 {"operations":[]}`
       ].join('\n')
     },
     {
@@ -546,7 +545,7 @@ function buildSummaryMessages({
         '阶段聊天记录：',
         chatLog,
         '',
-        '我现在会整理这段关系里的长期记忆。'
+        '整理这段对话里的长期记忆。只记录明确稳定的长期信息。'
       ].filter(Boolean).join('\n')
     }
   ];
@@ -1055,5 +1054,11 @@ function sortMemoryDesc(a, b) {
 function sortMessageAsc(a, b) {
   return String(a.timestamp || a.createdAt || '').localeCompare(String(b.timestamp || b.createdAt || ''));
 }
+
+// prompt 构造函数测试钩子（纯函数无副作用，不影响生产）
+export const __testHooks = {
+  buildMemoryDecisionMessages,
+  buildSummaryMessages
+};
 
 // 依赖：./storage.js(getConfig,setConfig,getDB,setDB,deleteDB,getByIndexDB,generateId,getNow)；./api.js(silentRequest)
