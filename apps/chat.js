@@ -76,7 +76,9 @@ export async function mount(containerEl, options = {}) {
       }
     });
 
-    // 纪念日提醒：anniversary-bridge 已直接落库，这里只做 UI 通知/刷新
+    // 纪念日提醒：anniversary-bridge 已直接落库（appendExternalChatMessage → chat:external-message），
+    // chat:external-message 监听器已负责 toast + 列表刷新，这里只做「正在该会话时刷新 thread」，
+    // 不再重复 toast，避免双 toast（anniversary-bridge 自身的 showToast + 这里的 toast + external-message 的 toast）
     unsubscribeAnniversaryReminder = window.AppBus.on('anniversary:reminder', async (data) => {
       try {
         const characterId = data?.characterId;
@@ -88,9 +90,7 @@ export async function mount(containerEl, options = {}) {
           return;
         }
 
-        // 不在该会话：toast 提示并刷新列表（展示新消息/未读）
-        const title = data?.title || '纪念日';
-        window.showToast?.(`收到一条纪念日提醒：${title}`);
+        // 不在该会话：只刷新列表（toast 由 chat:external-message 监听器和 anniversary-bridge 自身负责）
         if (currentRoute.name === 'list') {
           await renderRoute();
         }

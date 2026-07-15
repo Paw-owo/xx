@@ -140,3 +140,18 @@ export function countAnswered(askUser, answers, skipped) {
   });
   return { answered, total: askUser.questions.length };
 }
+
+// ask_user 卡片状态存储键构造（删消息/清空对话/删会话时用于清理孤儿 key）
+export function buildAskUserStateKey(threadId, messageId) {
+  const tid = String(threadId || '').trim();
+  const mid = String(messageId || '').trim();
+  if (!tid || !mid) return '';
+  return `chat_ask_user_state_${tid}_${mid}`;
+}
+
+// ask_user 卡片状态存储键前缀（用于按会话批量清理）
+export function buildAskUserStateKeyPrefix(threadId) {
+  const tid = String(threadId || '').trim();
+  if (!tid) return '';
+  return `chat_ask_user_state_${tid}_`;
+}

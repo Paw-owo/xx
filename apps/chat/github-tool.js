@@ -3,36 +3,65 @@
 //   from '../../core/ui.js': showBottomSheet, hideBottomSheet, showToast
 //   from '../../core/storage.js': getData, setData
 
-import { showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
+import { showBottomSheet, hideBottomSheet, showToast, showConfirm } from '../../core/ui.js';
 import { getData, setData } from '../../core/storage.js';
 
 // ═══════════════════════════════════════
-// 【配置存储】集中 key，不散写
+// 【配置存储】敏感数据隔离：Token 单独存键，不与 owner/repo/branch 混存
+// 依据 storage-key-rules：敏感凭据独立键，便于审查/清理/未来加加密层时定点改造
+// 注意：Token 仍为本机明文（项目无加密基础设施），属于已知 P0 blocker，依赖用户使用最小权限 PAT 缓解
 // ═══════════════════════════════════════
 
 const CONFIG_KEY = 'github_tool_config';
+const TOKEN_KEY = 'github_tool_token';
+
+// 导出存储键常量，供数据管理（清空全部数据等）统一清理，避免散写
+export const GITHUB_TOOL_STORAGE_KEYS = [CONFIG_KEY, TOKEN_KEY];
 
 const DEFAULT_CONFIG = {
-  token: '',
   owner: '',
   repo: '',
   branch: 'main'
 };
 
+function getToken() {
+  // 优先读独立键；若旧版本把 token 混存在 CONFIG_KEY 中，迁移过来并清理旧位置
+  const fromTokenKey = getData(TOKEN_KEY, null);
+  if (fromTokenKey !== null && fromTokenKey !== undefined) {
+    return String(fromTokenKey || '');
+  }
+  const legacy = getData(CONFIG_KEY, null);
+  if (legacy && typeof legacy === 'object' && legacy.token) {
+    setData(TOKEN_KEY, String(legacy.token));
+    // 清掉 CONFIG_KEY 里的 token 字段，避免两处都存
+    const nextLegacy = { ...legacy };
+    delete nextLegacy.token;
+    setData(CONFIG_KEY, nextLegacy);
+    return String(legacy.token);
+  }
+  return '';
+}
+
 function getConfig() {
   const saved = getData(CONFIG_KEY, null);
-  if (!saved || typeof saved !== 'object') return { ...DEFAULT_CONFIG };
-  return {
-    token: String(saved.token || ''),
+  const base = (!saved || typeof saved !== 'object') ? { ...DEFAULT_CONFIG } : {
     owner: String(saved.owner || ''),
     repo: String(saved.repo || ''),
     branch: String(saved.branch || 'main') || 'main'
   };
+  // token 从独立键读取，避免与 owner/repo/branch 混存
+  return {
+    token: getToken(),
+    owner: base.owner,
+    repo: base.repo,
+    branch: base.branch
+  };
 }
 
 function saveConfig(config) {
+  // token 单独存键；CONFIG_KEY 只保留非敏感字段
+  setData(TOKEN_KEY, String(config.token || ''));
   setData(CONFIG_KEY, {
-    token: String(config.token || ''),
     owner: String(config.owner || ''),
     repo: String(config.repo || ''),
     branch: String(config.branch || 'main') || 'main'
@@ -314,7 +343,7 @@ function buildConfigView(config, onSave, onContinue) {
 
   const sub = document.createElement('div');
   sub.className = 'gh-sub';
-  sub.textContent = 'Token 仅保存在本机，用于读取你的仓库文件。建议使用最小权限（public_repo 或只读）。';
+  sub.textContent = 'Token 仅本机明文保存（不会上云），请使用最小权限 PAT：只读浏览勾选 contents:read；编辑文件需 contents:write。不要给 repo 全权限或 admin。';
   wrap.appendChild(sub);
 
   const fields = [
@@ -635,9 +664,23 @@ function showFileViewer(config, fileItem, onBack, session) {
     }
     ta.addEventListener('input', updateSubmitState);
 
-    submitBtn.addEventListener('click', function() {
+    submitBtn.addEventListener('click', async function() {
       if (submitBtn.disabled) return;
       const message = commitInput.value.trim() || ('更新 ' + fileState.path.split('/').pop() + ' ～');
+
+      // 二次确认：写操作不可撤销，明确告知目标仓库/分支/文件/提交说明
+      // 防止误点 / 被诱导 / 配置错仓库导致误改
+      const confirmMsg =
+        '即将提交到：\n' +
+        config.owner + '/' + config.repo + '（新分支）\n' +
+        '文件：' + fileState.path + '\n' +
+        '说明：' + message + '\n' +
+        '提交后会自动开 PR，无法撤销。';
+      const ok = await showConfirm(confirmMsg);
+      if (!ok) return;
+      // 确认期间用户可能关闭了抽屉
+      if (isClosed()) return;
+
       // 提交链路接入 isClosed 守卫与 fileAbort.signal（关闭抽屉后忽略过期结果）
       commitAndCreatePR(config, fileState, ta.value, message, submitBtn, statusEl, commitInput, {
         isClosed: isClosed,

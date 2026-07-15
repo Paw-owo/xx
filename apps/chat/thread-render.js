@@ -9,7 +9,7 @@ import { getData } from '../../core/storage.js';
 import { showToast, showBottomSheet, hideBottomSheet } from '../../core/ui.js';
 import { createThinkingCard, hasThinkingChain } from './thinking-chain.js';
 import { splitCodeBlocks } from './render-pure.js';
-import { parseAskUserBlocks } from './ask-user-pure.js';
+import { parseAskUserBlocks, stripAskUserBlocks } from './ask-user-pure.js';
 import { createAskUserCard } from './ask-user-card.js';
 import { sendThreadMessage } from './thread-actions.js';
 
@@ -216,15 +216,24 @@ function createMessageRow(state, message, pageEl) {
 }
 
 // 解析 <ask_user> 块到 message.askUser，并从 content 剔除（展示层兜底，幂等）
+// 必须用 r.content 覆盖 message.content，即使 askUser 为 null：
+//   - 未闭合块：parseAskUserBlocks 已剥除开标签及之后的残片，避免协议标签泄漏进气泡
+//   - JSON 失败闭合块：parseAskUserBlocks 故意保留原文，content 等于 raw（无副作用）
 function ensureAskUserParsed(message) {
-  if (!message || message.askUser) return;
+  if (!message) return;
   const content = String(message.content || '');
   if (!content || !/<ask_user\b/i.test(content)) return;
-  const r = parseAskUserBlocks(content);
-  if (r.askUser) {
-    message.askUser = r.askUser;
-    message.content = r.content;
+  // 已有 askUser 不重解析（避免覆盖流式期已写入的稳定态）
+  if (message.askUser) {
+    // 但 content 可能仍含未剥块（旧 DB 残留），用 strip 兜底
+    const stripped = stripAskUserBlocks(content);
+    if (stripped !== content) message.content = stripped;
+    return;
   }
+  const r = parseAskUserBlocks(content);
+  // 始终用 r.content 覆盖：未闭合块已剥残片，闭合块已剥完整块
+  if (r.content !== content) message.content = r.content;
+  if (r.askUser) message.askUser = r.askUser;
 }
 
 // 构造提问卡片节点，附 onSubmit 回调（走现有 sendMessage 流程触发 AI 回复）
@@ -238,9 +247,13 @@ function createAskUserCardForState(state, message) {
     isStreaming: !!message.isStreaming,
     onSubmit: (answerText) => {
       // 答案作为一条明确的 user 消息发回，走现有 sendMessage 流程触发 AI 回复
-      sendThreadMessage(state, answerText, { triggerAI: true }).catch((e) => {
+      // 返回 Promise<boolean>：成功 true 让卡片落 submitted；失败 false 让卡片回滚允许重试
+      return sendThreadMessage(state, answerText, { triggerAI: true }).then((msg) => {
+        return !!msg;
+      }).catch((e) => {
         console.warn('[ask_user] 提交答案发送失败', e);
         showToast('答案没发出去，再试一下');
+        return false;
       });
     }
   });
@@ -1269,7 +1282,7 @@ function getPreviewText(message) {
   if (message.type === 'dice') return `[骰子 ${normalizeDiceValue(message.diceValue || message.value || message.result) || ''}]`;
   if (message.type === 'rps') return `[石头剪刀布 ${getRpsLabel(normalizeRpsChoice(message.rpsChoice || message.choice || message.result))}]`;
 
-  const text = String(message.content || '').trim();
+  const text = stripAskUserBlocks(String(message.content || '')).trim();
   return text.length > 80 ? `${text.slice(0, 80)}…` : text;
 }
 

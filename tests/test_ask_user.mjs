@@ -10,7 +10,7 @@ function assert(cond, msg) {
 function assertHas(h, n, msg) { assert(String(h || '').includes(n), msg); }
 function assertNo(h, n, msg) { assert(!String(h || '').includes(n), msg); }
 
-const { parseAskUserBlocks, stripAskUserBlocks, normalizeAskUser, formatAnswersAsUserMessage, countAnswered } =
+const { parseAskUserBlocks, stripAskUserBlocks, normalizeAskUser, formatAnswersAsUserMessage, countAnswered, buildAskUserStateKey, buildAskUserStateKeyPrefix } =
   await import('../apps/chat/ask-user-pure.js');
 
 // ── 1. 合法块：剥除 + 解析 questions ──
@@ -144,6 +144,46 @@ console.log('\n[11] 多块处理');
   assertHas(r.content, '前文', '前文保留');
   assertHas(r.content, '中间', '中间保留');
   assertHas(r.content, '后文', '后文保留');
+}
+
+// ── 12. buildAskUserStateKey：键构造 ──
+// 回归 P1-4：删消息/清空对话时必须能定位到状态键并清理，键构造错误会导致孤儿 key 残留
+console.log('\n[12] buildAskUserStateKey');
+{
+  assert(buildAskUserStateKey('char_a', 'msg_1') === 'chat_ask_user_state_char_a_msg_1', '正常键构造');
+  assert(buildAskUserStateKey('', 'msg_1') === '', '缺 threadId 返回空');
+  assert(buildAskUserStateKey('char_a', '') === '', '缺 messageId 返回空');
+  assert(buildAskUserStateKey(null, null) === '', 'null 入参返回空');
+  assert(buildAskUserStateKey('  char_a  ', '  msg_1  ') === 'chat_ask_user_state_char_a_msg_1', 'trim 空白');
+}
+
+// ── 13. buildAskUserStateKeyPrefix：前缀构造（用于按会话批量清理）──
+console.log('\n[13] buildAskUserStateKeyPrefix');
+{
+  assert(buildAskUserStateKeyPrefix('char_a') === 'chat_ask_user_state_char_a_', '正常前缀');
+  assert(buildAskUserStateKeyPrefix('') === '', '空 threadId 返回空');
+  assert(buildAskUserStateKeyPrefix(null) === '', 'null 返回空');
+  // 前缀必须是 key 的严格前缀，避免误匹配
+  const key = buildAskUserStateKey('char_a', 'msg_1');
+  assert(key.startsWith(buildAskUserStateKeyPrefix('char_a')), 'key 以 prefix 开头');
+  // 不同会话的前缀不能互相匹配
+  const otherKey = buildAskUserStateKey('char_b', 'msg_1');
+  assert(!otherKey.startsWith(buildAskUserStateKeyPrefix('char_a')), '不同会话前缀不匹配');
+}
+
+// ── 14. parseAskUserBlocks JSON 失败时返回 content 含原始块 ──
+// 回归 P0-1：ensureAskUserParsed 必须始终用 r.content 覆盖 message.content
+// 即失败块保留在 content 中（让用户能看到原始内容，而不是被吞掉）
+console.log('\n[14] JSON 失败时 content 保留原始块');
+{
+  const content = '正文<ask_user>坏JSON</ask_user>后文';
+  const r = parseAskUserBlocks(content);
+  assert(r.askUser === null, 'askUser=null');
+  assert(r.pending === false, '非 pending');
+  assertHas(r.content, '正文', '前文保留');
+  assertHas(r.content, '后文', '后文保留');
+  // 失败块的原始内容应保留可见，不能被静默吞掉
+  assertHas(r.content, '坏JSON', '失败块内容保留');
 }
 
 console.log('\n══════════════════════════════');

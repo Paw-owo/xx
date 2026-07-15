@@ -126,14 +126,29 @@ function createPendingPill(askUser, storageKey, onSubmit, rerender) {
       skipped = newSkipped;
       saveState(storageKey, { status: 'pending', answers, skipped });
     }, () => {
-      // 提交
-      const state = { status: 'submitted', answers, skipped, submittedAt: Date.now() };
-      saveState(storageKey, state);
-      if (onSubmit) {
-        const text = formatAnswersAsUserMessage(askUser, answers, skipped);
-        if (text.trim()) onSubmit(text);
+      // 提交：先发送，成功后才落 submitted 态；失败返回 false 让 sheet 回滚允许重试
+      const text = formatAnswersAsUserMessage(askUser, answers, skipped).trim();
+      if (!text) {
+        // 没有可发送内容（全跳过且无输入）：直接落 submitted，不触发 AI
+        const state = { status: 'submitted', answers, skipped, submittedAt: Date.now() };
+        saveState(storageKey, state);
+        rerender();
+        return Promise.resolve(true);
       }
-      rerender();
+      if (!onSubmit) {
+        const state = { status: 'submitted', answers, skipped, submittedAt: Date.now() };
+        saveState(storageKey, state);
+        rerender();
+        return Promise.resolve(true);
+      }
+      // 返回 Promise<boolean>：发送成功 true 落 submitted，失败 false 保留 pending 允许重试
+      return Promise.resolve(onSubmit(text)).then((ok) => {
+        if (ok === false) return false;
+        const state = { status: 'submitted', answers, skipped, submittedAt: Date.now() };
+        saveState(storageKey, state);
+        rerender();
+        return true;
+      }).catch(() => false);
     });
   });
 
@@ -199,9 +214,28 @@ function openExpandedSheet(askUser, answers, skipped, onChange, onSubmit) {
   submit.type = 'button';
   submit.className = 'ask-user-btn-primary';
   submit.textContent = '提交回答';
+  let submitting = false;
   submit.addEventListener('click', () => {
-    onSubmit();
-    closeSheet();
+    if (submitting) return;
+    submitting = true;
+    submit.disabled = true;
+    submit.textContent = '提交中…';
+    // onSubmit 返回 Promise：成功后落 submitted 态并关 sheet；失败回滚允许重试
+    const trySubmit = onSubmit();
+    Promise.resolve(trySubmit).then((ok) => {
+      if (ok === false) {
+        // 失败：回滚按钮，保留 sheet 让用户重试
+        submitting = false;
+        submit.disabled = false;
+        submit.textContent = '提交回答';
+        return;
+      }
+      closeSheet();
+    }).catch(() => {
+      submitting = false;
+      submit.disabled = false;
+      submit.textContent = '提交回答';
+    });
   });
   footer.append(skipAll, submit);
   sheet.appendChild(footer);

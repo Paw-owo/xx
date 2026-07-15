@@ -448,7 +448,9 @@ function buildWorldbookPrompt(items) {
 // 【关系锁】对齐 thread-ai.js 私聊的降级判断
 // ═══════════════════════════════════════
 
-const STRICT_LOCK_TYPES = ['soft_block', 'cooldown', 'ultimatum'];
+// 与 thread-relationship.isStrictRelationshipLocked 保持一致：
+// apology_required / nickname_required 也应阻止通话（用户需先完成对应动作解除锁）
+const STRICT_LOCK_TYPES = ['soft_block', 'cooldown', 'ultimatum', 'apology_required', 'nickname_required'];
 
 function isStrictLockActive() {
   const lock = callState.activeLock;
@@ -620,6 +622,9 @@ function addCallLog(role, content) {
 function speakText(text) {
   const content = String(text || '').trim();
   if (!content) return;
+
+  // 挂断/卸载后晚到的回复不再朗读（requestCallReply 未绑定 abort signal，请求仍可能返回）
+  if (!callState.mounted || callState.callEnded) return;
 
   // 角色 TTS 配置：enabled:false 时跳过播放，否则作为 override 传入
   const ttsOverride = buildCharacterTtsOverride(callState.character);

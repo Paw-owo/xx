@@ -116,7 +116,10 @@ export function isRelationshipLocked(state) {
 }
 
 export function isStrictRelationshipLocked(state) {
-  return ['cooldown', 'soft_block', 'ultimatum'].includes(getRelationshipLockLevel(state));
+  // apology_required / nickname_required 也应限制输入（需用户完成对应动作才能解除），
+  // 否则用户在「需要道歉」状态下仍能随便发消息，惩罚形同虚设
+  return ['cooldown', 'soft_block', 'ultimatum', 'apology_required', 'nickname_required']
+    .includes(getRelationshipLockLevel(state));
 }
 
 export function getRelationshipLockText(stateOrLock) {
@@ -138,6 +141,8 @@ export function getRelationshipStatusText(state) {
   if (lock.type === 'soft_block') return 'TA 暂时躲起来了';
   if (lock.type === 'cooldown') return 'TA 现在有点冷';
   if (lock.type === 'ultimatum') return '等你认真解释';
+  if (lock.type === 'apology_required') return '等你想清楚好好道歉';
+  if (lock.type === 'nickname_required') return '等你叫 TA 专属称呼';
 
   return 'TA 还在闹别扭';
 }

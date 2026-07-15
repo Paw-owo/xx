@@ -12,12 +12,14 @@ import {
   setDB,
   getDB,
   deleteDB,
-  getByIndexDB
+  getByIndexDB,
+  removeData
 } from '../../core/storage.js';
 
 import { showToast } from '../../core/ui.js';
 import { playTTS, stopAll, buildCharacterTtsOverride } from '../../core/tts.js';
 import { deductBalance, getBalance } from '../wallet.js';
+import { stripAskUserBlocks, buildAskUserStateKey } from './ask-user-pure.js';
 
 let requestThreadAIReplyFn = null;
 let stopThreadAIReplyFn = null;
@@ -194,6 +196,7 @@ export async function deleteThreadMessage(state, messageId) {
 
   // 如果这条消息有版本组，连带删除同组所有版本
   let failedCount = 0;
+  const deletedIds = [];
   if (message?.versionGroupId) {
     const list = getStateList(state);
     const siblings = list.filter((item) => item.versionGroupId === message.versionGroupId);
@@ -201,6 +204,7 @@ export async function deleteThreadMessage(state, messageId) {
       // 单个删除失败不能中断整组删除，记录失败数继续往下走
       try {
         await deleteDB(store, sibling.id);
+        deletedIds.push(sibling.id);
       } catch (err) {
         failedCount += 1;
         console.warn('[thread-actions] delete sibling message failed', sibling.id, err?.message || err);
@@ -209,10 +213,20 @@ export async function deleteThreadMessage(state, messageId) {
   } else {
     try {
       await deleteDB(store, id);
+      deletedIds.push(id);
     } catch (err) {
       failedCount += 1;
       console.warn('[thread-actions] delete message failed', id, err?.message || err);
     }
+  }
+
+  // 清理 ask_user 卡片状态（避免 localStorage 孤儿 key）
+  const threadId = state.mode === 'group' ? state.groupId : state.characterId;
+  if (threadId) {
+    deletedIds.forEach((mid) => {
+      const key = buildAskUserStateKey(threadId, mid);
+      if (key) removeData(key);
+    });
   }
 
   await refreshStateMessages(state);
@@ -1118,7 +1132,7 @@ function getPreviewText(message) {
   if (type === 'dice') return `[骰子 ${message.diceValue || ''}]`;
   if (type === 'rps') return `[石头剪刀布 ${getRpsLabel(message.rpsChoice)}]`;
 
-  const text = String(message.content || '').trim();
+  const text = stripAskUserBlocks(String(message.content || '')).trim();
   return trimText(text, 80);
 }
 
@@ -1136,11 +1150,11 @@ function getCopyText(message) {
     const card = getCardSummary(message);
     return `${card.label}：${card.title}${card.amount ? `，金额：${formatAmount(card.amount)}` : ''}${card.note ? `，备注：${card.note}` : ''}${card.description ? `，说明：${card.description}` : ''}`;
   }
-  if (type === 'voice') return `语音文字：${message.content || ''}`;
+  if (type === 'voice') return `语音文字：${stripAskUserBlocks(message.content || '')}`;
   if (type === 'dice') return `骰子：${message.diceValue || ''}`;
   if (type === 'rps') return `石头剪刀布：${getRpsLabel(message.rpsChoice)}${message.rpsOutcome ? `，结果：${message.rpsOutcome}` : ''}`;
 
-  return String(message.content || '').trim();
+  return stripAskUserBlocks(String(message.content || '')).trim();
 }
 
 function getTtsText(message) {
@@ -1160,7 +1174,7 @@ function getTtsText(message) {
   if (type === 'image') return String(message.content || '这是一张图片');
   if (type === 'sticker') return String(message.stickerDescription || message.content || '这是一个表情包');
 
-  return String(message.content || '').trim();
+  return stripAskUserBlocks(String(message.content || '')).trim();
 }
 
 function getCardSummary(message) {

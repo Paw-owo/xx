@@ -460,38 +460,63 @@ async function requestPrivateReply(state, options = {}) {
     groupId: ''
   });
 
+  // prelude 区间：startAIJob 已注册 job 并设 aiGenerating=true，若此区间抛错，
+  // 必须调 finishAIJob 释放（否则 aiGenerating 永远 true、activeAIJobs 残留）。
+  // 用 preludeError 标记，主体 try 不再重复处理 prelude 错误。
+  let preludeError = null;
   state.aiGenerating = true;
 
-  const activeLock = await getActiveRelationshipLock(characterId);
-  const messages = await loadPrivateMessages(characterId);
-  const userMessage = getLastUserMessage(messages);
-  const userProfile = loadUserProfileForCharacter(character);
-  const userName = getUserDisplayName(userProfile);
+  let activeLock = null;
+  let messages = [];
+  let userMessage = null;
+  let userProfile = null;
+  let userName = '';
+  let placeholder = null;
 
-  if (!userMessage && !options.continue && !options.proactive) {
-    finishAIJob(state, job);
-    return null;
+  try {
+    activeLock = await getActiveRelationshipLock(characterId);
+    messages = await loadPrivateMessages(characterId);
+    userMessage = getLastUserMessage(messages);
+    userProfile = loadUserProfileForCharacter(character);
+    userName = getUserDisplayName(userProfile);
+
+    if (!userMessage && !options.continue && !options.proactive) {
+      finishAIJob(state, job);
+      return null;
+    }
+
+    placeholder = createAssistantPlaceholder({
+      characterId,
+      groupId: '',
+      character,
+      content: '',
+      thinking: '',
+      thinkingSummary: '',
+      toolCalls: [],
+      isPending: true,
+      status: 'pending',
+      versionGroupId: options.versionGroupId || '',
+      versionStatus: 'active'
+    });
+
+    job.placeholderIds.push(placeholder.id);
+
+    await safeSetMessage(PRIVATE_STORE, placeholder);
+    await syncPrivateState(state, characterId);
+    state.renderOnly?.();
+  } catch (e) {
+    preludeError = e;
   }
 
-  const placeholder = createAssistantPlaceholder({
-    characterId,
-    groupId: '',
-    character,
-    content: '',
-    thinking: '',
-    thinkingSummary: '',
-    toolCalls: [],
-    isPending: true,
-    status: 'pending',
-    versionGroupId: options.versionGroupId || '',
-    versionStatus: 'active'
-  });
-
-  job.placeholderIds.push(placeholder.id);
-
-  await safeSetMessage(PRIVATE_STORE, placeholder);
-  await syncPrivateState(state, characterId);
-  state.renderOnly?.();
+  if (preludeError) {
+    // prelude 抛错：清理已建 placeholder，释放 job，rethrow 让上层 requestAIReplySafely 处理
+    if (placeholder?.id) {
+      await deleteDB(PRIVATE_STORE, placeholder.id).catch(() => null);
+    }
+    if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
+    finishAIJob(state, job);
+    throw preludeError;
+  }
 
   try {
     const promptMessages = await buildPrompt({
@@ -599,7 +624,9 @@ async function requestPrivateReply(state, options = {}) {
         });
       }
     } catch (apiError) {
-      if (isAbortError(apiError) || isJobStopped(job)) {
+      // 仅「用户主动停止」(job.stopped / job.controller.signal.aborted) 才走停止文案；
+      // 超时 abort（内部 timeout controller abort，job.controller 未 abort）应走错误分支给友好提示
+      if (isJobStopped(job)) {
         await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
         if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
         return null;
@@ -727,7 +754,8 @@ async function requestPrivateReply(state, options = {}) {
 
     return finalMessage;
   } catch (error) {
-    if (isAbortError(error) || isJobStopped(job)) {
+    // 仅「用户主动停止」走停止文案；超时/网络 abort 走错误分支（deleteDB + rethrow）
+    if (isJobStopped(job)) {
       await markMessageStopped(PRIVATE_STORE, placeholder.id, '我先停在这里了。');
       if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
       return null;
@@ -765,19 +793,36 @@ async function requestGroupReply(state, options = {}) {
     groupId
   });
 
+  // prelude 区间兜底：若 loadGroupMessages/resolveGroupMembers 等抛错，
+  // 必须调 finishAIJob 释放 job，否则 aiGenerating 永远 true、activeAIJobs 残留
+  let preludeError = null;
   state.aiGenerating = true;
 
-  const groupMessages = await loadGroupMessages(groupId);
-  const userMessage = getLastUserMessage(groupMessages);
+  let groupMessages = [];
+  let userMessage = null;
+  let speakers = [];
+  const replies = [];
 
-  if (!userMessage && !options.continue) {
-    finishAIJob(state, job);
-    return [];
+  try {
+    groupMessages = await loadGroupMessages(groupId);
+    userMessage = getLastUserMessage(groupMessages);
+
+    if (!userMessage && !options.continue) {
+      finishAIJob(state, job);
+      return [];
+    }
+
+    const members = await resolveGroupMembers(group);
+    speakers = chooseGroupSpeakers(members, groupMessages);
+  } catch (e) {
+    preludeError = e;
   }
 
-  const members = await resolveGroupMembers(group);
-  const speakers = chooseGroupSpeakers(members, groupMessages);
-  const replies = [];
+  if (preludeError) {
+    if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
+    finishAIJob(state, job);
+    throw preludeError;
+  }
 
   try {
     for (const character of speakers) {
@@ -884,7 +929,8 @@ async function requestGroupReply(state, options = {}) {
             });
           }
         } catch (apiError) {
-          if (isAbortError(apiError) || isJobStopped(job)) {
+          // 仅「用户主动停止」走停止文案；超时 abort 走错误分支给友好提示
+          if (isJobStopped(job)) {
             await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
             if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
             break;
@@ -1009,7 +1055,8 @@ async function requestGroupReply(state, options = {}) {
           });
         } catch (_) {}
       } catch (error) {
-        if (isAbortError(error) || isJobStopped(job)) {
+        // 仅「用户主动停止」走停止文案；超时/网络 abort 走错误分支
+        if (isJobStopped(job)) {
           await markMessageStopped(GROUP_STORE, placeholder.id, '我先停在这里了。');
           if (isStateForThisJob(state, job)) { await syncGroupState(state, groupId); state.renderOnly?.(); }
           break;
