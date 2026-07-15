@@ -35,7 +35,7 @@ import {
 } from '../core/theme.js';
 
 import { showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon } from '../core/ui.js';
-import { fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups } from '../core/api.js';
+import { fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups, fetchModelList } from '../core/api.js';
 import { resetSession, getMcpServers, listMcpTools, listMcpToolsWithDraft } from '../core/mcp.js';
 import { testCloudConnection } from '../core/storage-manager.js';
 
@@ -462,17 +462,12 @@ function renderApiTestPage() {
 
       showToast('正在拉取模型...');
       try {
-        const url = buildModelsUrlForSettings(endpointValue, providerValue);
-        const headers = buildHeaders(key, providerValue);
-        const res = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
-        if (!res.ok) throw new Error(await parseErrorResponse(res));
-        const data = await res.json().catch(() => null);
-        const models = extractModelList(data, providerValue);
+        const models = await fetchModelList({ endpoint: endpointValue, apiKey: key, provider: providerValue });
         if (!models.length) {
           showToast('没找到模型，可以手填模型名保存');
           return;
         }
-        draftModels = [...new Set(models)];
+        draftModels = models;
         renderModels();
         showToast(`拉到 ${draftModels.length} 个模型啦`);
       } catch (err) {
@@ -592,22 +587,33 @@ function askAfterTest(apiData) {
       }
 
       const groupsNow = getPoolGroups();
-      await addPoolEndpoint({
-        id: generateId('pool'),
-        groupType: selectedGroup,
-        groupName: selectedGroup === 'free' ? (groupsNow.free?.name || '免费组') : (groupsNow.paid?.name || '付费组'),
-        name: finalName,
-        endpoint: apiData.endpoint,
-        provider: apiData.provider,
-        keys: apiData.apiKey ? [apiData.apiKey] : [],
-        model: finalModel,
-        models: apiData.modelList || [],
-        source: '',
-        status: 'active'
-      });
+      try {
+        await addPoolEndpoint({
+          id: generateId('pool'),
+          groupType: selectedGroup,
+          groupName: selectedGroup === 'free' ? (groupsNow.free?.name || '免费组') : (groupsNow.paid?.name || '付费组'),
+          name: finalName,
+          endpoint: apiData.endpoint,
+          provider: apiData.provider,
+          keys: apiData.apiKey ? [apiData.apiKey] : [],
+          model: finalModel,
+          models: apiData.modelList || [],
+          source: '',
+          status: 'active'
+        });
 
-      hideBottomSheet();
-      showToast('接口已加入轮换池');
+        hideBottomSheet();
+        showToast('接口已加入轮换池');
+        // 提供去轮换池看看的入口
+        const go = await showConfirm('加入成功，去轮换池看看吗？');
+        if (go) render('apiPool');
+      } catch (err) {
+        if (err?.code === 'DUPLICATE') {
+          showToast('它已经在轮换池里啦，去轮换池编辑或换一个吧');
+          return;
+        }
+        showToast(formatApiEditorError(err, '加入轮换池失败'));
+      }
     }),
 
     actionBtn('star', '设为全局默认', () => {

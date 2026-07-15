@@ -153,6 +153,47 @@ export function smartModelsUrl(base, provider) {
   return base + '/v1/models';
 }
 
+// ═══════════════════════════════════════
+// 【统一拉取模型列表】API 测试台与 API 池编辑器共用
+//   用当前表单里的地址 + key + 鉴权方式真实请求模型列表
+//   不写死模型/供应商/域名；key 只进请求头，不落地、不回传
+//   成功返回去重后的模型名字符串数组；失败抛错（调用方决定提示）
+// ═══════════════════════════════════════
+
+export async function fetchModelList({ endpoint, apiKey, provider }) {
+  const base = String(endpoint || '').trim().replace(/\/+$/, '');
+  if (!base) throw new Error('请先填接口地址');
+
+  let url;
+  if (provider === 'gemini') {
+    url = base
+      .replace(/\/v1beta\/models\/[^/]+:generateContent$/i, '/v1beta/models')
+      .replace(/\/v1beta\/models\/[^/]+:streamGenerateContent$/i, '/v1beta/models')
+      .replace(/\/v1beta\/?$/i, '/v1beta/models');
+  } else {
+    url = smartModelsUrl(base, provider);
+  }
+
+  const headers = buildHeaders(apiKey, provider);
+  const res = await fetch(url, { method: 'GET', headers, cache: 'no-store' });
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
+
+  const data = await res.json().catch(() => null);
+  let models;
+  if (provider === 'ollama') {
+    models = (data?.models || []).map((m) => m?.name).filter(Boolean);
+  } else if (provider === 'gemini') {
+    models = (data?.models || [])
+      .map((m) => String(m?.name || '').replace(/^models\//, ''))
+      .filter(Boolean);
+  } else {
+    models = (data?.data || [])
+      .map((m) => (typeof m === 'string' ? m : m?.id))
+      .filter(Boolean);
+  }
+  return [...new Set(models)];
+}
+
 function smartGeminiUrl(base, model, apiKey, stream = false) {
   const cleanModel = String(model || '').trim();
   if (!cleanModel) throw new Error('请先选择模型');
@@ -466,6 +507,21 @@ async function markPoolSourceError(source, message, latencyMs = 0) {
 // ═══════════════════════════════════════
 
 export async function addPoolEndpoint(data) {
+  // 去重：同地址同供应商已存在则拒绝静默重复添加（调用方可据此提示用户）
+  const existing = await getApiPoolItems();
+  const dup = existing.find((item) => {
+    if (item.id === data?.id) return false;
+    return String(item.endpoint || '').trim().replace(/\/+$/, '')
+      === String(data?.endpoint || '').trim().replace(/\/+$/, '')
+      && String(item.provider || '') === String(data?.provider || '');
+  });
+  if (dup) {
+    const err = new Error('该接口已在轮换池中');
+    err.code = 'DUPLICATE';
+    err.existingId = dup.id;
+    throw err;
+  }
+
   const normalized = normalizePoolItem({
     ...data,
     id: data?.id || generateId('pool'),

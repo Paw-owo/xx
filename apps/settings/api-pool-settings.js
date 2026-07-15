@@ -13,7 +13,8 @@ import {
   updatePoolEndpoint,
   deletePoolEndpoint,
   testPoolEndpoint,
-  testAllPoolEndpoints
+  testAllPoolEndpoints,
+  fetchModelList
 } from '../../core/api.js';
 import { showToast, showConfirm } from '../../core/ui.js';
 import { generateId } from '../../core/storage.js';
@@ -283,6 +284,42 @@ function injectStyle() {
       background: var(--accent);
       color: var(--bubble-user-text);
     }
+
+    .api-pool-fetch-btn {
+      align-self: flex-start;
+      padding: 8px 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--accent);
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+    }
+    .api-pool-fetch-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .api-pool-model-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .api-pool-model-chip {
+      padding: 5px 10px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--bg-overlay);
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      font-size: var(--font-size-sm);
+      cursor: pointer;
+    }
+    .api-pool-model-chip.active {
+      border-color: var(--accent);
+      background: var(--accent-light);
+      color: var(--accent-dark);
+    }
   `;
   document.head.appendChild(styleEl);
 }
@@ -443,7 +480,84 @@ function openEditor(item) {
   const nameField = createField('接口名称', item?.name || '', '未命名接口');
   const urlField = createField('API 地址', item?.endpoint || '', 'https://api.example.com/v1');
   const keyField = createField('API Key（可留空）', (item?.keys || []).join('\n'), '多个 Key 换行分隔', true);
+
+  // 接口类型：决定拉模型/测试的鉴权方式与请求格式；不写死供应商，仅作格式分类
+  const providerWrap = el('div', 'api-pool-form-field');
+  providerWrap.append(el('label', '', '接口类型'));
+  const providerSelect = el('select');
+  providerSelect.style.cssText = 'width:100%;padding:8px 10px;border-radius:var(--radius-md);border:1px solid var(--bg-overlay);background:var(--bg-secondary);color:var(--text-primary);';
+  [
+    ['openai', '通用中转 / OpenAI 格式'],
+    ['anthropic', 'Claude / Anthropic 格式'],
+    ['gemini', 'Gemini 格式'],
+    ['ollama', '本地 Ollama']
+  ].forEach(([val, text]) => {
+    const opt = el('option');
+    opt.value = val;
+    opt.textContent = text;
+    providerSelect.append(opt);
+  });
+  providerSelect.value = item?.provider || 'openai';
+  providerWrap.append(providerSelect);
+
   const modelField = createField('主模型', item?.model || '', '例如 gpt-4o-mini');
+
+  // 拉取模型区域：用当前表单的地址+key+类型真实请求模型列表，成功展示可选、失败给提示且不清空手填
+  let draftModels = Array.isArray(item?.models) ? item.models : [];
+  const modelArea = el('div', 'api-pool-model-area');
+
+  function renderModelPicker() {
+    modelArea.innerHTML = '';
+    const title = el('div', 'api-pool-group-meta', '模型列表');
+    modelArea.append(title);
+    if (!draftModels.length) {
+      modelArea.append(el('div', 'settings-free-note', '还没拉到模型，可以直接手填模型名保存'));
+      return;
+    }
+    const current = modelField.input.value.trim();
+    const list = el('div', 'api-pool-model-list');
+    draftModels.forEach((m) => {
+      const chip = el('button', `api-pool-model-chip ${m === current ? 'active' : ''}`);
+      chip.type = 'button';
+      chip.textContent = m;
+      chip.addEventListener('click', () => {
+        modelField.input.value = m;
+        renderModelPicker();
+        showToast(`已选择：${m}`);
+      });
+      list.append(chip);
+    });
+    modelArea.append(list);
+  }
+
+  const fetchBtn = el('button', 'api-pool-fetch-btn', '拉取模型');
+  fetchBtn.type = 'button';
+  fetchBtn.addEventListener('click', async () => {
+    const endpointValue = urlField.input.value.trim();
+    const providerValue = providerSelect.value;
+    const key = keyField.input.value.trim().split('\n').map((k) => k.trim()).filter(Boolean)[0] || '';
+
+    if (!endpointValue) { showToast('先填接口地址哦'); return; }
+
+    showToast('正在拉取模型...');
+    fetchBtn.disabled = true;
+    try {
+      const models = await fetchModelList({ endpoint: endpointValue, apiKey: key, provider: providerValue });
+      if (!models.length) {
+        showToast('没找到模型，可以手填模型名保存');
+        return;
+      }
+      draftModels = models;
+      renderModelPicker();
+      showToast(`拉到 ${models.length} 个模型啦`);
+    } catch (err) {
+      showToast(formatPoolEditorError(err));
+    } finally {
+      fetchBtn.disabled = false;
+    }
+  });
+
+  renderModelPicker();
 
   let selectedGroup = item?.groupType || 'paid';
   const groupWrap = el('div');
@@ -456,7 +570,7 @@ function openEditor(item) {
   groupBtns.append(paidBtn, freeBtn);
   groupWrap.append(groupBtns);
 
-  sheet.append(nameField.wrap, urlField.wrap, keyField.wrap, modelField.wrap, groupWrap);
+  sheet.append(nameField.wrap, urlField.wrap, keyField.wrap, providerWrap, modelField.wrap, fetchBtn, modelArea, groupWrap);
 
   const btnRow = el('div', 'api-pool-actions');
   const cancelBtn = el('button', 'secondary', '取消');
@@ -468,6 +582,7 @@ function openEditor(item) {
     const keyText = keyField.input.value.trim();
     const keys = keyText ? keyText.split('\n').map((k) => k.trim()).filter(Boolean) : [];
     const model = modelField.input.value.trim();
+    const provider = providerSelect.value;
 
     if (!endpoint) { showToast('请填 API 地址'); return; }
 
@@ -476,10 +591,10 @@ function openEditor(item) {
       groupName: selectedGroup === 'free' ? (groups.free?.name || '免费组') : (groups.paid?.name || '付费组'),
       name,
       endpoint,
-      provider: '',
+      provider,
       keys,
       model,
-      models: item?.models || [],
+      models: draftModels,
       source: item?.source || '',
       status: 'active'
     };
@@ -497,6 +612,10 @@ function openEditor(item) {
       renderAll();
       options?.onRefresh?.();
     } catch (err) {
+      if (err?.code === 'DUPLICATE') {
+        showToast('它已经在轮换池里啦，换个地址或去编辑已有的');
+        return;
+      }
       showToast(String(err?.message || '保存失败'));
     }
   });
@@ -506,6 +625,18 @@ function openEditor(item) {
   overlay.append(sheet);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
   document.body.append(overlay);
+}
+
+// 本地错误格式化：把网络/HTTP 错误翻成可爱提示，不泄漏 key
+function formatPoolEditorError(err) {
+  const msg = String(err?.message || '');
+  if (/Failed to fetch|NetworkError|load failed/i.test(msg)) {
+    return '连不上接口地址，检查地址或网络哦';
+  }
+  if (/401|unauthorized|invalid.*key/i.test(msg)) {
+    return 'Key 不对或没权限拉模型，可以手填模型名继续';
+  }
+  return msg ? `拉取失败：${msg}` : '拉取失败，可以手填模型名继续';
 }
 
 function createField(label, value, placeholder, isTextarea) {
