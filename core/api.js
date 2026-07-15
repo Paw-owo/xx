@@ -932,9 +932,11 @@ function normalizeApiError(error, fallbackMessage) {
 function extractThinkingFromText(text) {
   if (!text) return { content: '', thinking: '' };
   let thinking = '';
+  // 修复问题 B：thinking 内部连续拼接，不用 \n
+  // reasoning_content 是逐 token 流式，每个 token 之间插 \n 会导致抽屉竖排
   const content = String(text).replace(/<thinking>([\s\S]*?)<\/thinking>/gi, (match, innerText) => {
     const clean = String(innerText || '').trim();
-    if (clean) thinking += thinking ? `\n${clean}` : clean;
+    if (clean) thinking += clean;
     return '';
   });
   return { content, thinking };
@@ -974,12 +976,13 @@ function extractContentFromData(data) {
     data.reasoning_content, data.reasoning, data.thinking,
     candidate?.reasoning, candidate?.reasoningContent,
     data?.candidates?.[0]?.content?.thought || ''
-  ].filter(Boolean).join('\n');
+  ].filter(Boolean).join('');
   const extracted = extractThinkingFromText(text);
   return {
     done: data === '[DONE]' || Boolean(choice.finish_reason) || Boolean(candidate.finishReason),
     content: extracted.content,
-    thinking: [reasoning, extracted.thinking].filter(Boolean).join('\n'),
+    // 修复问题 B：reasoning 与 extracted.thinking 连续拼接，不用 \n
+    thinking: [reasoning, extracted.thinking].filter(Boolean).join(''),
     finishReason: choice.finish_reason || candidate.finishReason || '',
     raw: data
   };
@@ -1034,7 +1037,10 @@ async function readStream(response, callbacks) {
         if (!dataLines.length) continue;
         const chunk = parseStreamPayload(dataLines.join('\n'));
         fullContent += chunk.content || '';
-        fullThinking = appendValue(fullThinking, chunk.thinking);
+        // 修复问题 B：thinking 连续拼接，不用 appendValue（它会在每个 chunk 间插 \n）
+        // reasoning_content 逐 token 流式，token 间 \n 会导致抽屉竖排
+        // 模型原文自带的换行已在 chunk.thinking 内，直接 += 保留
+        if (chunk.thinking) fullThinking += chunk.thinking;
         if (chunk.content || chunk.thinking) safeOnChunk({ content: chunk.content, thinking: chunk.thinking, raw: chunk.raw, done: false });
         if (chunk.done) { completed = true; break; }
       }
@@ -1044,7 +1050,7 @@ async function readStream(response, callbacks) {
       if (dataLines.length) {
         const chunk = parseStreamPayload(dataLines.join('\n'));
         fullContent += chunk.content || '';
-        fullThinking = appendValue(fullThinking, chunk.thinking);
+        if (chunk.thinking) fullThinking += chunk.thinking;
         if (chunk.content || chunk.thinking) safeOnChunk({ content: chunk.content, thinking: chunk.thinking, raw: chunk.raw, done: false });
       }
     }
@@ -1053,7 +1059,7 @@ async function readStream(response, callbacks) {
       try {
         const parsed = JSON.parse(buffer.trim());
         const extracted = extractContentFromData(parsed);
-        if (extracted.content) { fullContent = extracted.content; fullThinking = appendValue(fullThinking, extracted.thinking); }
+        if (extracted.content) { fullContent = extracted.content; if (extracted.thinking) fullThinking += extracted.thinking; }
       } catch (error) {
         console.warn('[api] readStream: buffer 末尾 JSON.parse 失败（可能是半包或非标准响应）', String(buffer).slice(0, 120));
       }

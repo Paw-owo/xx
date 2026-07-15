@@ -1,6 +1,8 @@
 // apps/chat/thinking-chain.js
 // imports:
-//   无外部依赖，纯 DOM 组件
+//   from './thinking-pure.js': sanitizeThinkingText (作为展示层 sanitizer，与生产层同源)
+
+import { sanitizeThinkingText } from './thinking-pure.js';
 
 const THINKING_CARD_CLASS = 'chat-thinking-card';
 const THINKING_BODY_CLASS = 'chat-thinking-body';
@@ -23,14 +25,10 @@ let activeSheetHandle = null;
 
 // 安全展示兼容：旧消息的 thinking 可能含残留标签/协议文本/过多换行
 // 在展示层做最后一道清洗，不修改原始数据库
-// 与 thread-ai.js 的 sanitizeThinkingText 保持一致逻辑
+// 修复问题 B/F：直接复用 thinking-pure.js 的 sanitizeThinkingText，消除两份漂移 copy
+// 展示层与生产层（thread-ai.js）使用同一份 sanitizer 实现
 function sanitizeDisplayText(text) {
-  let out = String(text || '');
-  out = out.replace(/<\/?think(?:ing)?(?:_summary)?\b[^>]*>/gi, '');
-  out = out.replace(/^[\s>]*(正式|正文|用户正在回应|assistant|user|system)\s*[:：]\s*/gim, '');
-  out = out.replace(/\n{3,}/g, '\n\n');
-  out = out.split('\n').map((line) => line.trim()).join('\n').trim();
-  return out;
+  return sanitizeThinkingText(text);
 }
 
 export function hasThinkingChain(message) {
@@ -76,9 +74,53 @@ function createPreview(message, options = {}) {
   const stateKey = String(options.stateKey || '').trim();
   const isRunning = Boolean(options.isRunning);
   const tools = Array.isArray(options.tools) ? options.tools : collectTools(message);
+  const thinkingText = sanitizeDisplayText(message?.thinking);
 
   const wrap = el('div', THINKING_PREVIEW_CLASS);
 
+  // 过程链展示优先级（修复产品定义差异）：
+  // 1. 有真实动作节点时：优先显示过程链节点，thinking 作为次级"小想法"折叠在过程链详情里
+  //    不和动作链并排抢主展示
+  // 2. 无动作但有 thinking：显示 thinking 摘要入口，点开看清洗后的连续自然段
+  // 3. 无动作无 thinking：不显示入口（由 hasThinkingChain 在上层拦截，不会走到这里）
+  if (tools.length) {
+    const chain = el('div', THINKING_TOOLS_CLASS);
+
+    tools.forEach((tool, index) => {
+      const item = createToolNode(tool, index, message, {
+        roleName,
+        stateKey,
+        isRunning
+      });
+      chain.appendChild(item);
+    });
+
+    wrap.appendChild(chain);
+
+    // 有动作时，thinking 作为次级折叠入口（弱化样式，不抢主展示）
+    // 只在 thinking 有真实内容时才加，避免空入口
+    if (thinkingText) {
+      const thinkBtn = safeButton('chat-thinking-preview-btn chat-thinking-preview-btn-minor', `${roleName}的小想法`);
+      thinkBtn.append(
+        createBubbleThoughtIcon(),
+        el('span', 'chat-thinking-preview-btn-text', isRunning ? FIXED_SUMMARY_TEXT_RUNNING : getThinkingPreviewText(message)),
+        createTinyChevronIcon()
+      );
+      thinkBtn.addEventListener('click', () => {
+        openThinkingSheet('think', message, {
+          roleName,
+          stateKey,
+          isRunning,
+          title: isRunning ? '还在想想' : '想了一小会'
+        });
+      });
+      wrap.appendChild(thinkBtn);
+    }
+
+    return wrap;
+  }
+
+  // 无动作但有 thinking：显示 thinking 摘要入口作为主入口
   const thinkBtn = safeButton(THINKING_PREVIEW_BTN_CLASS, `${roleName}的思路`);
   thinkBtn.append(
     createBubbleThoughtIcon(),
@@ -95,22 +137,6 @@ function createPreview(message, options = {}) {
   });
   wrap.appendChild(thinkBtn);
 
-  if (!tools.length) {
-    return wrap;
-  }
-
-  const chain = el('div', THINKING_TOOLS_CLASS);
-
-  tools.forEach((tool, index) => {
-    const item = createToolNode(tool, index, message, {
-      roleName,
-      stateKey,
-      isRunning
-    });
-    chain.appendChild(item);
-  });
-
-  wrap.appendChild(chain);
   return wrap;
 }
 
@@ -991,6 +1017,15 @@ function injectStyle() {
       transform:scale(.97);
     }
 
+    /* 有动作节点时，thinking 作为次级入口弱化展示，不抢主展示 */
+    .chat-thinking-preview-btn-minor{
+      min-height:30px;
+      padding:4px 10px;
+      font-size:12px;
+      opacity:.72;
+      margin-top:6px;
+    }
+
     .chat-thinking-preview-btn-text{
       min-width:0;
       overflow:hidden;
@@ -1288,7 +1323,11 @@ function injectStyle() {
       color:var(--text-primary);
       font-size:13.5px;
       line-height:1.8;
-      white-space:pre-wrap;
+      /* 修复问题 B：用 pre-line 而非 pre-wrap
+         pre-wrap 会保留所有空白和换行，token 级 \n 会渲染成竖排
+         pre-line 合并连续空格但保留换行，配合 word-break 横排折行
+         数据层已修复 token 间不再插 \n，这里做兜底 */
+      white-space:pre-line;
       word-break:break-word;
     }
 

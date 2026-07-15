@@ -34,6 +34,15 @@ import { getActiveRelationshipLock } from './thread-relationship.js';
 
 import { tryLocalOrSiliconFlowReply } from './thread-ai-local.js';
 
+// thinking 纯函数共享模块：消除 sanitizer 漂移，测试直接测真实生产代码
+import {
+  parseStreamThinkTags,
+  sanitizeThinkingText,
+  mergeTokenNewlines,
+  cleanPerspectiveText,
+  summarizeText
+} from './thinking-pure.js';
+
 // ═══════════════════════════════════════
 // 【基础配置】聊天 AI 常量和运行状态
 // ═══════════════════════════════════════
@@ -179,17 +188,22 @@ function createStreamAccumulator() {
     rawContent: '',
     rawThinking: '',
     rawThinkingSummary: '',
+    // tailBuffer：parseStreamThinkTags 剥离的末尾未完成标签前缀
+    // 保留在累积器内部，下一 chunk 到来时拼到 rawContent 前面继续判定
+    // 绝不能进入本次 content（否则流式期临时泄漏 <think / </thi 等片段到正文）
+    tailBuffer: '',
     lastRender: 0,
     thinkClosed: false,
     summaryClosed: false,
 
     append({ content, thinking, thinkingSummary }) {
       if (content) this.rawContent += content;
-      if (thinking) this.rawThinking = this.rawThinking ? this.rawThinking + '\n' + thinking : thinking;
+      // 修复问题 B：thinking 拼接不再插入 '\n'
+      // reasoning_content 是逐 token 流式，每个 token 之间插入 \n 会导致抽屉竖排
+      // 直接连续拼接，模型原文自带的换行会自然保留
+      if (thinking) this.rawThinking += thinking;
       if (thinkingSummary) {
-        this.rawThinkingSummary = this.rawThinkingSummary
-          ? this.rawThinkingSummary + thinkingSummary
-          : thinkingSummary;
+        this.rawThinkingSummary += thinkingSummary;
       }
     },
 
@@ -199,16 +213,18 @@ function createStreamAccumulator() {
       let thinkingSummary = this.rawThinkingSummary;
 
       if (content) {
+        // 对完整累积的 rawContent 全量解析：parseStreamThinkTags 每次都从末尾剥离
+        // 未完成标签前缀到 tailBuffer，content 不含它；下一 chunk 到来后 rawContent
+        // 变长（前缀被补全），再次全量解析即可正确续接，无需手动 slice
         const result = parseStreamThinkTags(content);
         if (result.thinking) {
-          thinking = thinking ? thinking + '\n' + result.thinking : result.thinking;
+          thinking += result.thinking;
         }
         if (result.thinkingSummary) {
-          thinkingSummary = thinkingSummary
-            ? thinkingSummary + result.thinkingSummary
-            : result.thinkingSummary;
+          thinkingSummary += result.thinkingSummary;
         }
         content = result.content;
+        this.tailBuffer = result.tailBuffer || '';
       }
 
       return { content, thinking, thinkingSummary };
@@ -244,85 +260,8 @@ function createStreamAccumulator() {
   };
 }
 
-function parseStreamThinkTags(text) {
-  let content = String(text || '');
-  let thinking = '';
-  let thinkingSummary = '';
-
-  // 部分标签缓冲：若末尾有未闭合的开标签前缀（如 '<thi' / '<think' / '<think_sum'），
-  // 暂时从 content 剥离，等下一 chunk 到齐再判定，避免分片泄漏到正文
-  let tailBuffer = '';
-  const tailMatch = content.match(/<(think|thinking|think_summary|thinking_summary|\/think|\/thinking|\/think_summary|\/thinking_summary)?$/i);
-  if (tailMatch) {
-    tailBuffer = content.slice(tailMatch.index);
-    content = content.slice(0, tailMatch.index);
-  }
-
-  // 先处理 summary（长前缀优先），再处理 think/thinking，避免 <think 误匹配 <think_summary
-  const extractTag = (src, openTag, closeTag) => {
-    let out = { content: src, text: '' };
-    const open = src.indexOf(openTag);
-    if (open < 0) return out;
-    const tagEnd = src.indexOf('>', open);
-    if (tagEnd < 0) return out; // 开标签未完整，留到下一 chunk
-    const close = src.indexOf(closeTag, tagEnd + 1);
-    if (close >= 0) {
-      out.text = src.slice(tagEnd + 1, close).trim();
-      out.content = (src.slice(0, open) + src.slice(close + closeTag.length)).trim();
-    } else {
-      // 未闭合：开标签后全部归入 thinking/summary，正文只保留开标签前
-      out.text = src.slice(tagEnd + 1).trim();
-      out.content = src.slice(0, open).trim();
-    }
-    return out;
-  };
-
-  // 顺序：长标签优先，避免前缀碰撞
-  const s1 = extractTag(content, '<think_summary', '</think_summary>');
-  if (s1.text) { thinkingSummary = s1.text; content = s1.content; }
-
-  const s2 = extractTag(content, '<thinking_summary', '</thinking_summary>');
-  if (s2.text) { thinkingSummary = thinkingSummary ? thinkingSummary + s2.text : s2.text; content = s2.content; }
-
-  // <think> 和 <thinking>：用 \b 边界避免误匹配 <think_summary
-  // 先精确找 <think> 或 <think 后紧跟 > 或空格
-  const thinkMatch = content.match(/<think\b[^>]*>/i);
-  if (thinkMatch) {
-    const openIdx = thinkMatch.index;
-    const tagEnd = openIdx + thinkMatch[0].length;
-    const closeIdx = content.indexOf('</think>', tagEnd);
-    if (closeIdx >= 0) {
-      const t = content.slice(tagEnd, closeIdx).trim();
-      thinking = thinking ? thinking + '\n' + t : t;
-      content = (content.slice(0, openIdx) + content.slice(closeIdx + 8)).trim();
-    } else {
-      const t = content.slice(tagEnd).trim();
-      thinking = thinking ? thinking + '\n' + t : t;
-      content = content.slice(0, openIdx).trim();
-    }
-  }
-
-  const thinkingMatch = content.match(/<thinking\b[^>]*>/i);
-  if (thinkingMatch) {
-    const openIdx = thinkingMatch.index;
-    const tagEnd = openIdx + thinkingMatch[0].length;
-    const closeIdx = content.indexOf('</thinking>', tagEnd);
-    if (closeIdx >= 0) {
-      const t = content.slice(tagEnd, closeIdx).trim();
-      thinking = thinking ? thinking + '\n' + t : t;
-      content = (content.slice(0, openIdx) + content.slice(closeIdx + 11)).trim();
-    } else {
-      const t = content.slice(tagEnd).trim();
-      thinking = thinking ? thinking + '\n' + t : t;
-      content = content.slice(0, openIdx).trim();
-    }
-  }
-
-  // 把缓冲的尾巴还回 content，等下一 chunk 拼接
-  content = (content + tailBuffer).trim();
-
-  return { content, thinking, thinkingSummary };
-}
+// parseStreamThinkTags / sanitizeThinkingText / mergeTokenNewlines / cleanPerspectiveText / summarizeText
+// 已提取到 ./thinking-pure.js 共享，本文件通过 import 使用，不再重复定义
 
 function resolveGroupTypes(character) {
   if (!character) return ['paid', 'free'];
@@ -680,39 +619,31 @@ async function requestPrivateReply(state, options = {}) {
 
     await safeSetMessage(PRIVATE_STORE, finalMessage);
 
+    // 修复问题 E：finalMessage 正文落库后，立即 syncState + renderOnly，
+    // 让用户先看到回复、释放输入框；记忆/记仇判定改为后台执行，完成后再安全回写
+    // 之前是 await collectMemoryWrites（24-32s AI 请求）阻塞 syncState 和 finishAIJob，
+    // 导致顶部"正在回复"卡住
+    if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
+
     const memoryMessages = [...messages, finalMessage];
-    let needsUpdate = false;
 
+    // 主动消息场景不走记忆/记仇判定（保持原逻辑）
     if (!options.proactive) {
-      const memoryWrites = await collectMemoryWrites(characterId, memoryMessages, {
-        character, userProfile, callName: userName
-      });
-      if (memoryWrites.length) { finalMessage.memoryWrites = memoryWrites; needsUpdate = true; }
-
-      const grudge = await maybeWriteGrudge({
+      // 后台执行记忆 + 记仇判定，不阻塞主回复收尾
+      // 失败不影响主回复显示和输入框解锁
+      finalizeMemoryAndGrudge({
+        characterId,
         character,
-        sourceMessage: userMessage,
-        aiText: finalMessage.content,
-        activeLock
+        userName,
+        memoryMessages,
+        finalMessage,
+        userMessage,
+        activeLock,
+        state,
+        job
+      }).catch((err) => {
+        console.warn('[thread-ai] 后台记忆/记仇判定失败，主回复不受影响', err?.message || err);
       });
-      if (grudge) {
-        finalMessage.grudgeWrites = [cleanForDB({
-          name: 'grudge',
-          status: 'active',
-          summary: summarizeText(grudge.reason, 80),
-          result: summarizeText(grudge.reason, 200),
-          mood: grudge.mood || '',
-          characterId: grudge.characterId || characterId,
-          _source: 'grudge'
-        })];
-        needsUpdate = true;
-      }
-    }
-
-    // 动作记录回写后，更新落库的消息，保证过程链有数据
-    if (needsUpdate) {
-      finalMessage.updatedAt = getNow();
-      await safeSetMessage(PRIVATE_STORE, finalMessage);
     }
 
     if (!parsed.thinking) {
@@ -736,8 +667,6 @@ async function requestPrivateReply(state, options = {}) {
         state
       });
     }
-
-    if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
 
     if (options.proactive) {
       markProactiveSent(characterId);
@@ -2035,8 +1964,11 @@ function normalizeAIResult(result, userName = '你') {
 
     const parsed = parseAIText(String(content || ''), userName);
     // nativeThinking（API reasoning_content 字段）也要剥标签/协议/压缩换行，避免泄漏
+    // 修复问题 F：必须先 sanitizeThinkingText（剥协议前缀"用户正在回应:"等），
+    // 再 cleanPerspectiveText（人称转换"用户"→"你"）。顺序反了会让 sanitizer 的
+    // "用户正在回应" 正则失配，导致协议词泄漏到 thinking
     const thinking = nativeThinking
-      ? sanitizeThinkingText(cleanPerspectiveText(String(nativeThinking || ''), userName))
+      ? cleanPerspectiveText(sanitizeThinkingText(String(nativeThinking || '')), userName)
       : parsed.thinking;
 
     const summary = parsed.thinkingSummary || summarizeText(thinking, 15);
@@ -2052,20 +1984,7 @@ function normalizeAIResult(result, userName = '你') {
   return { content: '', thinking: '', thinkingSummary: '', toolCalls: [] };
 }
 
-// 统一 thinking 文本清洗：剥 <think>/<thinking> 标签、协议文本、压缩多余换行（防竖排）
-// 只在明确标签/协议边界判断，不粗暴删普通中文
-function sanitizeThinkingText(text) {
-  let out = String(text || '');
-  // 剥残留的 think/thinking 标签（含未闭合）
-  out = out.replace(/<\/?think(?:ing)?(?:_summary)?\b[^>]*>/gi, '');
-  // 剥常见协议字段泄漏（如 "正式"、"正文"、"用户正在回应" 等行首协议标记）
-  out = out.replace(/^[\s>]*(正式|正文|用户正在回应|assistant|user|system)\s*[:：]\s*/gim, '');
-  // 压缩 3+ 连续换行为 2 个，防竖排；保留段落感
-  out = out.replace(/\n{3,}/g, '\n\n');
-  // 行首尾多余空白
-  out = out.split('\n').map((line) => line.trim()).join('\n').trim();
-  return out;
-}
+// sanitizeThinkingText / mergeTokenNewlines 已提取到 ./thinking-pure.js，本文件通过 import 使用
 
 function parseAIText(text, userName = '你') {
   const raw = String(text || '').trim();
@@ -2078,7 +1997,7 @@ function parseAIText(text, userName = '你') {
     raw.match(/<thinking_summary\b[^>]*>([\s\S]*?)<\/thinking_summary>/i);
 
   const thinking = thinkingMatch
-    ? sanitizeThinkingText(cleanPerspectiveText(thinkingMatch[1].trim(), userName))
+    ? cleanPerspectiveText(sanitizeThinkingText(thinkingMatch[1].trim()), userName)
     : '';
 
   let content = raw;
@@ -2183,6 +2102,75 @@ async function collectMemoryWrites(characterId, messages, options = {}) {
   }
 
   return records;
+}
+
+// 修复问题 E：后台执行记忆 + 记仇判定，完成后安全回写消息
+// 不阻塞主回复收尾（finishAIJob 已在 finally 释放 aiGenerating/isSending）
+// 关键安全约束：
+//  - 回写前校验 isStateForThisJob，防切换会话后串数据
+//  - 从 DB 重新读取最新 message 再合并写入，避免覆盖后台其他写入
+//  - 失败只 warn，不抛出，主回复已落库不受影响
+async function finalizeMemoryAndGrudge(params) {
+  const { characterId, character, userName, memoryMessages, finalMessage, userMessage, activeLock, state, job } = params;
+  if (!characterId || !finalMessage?.id) return;
+
+  const userProfile = loadUserProfileForCharacter(character);
+
+  let needsUpdate = false;
+  const updates = {};
+
+  // 记忆判定
+  try {
+    const memoryWrites = await collectMemoryWrites(characterId, memoryMessages, {
+      character, userProfile, callName: userName
+    });
+    if (memoryWrites && memoryWrites.length) {
+      updates.memoryWrites = memoryWrites;
+      needsUpdate = true;
+    }
+  } catch (err) {
+    console.warn('[thread-ai] 后台 collectMemoryWrites 失败:', err?.message || err);
+  }
+
+  // 记仇判定（本地关键词检测，相对快，保持同步）
+  try {
+    const grudge = await maybeWriteGrudge({
+      character,
+      sourceMessage: userMessage,
+      aiText: finalMessage.content,
+      activeLock
+    });
+    if (grudge) {
+      updates.grudgeWrites = [cleanForDB({
+        name: 'grudge',
+        status: 'active',
+        summary: summarizeText(grudge.reason, 80),
+        result: summarizeText(grudge.reason, 200),
+        mood: grudge.mood || '',
+        characterId: grudge.characterId || characterId,
+        _source: 'grudge'
+      })];
+      needsUpdate = true;
+    }
+  } catch (err) {
+    console.warn('[thread-ai] 后台 maybeWriteGrudge 失败:', err?.message || err);
+  }
+
+  if (!needsUpdate) return;
+
+  // 从 DB 重新读取最新 message，避免覆盖 enrichToolCallsBackground 等其他后台写入
+  const latest = await getDB(PRIVATE_STORE, finalMessage.id).catch(() => null);
+  if (!latest) return;
+
+  // 合并更新（不覆盖其他字段）
+  const merged = { ...latest, ...updates, updatedAt: getNow() };
+  await safeSetMessage(PRIVATE_STORE, merged);
+
+  // 仅当用户仍在该会话时刷新 UI，避免打扰其他会话
+  if (isStateForThisJob(state, job)) {
+    await syncPrivateState(state, characterId);
+    state.renderOnly?.();
+  }
 }
 
 function buildMemoryQueryText(messages, userName) {
@@ -2824,18 +2812,7 @@ function cleanForDB(value) {
   return result;
 }
 
-function cleanPerspectiveText(text, userName = '你') {
-  return String(text || '')
-    .replace(/用户/g, userName)
-    .replace(/这位玩家/g, userName)
-    .replace(/对方/g, userName)
-    .replace(/你(应该)/g, '我会')
-    .replace(/你(需要)/g, '我会')
-    .replace(/你(要)/g, '我会')
-    .replace(/你(必须)/g, '我会')
-    .replace(/请(你)/g, '我会')
-    .trim();
-}
+// cleanPerspectiveText 已提取到 ./thinking-pure.js，本文件通过 import 使用
 
 function stripEmoji(text) {
   return String(text || '')
@@ -2911,11 +2888,7 @@ function formatCurrentTime() {
   });
 }
 
-function summarizeText(text, max = 60) {
-  const clean = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!clean) return '';
-  return clean.length > max ? `${clean.slice(0, max)}…` : clean;
-}
+// summarizeText 已提取到 ./thinking-pure.js，本文件通过 import 使用
 
 function normalizeList(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
@@ -2936,3 +2909,18 @@ function clampNumber(value, min, max) {
 }
 
 // depends: ../../core/storage.js(getData,setData,generateId,getNow,setDB,deleteDB,getByIndexDB,getAllDB,getDB)；../../core/api.js(silentRequest,callAPI)；../../core/memory.js(buildMemoryPrompt,checkImportantInfo,checkAndSummarize)；./identity-core.js(getIdentityCore)；./thread-ai-local.js(tryLocalOrSiliconFlowReply)
+
+// ═══════════════════════════════════════
+// 【测试钩子】仅导出纯函数供真实生产测试使用
+// 不暴露敏感数据，不影响生产逻辑，不包含 DB/API 副作用
+// ═══════════════════════════════════════
+export const __testHooks = {
+  parseStreamThinkTags,
+  sanitizeThinkingText,
+  cleanPerspectiveText,
+  mergeTokenNewlines,
+  parseAIText,
+  normalizeAIResult,
+  summarizeText,
+  createStreamAccumulator
+};

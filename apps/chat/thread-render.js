@@ -8,6 +8,7 @@
 import { getData } from '../../core/storage.js';
 import { showToast, showBottomSheet, hideBottomSheet } from '../../core/ui.js';
 import { createThinkingCard, hasThinkingChain } from './thinking-chain.js';
+import { splitCodeBlocks } from './render-pure.js';
 
 import {
   copyThreadMessage,
@@ -1209,32 +1210,7 @@ function pickImage(...values) {
   return '';
 }
 
-function splitCodeBlocks(text) {
-  const source = String(text || '');
-  const result = [];
-  const reg = /```(\w+)?\n([\s\S]*?)```/g;
-  let lastIndex = 0;
-  let match;
-
-  while ((match = reg.exec(source))) {
-    const prev = source.slice(lastIndex, match.index);
-    if (prev) result.push({ type: 'text', text: prev });
-
-    result.push({
-      type: 'code',
-      lang: match[1] || 'code',
-      code: match[2] || ''
-    });
-
-    lastIndex = reg.lastIndex;
-  }
-
-  const tail = source.slice(lastIndex);
-  if (tail) result.push({ type: 'text', text: tail });
-  if (!result.length) result.push({ type: 'text', text: source });
-
-  return result;
-}
+// splitCodeBlocks 已提取到 ./render-pure.js，本文件通过 import 使用
 
 function getPreviewText(message) {
   if (!message) return '';
