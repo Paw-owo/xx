@@ -9,6 +9,9 @@ import { getData } from '../../core/storage.js';
 import { showToast, showBottomSheet, hideBottomSheet } from '../../core/ui.js';
 import { createThinkingCard, hasThinkingChain } from './thinking-chain.js';
 import { splitCodeBlocks } from './render-pure.js';
+import { parseAskUserBlocks } from './ask-user-pure.js';
+import { createAskUserCard } from './ask-user-card.js';
+import { sendThreadMessage } from './thread-actions.js';
 
 import {
   copyThreadMessage,
@@ -154,6 +157,10 @@ function createMessageRow(state, message, pageEl) {
   row.dataset.messageId = message.id || '';
   row.dataset.role = role;
 
+  // 展示层兜底：解析 <ask_user> 块到 message.askUser，并从 content 剔除
+  // （流式期已剥，这里兼容旧消息/非流式路径/DB 残留；剥后复制/引用自动干净）
+  ensureAskUserParsed(message);
+
   const body = el('div', `chat-message-body role-${role}`);
 
   // 作者信息：头像 + 名字 + 思维链胶囊（如果有）
@@ -185,12 +192,19 @@ function createMessageRow(state, message, pageEl) {
         row.appendChild(chunkBody);
       });
 
+      const askCard = createAskUserCardForState(state, message);
+      if (askCard) row.appendChild(askCard);
+
       const pager = createVersionPager(state, message, pageEl);
       if (pager) row.appendChild(pager);
 
       return row;
     }
   }
+
+  // 单气泡路径：提问卡片贴在气泡下方
+  const askCard = createAskUserCardForState(state, message);
+  if (askCard) body.appendChild(askCard);
 
   // 版本翻页（AI 消息且有多个版本时显示）
   if (role === 'assistant') {
@@ -199,6 +213,37 @@ function createMessageRow(state, message, pageEl) {
   }
 
   return row;
+}
+
+// 解析 <ask_user> 块到 message.askUser，并从 content 剔除（展示层兜底，幂等）
+function ensureAskUserParsed(message) {
+  if (!message || message.askUser) return;
+  const content = String(message.content || '');
+  if (!content || !/<ask_user\b/i.test(content)) return;
+  const r = parseAskUserBlocks(content);
+  if (r.askUser) {
+    message.askUser = r.askUser;
+    message.content = r.content;
+  }
+}
+
+// 构造提问卡片节点，附 onSubmit 回调（走现有 sendMessage 流程触发 AI 回复）
+function createAskUserCardForState(state, message) {
+  if (message.role !== 'assistant') return null;
+  const askUser = message?.askUser;
+  if (!askUser || !Array.isArray(askUser.questions) || !askUser.questions.length) return null;
+  const threadId = state.mode === 'group' ? state.groupId : state.characterId;
+  return createAskUserCard(message, {
+    threadId,
+    isStreaming: !!message.isStreaming,
+    onSubmit: (answerText) => {
+      // 答案作为一条明确的 user 消息发回，走现有 sendMessage 流程触发 AI 回复
+      sendThreadMessage(state, answerText, { triggerAI: true }).catch((e) => {
+        console.warn('[ask_user] 提交答案发送失败', e);
+        showToast('答案没发出去，再试一下');
+      });
+    }
+  });
 }
 
 // ═══════════════════════════════════════
