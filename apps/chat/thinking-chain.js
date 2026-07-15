@@ -1,33 +1,40 @@
 // apps/chat/thinking-chain.js
-// 思考过程步骤卡片：把 AI 响应事件渲染为链式步骤卡片 UI
-// 每个 step = 一个 AI 事件（reasoning / tool call / memory write / app action）
-// 外层块默认折叠，点击展开所有步骤；每个步骤默认折叠，点击展开详情
 // imports:
-//   from './thinking-pure.js': sanitizeThinkingText (展示层 sanitizer，与生产层同源)
+//   from './thinking-pure.js': sanitizeThinkingText (作为展示层 sanitizer，与生产层同源)
 
 import { sanitizeThinkingText } from './thinking-pure.js';
 
-const THINKING_STYLE_ID = 'chat-thinking-chain-style-v7';
+const THINKING_CARD_CLASS = 'chat-thinking-card';
+const THINKING_BODY_CLASS = 'chat-thinking-body';
+const THINKING_TEXT_CLASS = 'chat-thinking-text';
+const THINKING_TOOLS_CLASS = 'chat-thinking-tools';
+const THINKING_PREVIEW_CLASS = 'chat-thinking-preview';
+const THINKING_PREVIEW_BTN_CLASS = 'chat-thinking-preview-btn';
+const THINKING_PREVIEW_NODE_CLASS = 'chat-thinking-preview-node';
+const THINKING_SHEET_MASK_CLASS = 'chat-thinking-sheet-mask';
+const THINKING_SHEET_CLASS = 'chat-thinking-sheet';
+const THINKING_SHEET_BODY_CLASS = 'chat-thinking-sheet-body';
+const THINKING_SHEET_CARD_CLASS = 'chat-thinking-sheet-card';
 
-// 模块级展开状态：跨流式重渲染持久化（renderThreadMessages 每次重建 DOM）
-// key = messageId（不用 fingerprint，因为流式时 fingerprint 会变）
-const expandedCards = new Set();
-const expandedSteps = new Set();
+const FIXED_SUMMARY_TEXT = '想了一小会';
+const FIXED_SUMMARY_TEXT_RUNNING = '还在想想';
+const THINKING_STYLE_ID = 'chat-thinking-chain-style-v6';
+
+// 当前打开的思维链 sheet 句柄；与具体 sheet 实例绑定，关闭时成对清理 esc 监听
+let activeSheetHandle = null;
 
 // 安全展示兼容：旧消息的 thinking 可能含残留标签/协议文本/过多换行
 // 在展示层做最后一道清洗，不修改原始数据库
-// 复用 thinking-pure.js 的 sanitizeThinkingText，消除两份漂移 copy
+// 修复问题 B/F：直接复用 thinking-pure.js 的 sanitizeThinkingText，消除两份漂移 copy
+// 展示层与生产层（thread-ai.js）使用同一份 sanitizer 实现
 function sanitizeDisplayText(text) {
   return sanitizeThinkingText(text);
 }
 
-// ═══════════════════════════════════════
-// 【公开接口】与 thread-render.js 的契约
-// ═══════════════════════════════════════
-
 export function hasThinkingChain(message) {
   if (!message) return false;
   if (message.role === 'user') return false;
+  // 用清洗后的文本判断：纯标签/协议的 thinking 不算有效 thinking
   if (sanitizeDisplayText(message.thinking)) return true;
   if (collectTools(message).length > 0) return true;
   return false;
@@ -38,191 +45,135 @@ export function createThinkingCard(message, options = {}) {
 
   const roleName = String(options.roleName || options.characterName || options.name || 'TA').trim();
   const messageId = String(options.messageId || '').trim();
+  const fingerprint = buildFingerprint(message);
   const isRunning = isMessageRunning(message);
+  const stateKey = messageId ? `${messageId}:${fingerprint}` : '';
 
-  const steps = buildSteps(message);
-  if (!steps.length) {
-    return el('section', 'chat-thinking-card');
-  }
-
-  return createStepCard(steps, { roleName, messageId, isRunning });
-}
-
-// ═══════════════════════════════════════
-// 【步骤构建】把 message 数据转成统一 step 数组
-// ═══════════════════════════════════════
-
-function buildSteps(message) {
-  const steps = [];
-  const isRunning = isMessageRunning(message);
-
-  // 1. thinking 步骤（如果有）
-  const thinkingText = sanitizeDisplayText(message?.thinking);
-  if (thinkingText) {
-    steps.push({
-      type: 'thinking',
-      icon: 'sparkle',
-      title: getThinkingPreviewText(message) || '分析意图',
-      tag: null,
-      detail: thinkingText,
-      status: isRunning ? 'running' : 'done'
-    });
-  }
-
-  // 2. 工具调用 / 记忆写入 / 记仇写入
-  const tools = collectTools(message);
-  tools.forEach((tool, index) => {
-    const detail = buildToolDetailData(tool, index, message, {});
-    steps.push(toolToStep(tool, detail));
-  });
-
-  return steps;
-}
-
-function toolToStep(tool, detail) {
-  const source = String(detail.source || 'tool').toLowerCase();
-  const action = String(detail.action || 'tool').toLowerCase();
-
-  let type, tag, icon;
-
-  if (source === 'memory' || source === 'grudge') {
-    type = 'tool_memory';
-    tag = '记忆';
-    icon = 'bookmark';
-  } else if (action === 'mcp') {
-    type = 'tool_mcp';
-    tag = 'MCP';
-    icon = 'link';
-  } else if (action === 'search') {
-    type = 'tool_search';
-    tag = null;
-    icon = 'search';
-  } else {
-    type = 'tool_app';
-    tag = 'APP';
-    icon = 'phone';
-  }
-
-  // 拼接详情文本
-  const parts = [];
-  if (detail.summary) parts.push(detail.summary);
-  if (detail.query) parts.push('输入：' + detail.query);
-  if (detail.result) parts.push((detail.resultLabel || '结果') + '：' + detail.result);
-  if (detail.error) parts.push('问题：' + detail.error);
-  detail.extraRows.forEach((row) => {
-    parts.push(row.label + '：' + row.value);
-  });
-
-  return {
-    type,
-    icon,
-    title: detail.title,
-    tag,
-    detail: parts.join('\n') || '这一步没有留下更多内容。',
-    status: detail.status
-  };
-}
-
-// ═══════════════════════════════════════
-// 【渲染】步骤卡片
-// ═══════════════════════════════════════
-
-function createStepCard(steps, options) {
-  const messageId = String(options.messageId || '').trim();
-  const isRunning = Boolean(options.isRunning);
-
-  const card = el('section', 'chat-thinking-card');
+  const card = el('section', THINKING_CARD_CLASS);
   card.dataset.running = isRunning ? 'true' : 'false';
 
-  // 外层 header（始终可见，点击展开/折叠所有步骤）
-  const isCardExpanded = expandedCards.has(messageId);
+  const tools = collectTools(message);
+  const thinkingText = sanitizeDisplayText(message?.thinking);
 
-  const header = safeButton('chat-thinking-header', '展开思考过程');
-  header.dataset.expanded = isCardExpanded ? 'true' : 'false';
+  if (thinkingText || tools.length) {
+    card.appendChild(createPreview(message, {
+      roleName,
+      stateKey,
+      isRunning,
+      tools
+    }));
+  }
 
-  const headerIcon = el('span', 'chat-thinking-header-icon');
-  headerIcon.appendChild(createSparkleIcon());
-
-  const headerText = el('span', 'chat-thinking-header-text', `思考过程 · ${steps.length}步`);
-
-  const headerChevron = el('span', 'chat-thinking-header-chevron');
-  headerChevron.appendChild(createChevronIcon());
-
-  header.append(headerIcon, headerText, headerChevron);
-
-  // 步骤容器（默认折叠）
-  const stepsWrap = el('div', 'chat-thinking-steps');
-  stepsWrap.dataset.expanded = isCardExpanded ? 'true' : 'false';
-
-  steps.forEach((step, index) => {
-    stepsWrap.appendChild(createStepRow(step, index, messageId));
-  });
-
-  header.addEventListener('click', () => {
-    const next = stepsWrap.dataset.expanded !== 'true';
-    stepsWrap.dataset.expanded = next ? 'true' : 'false';
-    header.dataset.expanded = next ? 'true' : 'false';
-    if (next) {
-      expandedCards.add(messageId);
-    } else {
-      expandedCards.delete(messageId);
-    }
-  });
-
-  card.append(header, stepsWrap);
+  const body = el('div', THINKING_BODY_CLASS);
+  card.appendChild(body);
   return card;
 }
 
-function createStepRow(step, index, messageId) {
-  const stepKey = `${messageId}:${index}`;
-  const isStepExpanded = expandedSteps.has(stepKey);
+function createPreview(message, options = {}) {
+  const roleName = String(options.roleName || 'TA').trim();
+  const stateKey = String(options.stateKey || '').trim();
+  const isRunning = Boolean(options.isRunning);
+  const tools = Array.isArray(options.tools) ? options.tools : collectTools(message);
+  const thinkingText = sanitizeDisplayText(message?.thinking);
 
-  const stepEl = el('div', 'chat-thinking-step');
-  stepEl.dataset.status = step.status;
-  stepEl.dataset.type = step.type;
-  stepEl.dataset.expanded = isStepExpanded ? 'true' : 'false';
+  const wrap = el('div', THINKING_PREVIEW_CLASS);
 
-  // 步骤行（点击展开/折叠详情）
-  const row = safeButton('chat-thinking-step-row', `查看第${index + 1}步详情`);
+  // 过程链展示优先级（修复产品定义差异）：
+  // 1. 有真实动作节点时：优先显示过程链节点，thinking 作为次级"小想法"折叠在过程链详情里
+  //    不和动作链并排抢主展示
+  // 2. 无动作但有 thinking：显示 thinking 摘要入口，点开看清洗后的连续自然段
+  // 3. 无动作无 thinking：不显示入口（由 hasThinkingChain 在上层拦截，不会走到这里）
+  if (tools.length) {
+    const chain = el('div', THINKING_TOOLS_CLASS);
 
-  const dot = el('span', 'chat-thinking-step-dot');
-  dot.dataset.status = step.status;
+    tools.forEach((tool, index) => {
+      const item = createToolNode(tool, index, message, {
+        roleName,
+        stateKey,
+        isRunning
+      });
+      chain.appendChild(item);
+    });
 
-  const iconWrap = el('span', 'chat-thinking-step-icon');
-  iconWrap.appendChild(createStepIcon(step.icon));
+    wrap.appendChild(chain);
 
-  const textWrap = el('span', 'chat-thinking-step-text');
-  textWrap.appendChild(el('span', 'chat-thinking-step-title', step.title));
-  if (step.tag) {
-    textWrap.appendChild(el('span', 'chat-thinking-step-tag', step.tag));
+    // 有动作时，thinking 作为次级折叠入口（弱化样式，不抢主展示）
+    // 只在 thinking 有真实内容时才加，避免空入口
+    if (thinkingText) {
+      const thinkBtn = safeButton('chat-thinking-preview-btn chat-thinking-preview-btn-minor', `${roleName}的小想法`);
+      thinkBtn.append(
+        createBubbleThoughtIcon(),
+        el('span', 'chat-thinking-preview-btn-text', isRunning ? FIXED_SUMMARY_TEXT_RUNNING : getThinkingPreviewText(message)),
+        createTinyChevronIcon()
+      );
+      thinkBtn.addEventListener('click', () => {
+        openThinkingSheet('think', message, {
+          roleName,
+          stateKey,
+          isRunning,
+          title: isRunning ? '还在想想' : '想了一小会'
+        });
+      });
+      wrap.appendChild(thinkBtn);
+    }
+
+    return wrap;
   }
 
-  const chevron = el('span', 'chat-thinking-step-chevron');
-  chevron.appendChild(createChevronIcon());
-
-  row.append(dot, iconWrap, textWrap, chevron);
-
-  // 详情（默认折叠）
-  const detail = el('div', 'chat-thinking-step-detail');
-  detail.appendChild(el('div', 'chat-thinking-step-detail-text', step.detail));
-
-  row.addEventListener('click', () => {
-    const next = stepEl.dataset.expanded !== 'true';
-    stepEl.dataset.expanded = next ? 'true' : 'false';
-    if (next) {
-      expandedSteps.add(stepKey);
-    } else {
-      expandedSteps.delete(stepKey);
-    }
+  // 无动作但有 thinking：显示 thinking 摘要入口作为主入口
+  const thinkBtn = safeButton(THINKING_PREVIEW_BTN_CLASS, `${roleName}的思路`);
+  thinkBtn.append(
+    createBubbleThoughtIcon(),
+    el('span', 'chat-thinking-preview-btn-text', isRunning ? FIXED_SUMMARY_TEXT_RUNNING : getThinkingPreviewText(message)),
+    createTinyChevronIcon()
+  );
+  thinkBtn.addEventListener('click', () => {
+    openThinkingSheet('think', message, {
+      roleName,
+      stateKey,
+      isRunning,
+      title: isRunning ? '还在想想' : '想了一小会'
+    });
   });
+  wrap.appendChild(thinkBtn);
 
-  stepEl.append(row, detail);
-  return stepEl;
+  return wrap;
 }
 
-// ═══════════════════════════════════════
-// 【DOM 辅助】
-// ═══════════════════════════════════════
+function createToolNode(tool, index, message, options = {}) {
+  const item = safeButton(THINKING_PREVIEW_NODE_CLASS, `查看第${index + 1}步`);
+  const detail = buildToolDetailData(tool, index, message, options);
+
+  const dot = el('span', 'chat-thinking-preview-dot');
+  dot.dataset.status = detail.status;
+
+  const iconWrap = el('span', 'chat-thinking-preview-icon');
+  iconWrap.appendChild(createToolKindIcon(detail.icon));
+
+  const textWrap = el('span', 'chat-thinking-preview-text-wrap');
+  textWrap.append(
+    el('span', 'chat-thinking-preview-title', detail.title),
+    el('span', 'chat-thinking-preview-subtitle', detail.subtitle)
+  );
+
+  const arrow = el('span', 'chat-thinking-preview-arrow');
+  arrow.appendChild(createTinyChevronIcon());
+
+  item.append(dot, iconWrap, textWrap, arrow);
+
+  item.addEventListener('click', () => {
+    openThinkingSheet('tool', message, {
+      tool,
+      index,
+      detail,
+      roleName: options.roleName || 'TA',
+      stateKey: options.stateKey || '',
+      isRunning: options.isRunning || false
+    });
+  });
+
+  return item;
+}
 
 function el(tag, className = '', text = '') {
   const node = document.createElement(tag);
@@ -239,9 +190,226 @@ function safeButton(className, label) {
   return btn;
 }
 
-// ═══════════════════════════════════════
-// 【数据提取】从 message 收集工具/记忆/记仇事件
-// ═══════════════════════════════════════
+function openThinkingSheet(type, message, options = {}) {
+  closeThinkingSheet();
+
+  const oldBottomSheet = document.querySelector('.bottom-sheet');
+  const oldSheetOverlay = document.querySelector('.sheet-overlay');
+  const hiddenBottomSheet = oldBottomSheet || null;
+  const hiddenSheetOverlay = oldSheetOverlay || null;
+  // 保存原 inline display 值，恢复时还原，避免破坏原 inline 样式
+  const savedBottomSheetDisplay = hiddenBottomSheet ? hiddenBottomSheet.style.display : '';
+  const savedSheetOverlayDisplay = hiddenSheetOverlay ? hiddenSheetOverlay.style.display : '';
+
+  if (hiddenBottomSheet) hiddenBottomSheet.style.display = 'none';
+  if (hiddenSheetOverlay) hiddenSheetOverlay.style.display = 'none';
+
+  const mask = el('div', THINKING_SHEET_MASK_CLASS);
+  const sheet = el('section', THINKING_SHEET_CLASS);
+
+  const handle = el('div', 'chat-thinking-sheet-handle');
+  const head = el('div', 'chat-thinking-sheet-head');
+
+  const closeBtn = safeButton('chat-thinking-sheet-close', '关闭');
+  closeBtn.appendChild(createCloseIcon());
+
+  const titleWrap = el('div', 'chat-thinking-sheet-title-wrap');
+  titleWrap.appendChild(el('div', 'chat-thinking-sheet-title-pill', resolveSheetTitle(type, options)));
+
+  head.append(closeBtn, titleWrap);
+
+  const body = el('div', THINKING_SHEET_BODY_CLASS);
+
+  if (type === 'think') {
+    body.appendChild(createThinkingSheetContent(message, options));
+  } else {
+    body.appendChild(createToolSheetContent(message, options));
+  }
+
+  sheet.append(handle, head, body);
+  document.body.append(mask, sheet);
+
+  let closed = false;
+
+  const restoreHiddenSheet = () => {
+    // 若已有新的思维链 sheet 打开，由它负责最终恢复底层 sheet，避免提前恢复导致闪现
+    if (activeSheetHandle) return;
+    if (hiddenBottomSheet) hiddenBottomSheet.style.display = savedBottomSheetDisplay;
+    if (hiddenSheetOverlay) hiddenSheetOverlay.style.display = savedSheetOverlayDisplay;
+  };
+
+  const escHandler = (event) => {
+    if (event.key === 'Escape') {
+      closeThinkingSheet();
+    }
+  };
+  document.addEventListener('keydown', escHandler);
+
+  const cleanup = () => {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', escHandler);
+    // 仅当当前 handle 仍是本 sheet 时才清空，避免误清新打开的 sheet 句柄
+    if (activeSheetHandle && activeSheetHandle.closer === closer) {
+      activeSheetHandle = null;
+    }
+  };
+
+  const closer = () => {
+    if (closed) return;
+    mask.dataset.show = 'false';
+    sheet.dataset.show = 'false';
+    window.setTimeout(() => {
+      mask.remove();
+      sheet.remove();
+      restoreHiddenSheet();
+    }, 220);
+    cleanup();
+  };
+
+  const close = () => {
+    closeThinkingSheet();
+  };
+
+  closeBtn.addEventListener('click', close);
+  mask.addEventListener('click', close);
+
+  activeSheetHandle = { closer, cleanup };
+
+  requestAnimationFrame(() => {
+    mask.dataset.show = 'true';
+    sheet.dataset.show = 'true';
+  });
+}
+
+function closeThinkingSheet() {
+  if (activeSheetHandle) {
+    const handle = activeSheetHandle;
+    activeSheetHandle = null;
+    handle.closer();
+  }
+}
+
+function createThinkingSheetContent(message, options = {}) {
+  const wrap = el('div', 'chat-thinking-sheet-stack');
+  const card = el('section', THINKING_SHEET_CARD_CLASS);
+
+  const intro = el('div', 'chat-thinking-sheet-intro');
+  intro.append(
+    createBubbleThoughtIcon(),
+    el('span', 'chat-thinking-sheet-intro-text', options.isRunning ? '我还在慢慢整理这一句要怎么回。' : '这是我刚刚心里闪过的一点点思路。')
+  );
+
+  const text = sanitizeDisplayText(String(message?.thinking || ''));
+  const textBlock = el('div', 'chat-thinking-sheet-paragraph', text || '这一小会没有留下更多心里话。');
+
+  card.append(intro, textBlock);
+  wrap.appendChild(card);
+
+  const tools = collectTools(message);
+  if (tools.length) {
+    const hint = el('div', 'chat-thinking-sheet-side-note', `顺手还做了 ${tools.length} 件小事。`);
+    wrap.appendChild(hint);
+  }
+
+  return wrap;
+}
+
+function createToolSheetContent(message, options = {}) {
+  const detail = options.detail || buildToolDetailData(options.tool, options.index || 0, message, options);
+  const wrap = el('div', 'chat-thinking-sheet-stack');
+
+  wrap.appendChild(createDetailCard('这一步在做什么', detail.summary));
+
+  if (detail.query) {
+    wrap.appendChild(createInfoCard('我拿到的内容', detail.query));
+  }
+
+  if (detail.result) {
+    wrap.appendChild(createInfoCard(detail.resultLabel || '我处理出来的东西', detail.result));
+  }
+
+  if (detail.extraRows.length) {
+    const metaCard = el('section', THINKING_SHEET_CARD_CLASS);
+    const list = el('div', 'chat-thinking-sheet-info-list');
+    detail.extraRows.forEach((row) => {
+      list.appendChild(createInfoRow(row.label, row.value));
+    });
+    metaCard.appendChild(list);
+    wrap.appendChild(metaCard);
+  }
+
+  if (detail.error) {
+    wrap.appendChild(createInfoCard('这一步碰到的小状况', detail.error));
+  }
+
+  return wrap;
+}
+
+function createDetailCard(title, text) {
+  const card = el('section', THINKING_SHEET_CARD_CLASS);
+  card.append(
+    el('div', 'chat-thinking-sheet-section-title', title),
+    el('div', 'chat-thinking-sheet-paragraph', text || '这一段还没有更多内容。')
+  );
+  return card;
+}
+
+function createInfoCard(title, text) {
+  const card = el('section', THINKING_SHEET_CARD_CLASS);
+  card.append(
+    el('div', 'chat-thinking-sheet-section-title', title),
+    el('div', 'chat-thinking-sheet-content-box', text || '没有留下内容。')
+  );
+  return card;
+}
+
+function createInfoRow(label, value) {
+  const row = el('div', 'chat-thinking-sheet-info-row');
+  row.append(
+    el('span', 'chat-thinking-sheet-info-label', label),
+    el('span', 'chat-thinking-sheet-info-value', value || '没写')
+  );
+  return row;
+}
+
+function resolveSheetTitle(type, options = {}) {
+  if (type === 'think') {
+    return String(options.title || '想了一小会');
+  }
+  return String(options?.detail?.title || '悄悄做了点事');
+}
+
+function buildFingerprint(message) {
+  const thinking = String(message?.thinking || '').trim();
+  const summary = String(message?.thinkingSummary || '').trim();
+  const tools = collectTools(message);
+  const toolHash = tools.map((t) => `${t.name}:${t.status}:${String(t.result || '').slice(0, 40)}`).join('|');
+  return hashString(`${summary}|${thinking}|${toolHash}`).slice(0, 12);
+}
+
+function hashString(text) {
+  let value = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    value = (value * 31 + text.charCodeAt(index)) % 1000000007;
+  }
+  return value.toString(36);
+}
+
+function getThinkingPreviewText(message) {
+  const custom = sanitizeDisplayText(String(message?.thinkingSummary || ''));
+  if (custom) return custom.length > 15 ? `${custom.slice(0, 15).trim()}…` : custom;
+  const text = sanitizeDisplayText(String(message?.thinking || '')).replace(/\s+/g, ' ').trim();
+  if (text) return text.length > 15 ? `${text.slice(0, 15).trim()}…` : text;
+  return FIXED_SUMMARY_TEXT;
+}
+
+function isMessageRunning(message) {
+  if (message?.isPending === true) return true;
+  if (message?.isStreaming === true) return true;
+  const status = normalizeText(message?.status || message?.streamStatus).toLowerCase();
+  return ['streaming', 'thinking', 'running', 'loading', 'pending'].includes(status);
+}
 
 function collectTools(message) {
   const tools = [];
@@ -333,6 +501,7 @@ function buildToolDetailData(tool, index, message, options = {}) {
 
   const meta = TOOL_COPY_MAP[action] || TOOL_COPY_MAP.default;
   const title = resolveToolDisplayTitle(meta, tool, index, source, action, status);
+  const subtitle = resolveToolSubtitle(meta, tool, { status, query, result, amount, targetName, itemName, endpointName });
   const summary = resolveToolSummary(meta, tool, { status, query, result, amount, targetName, itemName, endpointName });
   const resultLabel = resolveResultLabel(action, source);
   const extraRows = [];
@@ -358,6 +527,7 @@ function buildToolDetailData(tool, index, message, options = {}) {
     status,
     icon: meta.icon,
     title,
+    subtitle,
     summary,
     query,
     result,
@@ -372,6 +542,22 @@ function resolveToolDisplayTitle(meta, tool, index, source, action, status) {
   if (status === 'error' && meta.errorTitle) return meta.errorTitle;
   if (meta.titleBuilder) return meta.titleBuilder(tool, index);
   return meta.title || resolveToolDisplayName(tool, index);
+}
+
+function resolveToolSubtitle(meta, tool, context) {
+  if (typeof meta.subtitleBuilder === 'function') {
+    return meta.subtitleBuilder(tool, context);
+  }
+  if (context.status === 'running') {
+    if (context.query) return summarizeText(context.query, 18);
+    return '还在办这一步';
+  }
+  if (context.status === 'error') {
+    return '这一步刚刚有点卡';
+  }
+  if (context.result) return summarizeText(context.result, 18);
+  if (context.query) return summarizeText(context.query, 18);
+  return meta.subtitle || '点开看看细节';
 }
 
 function resolveToolSummary(meta, tool, context) {
@@ -472,92 +658,130 @@ function formatAmount(value) {
   return number.toFixed(2);
 }
 
-function buildFingerprint(message) {
-  const thinking = String(message?.thinking || '').trim();
-  const summary = String(message?.thinkingSummary || '').trim();
-  const tools = collectTools(message);
-  const toolHash = tools.map((t) => `${t.name}:${t.status}:${String(t.result || '').slice(0, 40)}`).join('|');
-  return hashString(`${summary}|${thinking}|${toolHash}`).slice(0, 12);
-}
-
-function hashString(text) {
-  let value = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    value = (value * 31 + text.charCodeAt(index)) % 1000000007;
-  }
-  return value.toString(36);
-}
-
-function getThinkingPreviewText(message) {
-  const custom = sanitizeDisplayText(String(message?.thinkingSummary || ''));
-  if (custom) return custom.length > 15 ? `${custom.slice(0, 15).trim()}…` : custom;
-  const text = sanitizeDisplayText(String(message?.thinking || '')).replace(/\s+/g, ' ').trim();
-  if (text) return text.length > 15 ? `${text.slice(0, 15).trim()}…` : text;
-  return '想了一小会';
-}
-
-function isMessageRunning(message) {
-  if (message?.isPending === true) return true;
-  if (message?.isStreaming === true) return true;
-  const status = normalizeText(message?.status || message?.streamStatus).toLowerCase();
-  return ['streaming', 'thinking', 'running', 'loading', 'pending'].includes(status);
-}
-
 // ═══════════════════════════════════════
-// 【SVG 图标】inline SVG，无 emoji，无外部库
+// 【图标】
 // ═══════════════════════════════════════
 
-function createSparkleIcon() {
+function createBubbleThoughtIcon() {
   const svg = createSvgBase();
-  addPath(svg, 'M12 3l1.9 5.6a2 2 0 0 0 1.3 1.3L21 12l-5.6 1.9a2 2 0 0 0-1.3 1.3L12 21l-1.9-5.6a2 2 0 0 0-1.3-1.3L3 12l5.6-1.9a2 2 0 0 0 1.3-1.3L12 3Z');
+  addPath(svg, 'M12 4.75a7.25 7.25 0 0 1 4.9 12.59c-.64.58-1.19 1.13-1.5 1.91H8.61c-.28-.75-.82-1.31-1.46-1.88A7.25 7.25 0 0 1 12 4.75Z');
+  addPath(svg, 'M9.25 21h5.5');
+  addPath(svg, 'M10.2 17.9h3.6');
   return svg;
 }
 
-function createLinkIcon() {
-  const svg = createSvgBase();
-  addPath(svg, 'M9.5 14.5l5-5');
-  addPath(svg, 'M8.5 17.5l-1 1a3.5 3.5 0 0 1-5-5l2-2a3.5 3.5 0 0 1 5 0');
-  addPath(svg, 'M15.5 6.5l1-1a3.5 3.5 0 0 1 5 5l-2 2a3.5 3.5 0 0 1-5 0');
-  return svg;
-}
-
-function createBookmarkIcon() {
-  const svg = createSvgBase();
-  addPath(svg, 'M7 4.75h10A1.75 1.75 0 0 1 18.75 6.5v13.5l-6.75-4-6.75 4V6.5A1.75 1.75 0 0 1 7 4.75Z');
-  return svg;
-}
-
-function createPhoneIcon() {
-  const svg = createSvgBase();
-  addPath(svg, 'M7.5 4.5h9A1.5 1.5 0 0 1 18 6v12a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 18V6a1.5 1.5 0 0 1 1.5-1.5Z');
-  addPath(svg, 'M10 18h4');
-  addPath(svg, 'M9 6.5h6');
-  addPath(svg, 'M10.5 9h3');
-  addPath(svg, 'M10.5 11.5h3');
-  addPath(svg, 'M10.5 14h3');
-  return svg;
-}
-
-function createSearchIcon() {
-  const svg = createSvgBase();
-  addCircle(svg, '11', '11', '5.25');
-  addPath(svg, 'M15.2 15.2 19 19');
-  return svg;
-}
-
-function createChevronIcon() {
+function createTinyChevronIcon() {
   const svg = createSvgBase();
   addPath(svg, 'm9.5 6.8 5 5.2-5 5.2');
   return svg;
 }
 
-function createStepIcon(name) {
-  if (name === 'sparkle') return createSparkleIcon();
-  if (name === 'link') return createLinkIcon();
-  if (name === 'bookmark') return createBookmarkIcon();
-  if (name === 'phone') return createPhoneIcon();
-  if (name === 'search') return createSearchIcon();
-  return createSparkleIcon();
+function createCloseIcon() {
+  const svg = createSvgBase();
+  addPath(svg, 'M6.5 6.5l11 11');
+  addPath(svg, 'M17.5 6.5l-11 11');
+  return svg;
+}
+
+function createToolKindIcon(name) {
+  const svg = createSvgBase();
+
+  if (name === 'search') {
+    addCircle(svg, '11', '11', '5.25');
+    addPath(svg, 'M15.2 15.2 19 19');
+    return svg;
+  }
+
+  if (name === 'memory') {
+    addPath(svg, 'M7 6.75h10a1.75 1.75 0 0 1 1.75 1.75v8.75A1.75 1.75 0 0 1 17 19H7A1.75 1.75 0 0 1 5.25 17.25V8.5A1.75 1.75 0 0 1 7 6.75Z');
+    addPath(svg, 'M8.5 10h7');
+    addPath(svg, 'M8.5 13.5h5.2');
+    return svg;
+  }
+
+  if (name === 'memory-edit') {
+    addPath(svg, 'M6.5 17.8 9.8 17l7.6-7.6a1.45 1.45 0 1 0-2-2L7.8 15l-.8 2.8Z');
+    addPath(svg, 'M13.7 8.3l2 2');
+    return svg;
+  }
+
+  if (name === 'memory-delete') {
+    addPath(svg, 'M7.5 8.25h9');
+    addPath(svg, 'M9.4 8.25V6.9a.9.9 0 0 1 .9-.9h3.4a.9.9 0 0 1 .9.9v1.35');
+    addPath(svg, 'M8.3 8.25l.8 8.6a1.2 1.2 0 0 0 1.2 1.1h3.4a1.2 1.2 0 0 0 1.2-1.1l.8-8.6');
+    return svg;
+  }
+
+  if (name === 'grudge') {
+    addPath(svg, 'M12 18.5c-4.2-2.6-6.8-5-6.8-8.4A3.9 3.9 0 0 1 9.1 6c1 0 1.97.42 2.9 1.35C12.93 6.42 13.9 6 14.9 6a3.9 3.9 0 0 1 3.9 4.1c0 3.4-2.6 5.8-6.8 8.4Z');
+    return svg;
+  }
+
+  if (name === 'transfer') {
+    addCircle(svg, '12', '12', '6.5');
+    addPath(svg, 'M12 8.4v7.2');
+    addPath(svg, 'M9.6 10.2c.5-.9 1.35-1.35 2.4-1.35 1.28 0 2.2.58 2.2 1.65 0 .98-.78 1.5-2.02 1.8l-.36.08c-1.4.32-2.24.88-2.24 2.02 0 1.02.88 1.86 2.46 1.86 1.05 0 1.98-.38 2.62-1.2');
+    return svg;
+  }
+
+  if (name === 'gift') {
+    addPath(svg, 'M7 10h10v8.25A1.75 1.75 0 0 1 15.25 20h-6.5A1.75 1.75 0 0 1 7 18.25V10Z');
+    addPath(svg, 'M5.5 10h13');
+    addPath(svg, 'M12 10v10');
+    addPath(svg, 'M9.4 7.4c0-1.05.78-1.9 1.75-1.9 1.2 0 1.78 1.02 1.78 2.5v2');
+    addPath(svg, 'M14.6 7.4c0-1.05-.78-1.9-1.75-1.9-1.2 0-1.78 1.02-1.78 2.5v2');
+    return svg;
+  }
+
+  if (name === 'shop') {
+    addPath(svg, 'M6.5 9.2h11l-1 8.7a1.5 1.5 0 0 1-1.49 1.31H8.99A1.5 1.5 0 0 1 7.5 17.9l-1-8.7Z');
+    addPath(svg, 'M8.5 9.2V8a3.5 3.5 0 0 1 7 0v1.2');
+    addPath(svg, 'M10 12.1h4');
+    return svg;
+  }
+
+  if (name === 'mcp') {
+    addPath(svg, 'M5.75 7.25h12.5A1.5 1.5 0 0 1 19.75 8.75v6.5a1.5 1.5 0 0 1-1.5 1.5H5.75a1.5 1.5 0 0 1-1.5-1.5v-6.5a1.5 1.5 0 0 1 1.5-1.5Z');
+    addPath(svg, 'm8.4 10.1-2 2 2 2');
+    addPath(svg, 'M11.6 14.1h4');
+    return svg;
+  }
+
+  if (name === 'call') {
+    addPath(svg, 'M7.1 5.5h2.4l1.2 3-1.75 1.75a10 10 0 0 0 4.82 4.82l1.75-1.75 3 1.2v2.4c0 .9-.73 1.63-1.63 1.63-6.42 0-11.62-5.2-11.62-11.62 0-.9.73-1.63 1.63-1.63Z');
+    return svg;
+  }
+
+  if (name === 'proactive') {
+    addPath(svg, 'M12 5.5v13');
+    addPath(svg, 'M7.5 10l4.5-4.5 4.5 4.5');
+    return svg;
+  }
+
+  if (name === 'tool') {
+    addCircle(svg, '12', '12', '2.6');
+    addPath(svg, 'M12 4.7v2');
+    addPath(svg, 'M12 17.3v2');
+    addPath(svg, 'M19.3 12h-2');
+    addPath(svg, 'M6.7 12h-2');
+    addPath(svg, 'm17 7-1.4 1.4');
+    addPath(svg, 'm8.4 15.6-1.4 1.4');
+    addPath(svg, 'm17 17-1.4-1.4');
+    addPath(svg, 'M8.4 8.4 7 7');
+    return svg;
+  }
+
+  if (name === 'warning') {
+    addPath(svg, 'M12 4.75 19 18.5H5L12 4.75Z');
+    addPath(svg, 'M12 9.5v4');
+    addCircle(svg, '12', '16.6', '0.55');
+    return svg;
+  }
+
+  addPath(svg, 'M6.5 8.5h11');
+  addPath(svg, 'M8.5 12h7');
+  addPath(svg, 'M10.5 15.5h3');
+  return svg;
 }
 
 function createSvgBase() {
@@ -604,7 +828,7 @@ const TOOL_COPY_MAP = {
     }
   },
   mcp: {
-    icon: 'link',
+    icon: 'mcp',
     runningTitle: '叫了外部小工具',
     title: '叫了外部小工具',
     summaryBuilder(tool, context) {
@@ -614,7 +838,7 @@ const TOOL_COPY_MAP = {
     }
   },
   memory_add: {
-    icon: 'bookmark',
+    icon: 'memory',
     runningTitle: '正在记下一笔',
     title: '记下一小笔',
     summaryBuilder(tool, context) {
@@ -624,7 +848,7 @@ const TOOL_COPY_MAP = {
     }
   },
   memory_edit: {
-    icon: 'bookmark',
+    icon: 'memory-edit',
     runningTitle: '正在改记忆',
     title: '顺手改了改记忆',
     summaryBuilder(tool, context) {
@@ -634,7 +858,7 @@ const TOOL_COPY_MAP = {
     }
   },
   memory_delete: {
-    icon: 'bookmark',
+    icon: 'memory-delete',
     runningTitle: '正在删记忆',
     title: '轻轻删掉一条记忆',
     summaryBuilder(tool, context) {
@@ -644,7 +868,7 @@ const TOOL_COPY_MAP = {
     }
   },
   grudge_add: {
-    icon: 'bookmark',
+    icon: 'grudge',
     runningTitle: '正在写小本本',
     title: '在小本本上画圈圈',
     summaryBuilder(tool, context) {
@@ -654,7 +878,7 @@ const TOOL_COPY_MAP = {
     }
   },
   grudge_edit: {
-    icon: 'bookmark',
+    icon: 'grudge',
     runningTitle: '正在改小本本',
     title: '把小本本改了改',
     summaryBuilder(tool, context) {
@@ -664,7 +888,7 @@ const TOOL_COPY_MAP = {
     }
   },
   grudge_delete: {
-    icon: 'bookmark',
+    icon: 'grudge',
     runningTitle: '正在翻掉一页',
     title: '把小本本翻掉一页',
     summaryBuilder(tool, context) {
@@ -674,7 +898,7 @@ const TOOL_COPY_MAP = {
     }
   },
   transfer: {
-    icon: 'phone',
+    icon: 'transfer',
     runningTitle: '正在递小票据',
     title: '递了一张小票据',
     summaryBuilder(tool, context) {
@@ -684,7 +908,7 @@ const TOOL_COPY_MAP = {
     }
   },
   gift: {
-    icon: 'phone',
+    icon: 'gift',
     runningTitle: '正在递小礼物',
     title: '递了一份小礼物',
     summaryBuilder(tool, context) {
@@ -694,7 +918,7 @@ const TOOL_COPY_MAP = {
     }
   },
   shop_buy: {
-    icon: 'phone',
+    icon: 'shop',
     runningTitle: '正在逛小物商店',
     title: '去小物商店逛了逛',
     summaryBuilder(tool, context) {
@@ -704,7 +928,7 @@ const TOOL_COPY_MAP = {
     }
   },
   call_summary: {
-    icon: 'phone',
+    icon: 'call',
     runningTitle: '正在整理电话余温',
     title: '把电话收成一小段记忆',
     summaryBuilder(tool, context) {
@@ -714,7 +938,7 @@ const TOOL_COPY_MAP = {
     }
   },
   proactive: {
-    icon: 'phone',
+    icon: 'proactive',
     runningTitle: '想主动和你说话',
     title: '想主动和你说句话',
     summaryBuilder() {
@@ -722,7 +946,7 @@ const TOOL_COPY_MAP = {
     }
   },
   tool: {
-    icon: 'phone',
+    icon: 'tool',
     runningTitle: '悄悄办点小事',
     title: '悄悄办点小事',
     summaryBuilder(tool, context) {
@@ -732,14 +956,14 @@ const TOOL_COPY_MAP = {
     }
   },
   default: {
-    icon: 'phone',
+    icon: 'tool',
     title: '悄悄办点小事',
     summary: '我顺手把这一步办好了。'
   }
 };
 
 // ═══════════════════════════════════════
-// 【样式注入】遵循现有 CSS 变量，不硬编码色值
+// 【样式注入】
 // ═══════════════════════════════════════
 
 function injectStyle() {
@@ -753,18 +977,28 @@ function injectStyle() {
       width:100%;
       display:flex;
       flex-direction:column;
-      gap:0;
+      gap:8px;
     }
 
-    /* ── 外层 header ── */
-    .chat-thinking-header{
+    .chat-thinking-body{
+      display:none;
+    }
+
+    .chat-thinking-preview{
+      width:100%;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .chat-thinking-preview-btn{
       width:fit-content;
       max-width:100%;
-      min-height:34px;
+      min-height:38px;
       display:flex;
       align-items:center;
-      gap:7px;
-      padding:6px 13px;
+      gap:8px;
+      padding:7px 12px;
       border:none;
       outline:none;
       border-radius:999px;
@@ -773,112 +1007,70 @@ function injectStyle() {
       box-shadow:inset 0 1px 0 color-mix(in srgb, var(--bg-card) 82%, transparent), var(--shadow-sm);
       font:inherit;
       font-size:13px;
-      font-weight:500;
       line-height:1.4;
       text-align:left;
-      cursor:pointer;
       transition:all 200ms cubic-bezier(.34,1.56,.64,1);
       touch-action:manipulation;
     }
 
-    .chat-thinking-header:active{
+    .chat-thinking-preview-btn:active{
       transform:scale(.97);
     }
 
-    .chat-thinking-header[data-expanded="true"]{
-      color:var(--text-primary);
+    /* 有动作节点时，thinking 作为次级入口弱化展示，不抢主展示 */
+    .chat-thinking-preview-btn-minor{
+      min-height:30px;
+      padding:4px 10px;
+      font-size:12px;
+      opacity:.72;
+      margin-top:6px;
     }
 
-    .chat-thinking-header-icon{
-      width:16px;
-      height:16px;
-      flex:0 0 auto;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      color:var(--accent-dark);
-    }
-
-    .chat-thinking-header-icon svg{
-      width:15px;
-      height:15px;
-    }
-
-    .chat-thinking-card[data-running="true"] .chat-thinking-header-icon{
-      animation:chatThinkingSparkle 2s ease-in-out infinite;
-    }
-
-    .chat-thinking-header-text{
+    .chat-thinking-preview-btn-text{
       min-width:0;
       overflow:hidden;
       white-space:nowrap;
       text-overflow:ellipsis;
     }
 
-    .chat-thinking-header-chevron{
+    .chat-thinking-preview-btn > svg:first-child{
+      width:15px;
+      height:15px;
+      flex:0 0 auto;
+      color:var(--accent-dark);
+    }
+
+    .chat-thinking-preview-btn > svg:last-child,
+    .chat-thinking-preview-arrow svg,
+    .chat-thinking-sheet-close svg{
       width:14px;
       height:14px;
       flex:0 0 auto;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
       color:var(--text-hint);
-      transition:transform 280ms cubic-bezier(.34,1.56,.64,1);
     }
 
-    .chat-thinking-header-chevron svg{
-      width:13px;
-      height:13px;
-    }
-
-    .chat-thinking-header[data-expanded="true"] .chat-thinking-header-chevron{
-      transform:rotate(90deg);
-    }
-
-    /* ── 步骤容器 ── */
-    .chat-thinking-steps{
-      max-height:0;
-      overflow:hidden;
-      padding-left:10px;
-      transition:max-height 320ms cubic-bezier(.34,1.56,.64,1), opacity 240ms ease;
-      opacity:0;
-    }
-
-    .chat-thinking-steps[data-expanded="true"]{
-      max-height:3000px;
-      opacity:1;
-      padding-top:10px;
-    }
-
-    /* 时间轴竖线 */
-    .chat-thinking-steps::before{
-      content:"";
-      position:absolute;
-      left:19px;
-      top:18px;
-      bottom:10px;
-      width:2px;
-      border-radius:999px;
-      background:color-mix(in srgb, var(--accent) 16%, transparent);
-    }
-
-    .chat-thinking-steps{
-      position:relative;
-    }
-
-    /* ── 单个步骤 ── */
-    .chat-thinking-step{
+    .chat-thinking-tools{
       position:relative;
       display:flex;
       flex-direction:column;
-      gap:0;
+      gap:10px;
+      padding-left:10px;
     }
 
-    .chat-thinking-step + .chat-thinking-step{
-      margin-top:8px;
+    .chat-thinking-tools::before{
+      content:"";
+      position:absolute;
+      left:19px;
+      top:8px;
+      bottom:8px;
+      width:2px;
+      border-radius:999px;
+      background:color-mix(in srgb, var(--accent) 18%, transparent);
+      opacity:.75;
     }
 
-    .chat-thinking-step-row{
+    .chat-thinking-preview-node{
+      position:relative;
       width:100%;
       display:flex;
       align-items:center;
@@ -889,16 +1081,15 @@ function injectStyle() {
       background:transparent;
       font:inherit;
       text-align:left;
-      cursor:pointer;
       transition:transform 200ms cubic-bezier(.34,1.56,.64,1);
       touch-action:manipulation;
     }
 
-    .chat-thinking-step-row:active{
+    .chat-thinking-preview-node:active{
       transform:scale(.985);
     }
 
-    .chat-thinking-step-dot{
+    .chat-thinking-preview-dot{
       width:20px;
       height:20px;
       flex:0 0 auto;
@@ -909,27 +1100,26 @@ function injectStyle() {
       z-index:1;
     }
 
-    .chat-thinking-step-dot::before{
+    .chat-thinking-preview-dot::before{
       content:"";
       position:absolute;
       inset:5px;
       border-radius:999px;
       background:var(--accent-light);
-      transition:background 200ms ease;
     }
 
-    .chat-thinking-step-dot[data-status="running"]::before{
+    .chat-thinking-preview-dot[data-status="running"]::before{
       background:var(--accent);
       animation:chatThinkingDotPulse 1.2s ease-in-out infinite;
     }
 
-    .chat-thinking-step-dot[data-status="error"]::before{
+    .chat-thinking-preview-dot[data-status="error"]::before{
       background:color-mix(in srgb, var(--text-secondary) 78%, transparent);
     }
 
-    .chat-thinking-step-icon{
-      width:28px;
-      height:28px;
+    .chat-thinking-preview-icon{
+      width:24px;
+      height:24px;
       flex:0 0 auto;
       display:inline-flex;
       align-items:center;
@@ -942,24 +1132,26 @@ function injectStyle() {
       z-index:1;
     }
 
-    .chat-thinking-step-icon svg{
+    .chat-thinking-preview-icon svg{
       width:14px;
       height:14px;
     }
 
-    .chat-thinking-step-text{
+    .chat-thinking-preview-text-wrap{
       flex:1;
       min-width:0;
-      display:flex;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
       align-items:center;
-      gap:7px;
-      padding:9px 12px;
-      border-radius:16px;
+      gap:10px;
+      padding:10px 12px;
+      border-radius:18px;
       background:var(--surface-muted);
       box-shadow:inset 0 1px 0 color-mix(in srgb, var(--bg-card) 84%, transparent), var(--shadow-sm);
     }
 
-    .chat-thinking-step-title{
+    .chat-thinking-preview-title{
+      display:block;
       color:var(--text-primary);
       font-size:12.5px;
       font-weight:600;
@@ -967,100 +1159,251 @@ function injectStyle() {
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
-      min-width:0;
+      margin-bottom:2px;
     }
 
-    .chat-thinking-step-tag{
-      flex:0 0 auto;
-      padding:2px 8px;
-      border-radius:999px;
-      background:color-mix(in srgb, var(--accent) 14%, transparent);
-      color:var(--accent-dark);
-      font-size:10px;
-      font-weight:600;
-      line-height:1.5;
-      letter-spacing:.02em;
+    .chat-thinking-preview-subtitle{
+      display:block;
+      color:var(--text-secondary);
+      font-size:11.5px;
+      line-height:1.4;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
     }
 
-    .chat-thinking-step-chevron{
-      width:16px;
-      height:16px;
+    .chat-thinking-preview-arrow{
+      width:18px;
+      height:18px;
       flex:0 0 auto;
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      color:var(--text-hint);
-      transition:transform 280ms cubic-bezier(.34,1.56,.64,1);
     }
 
-    .chat-thinking-step-chevron svg{
-      width:13px;
-      height:13px;
-    }
-
-    .chat-thinking-step[data-expanded="true"] .chat-thinking-step-chevron{
-      transform:rotate(90deg);
-    }
-
-    /* ── 步骤详情 ── */
-    .chat-thinking-step-detail{
-      max-height:0;
-      overflow:hidden;
-      padding-left:58px;
-      transition:max-height 280ms cubic-bezier(.34,1.56,.64,1), opacity 220ms ease;
+    .chat-thinking-sheet-mask{
+      position:fixed;
+      inset:0;
+      z-index:10040;
+      background:color-mix(in srgb, var(--text-primary) 18%, transparent);
       opacity:0;
+      pointer-events:none;
+      transition:opacity 200ms ease;
     }
 
-    .chat-thinking-step[data-expanded="true"] .chat-thinking-step-detail{
-      max-height:1200px;
+    .chat-thinking-sheet-mask[data-show="true"]{
       opacity:1;
-      padding-top:6px;
+      pointer-events:auto;
+    }
+
+    .chat-thinking-sheet{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      z-index:10041;
+      width:100vw;
+      height:50vh;
+      display:flex;
+      flex-direction:column;
+      border-radius:28px 28px 0 0;
+      background:color-mix(in srgb, var(--bg-card) 94%, transparent);
+      backdrop-filter:blur(18px);
+      box-shadow:var(--shadow-float);
+      transform:translateY(108%);
+      transition:transform 220ms cubic-bezier(.22,1,.36,1);
+      overflow:hidden;
+    }
+
+    .chat-thinking-sheet[data-show="true"]{
+      transform:translateY(0);
+    }
+
+    .chat-thinking-sheet-handle{
+      width:42px;
+      height:5px;
+      flex:0 0 auto;
+      margin:10px auto 8px;
+      border-radius:999px;
+      background:var(--accent-light);
+    }
+
+    .chat-thinking-sheet-head{
+      flex:0 0 auto;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:0 16px 14px;
+    }
+
+    .chat-thinking-sheet-close{
+      width:34px;
+      height:34px;
+      flex:0 0 auto;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      border:none;
+      outline:none;
+      border-radius:999px;
+      background:var(--surface-muted);
+      color:var(--text-secondary);
+      box-shadow:var(--shadow-sm);
+      transition:all 200ms cubic-bezier(.34,1.56,.64,1);
+      touch-action:manipulation;
+    }
+
+    .chat-thinking-sheet-close:active{
+      transform:scale(.94);
+    }
+
+    .chat-thinking-sheet-title-wrap{
+      flex:1;
+      min-width:0;
+      display:flex;
+      justify-content:center;
+      padding-right:34px;
+    }
+
+    .chat-thinking-sheet-title-pill{
+      max-width:100%;
+      padding:9px 16px;
+      border-radius:999px;
+      background:var(--surface-muted);
+      box-shadow:inset 0 1px 0 color-mix(in srgb, var(--bg-card) 84%, transparent);
+      color:var(--text-primary);
+      font-size:14px;
+      font-weight:600;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .chat-thinking-sheet-body{
+      flex:1;
+      min-height:0;
+      overflow-y:auto;
+      padding:0 16px calc(20px + env(safe-area-inset-bottom));
+      -webkit-overflow-scrolling:touch;
+    }
+
+    .chat-thinking-sheet-stack{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
       padding-bottom:4px;
     }
 
-    .chat-thinking-step-detail-text{
-      padding:10px 13px;
-      border-radius:14px;
-      background:color-mix(in srgb, var(--bg-card) 60%, transparent);
-      box-shadow:inset 0 1px 0 color-mix(in srgb, var(--bg-card) 70%, transparent);
+    .chat-thinking-sheet-card{
+      padding:14px;
+      border-radius:22px;
+      background:var(--bg-card);
+      box-shadow:var(--shadow-card);
+    }
+
+    .chat-thinking-sheet-intro{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-bottom:10px;
       color:var(--text-secondary);
       font-size:12.5px;
-      line-height:1.75;
+      line-height:1.45;
+    }
+
+    .chat-thinking-sheet-intro svg{
+      width:15px;
+      height:15px;
+      flex:0 0 auto;
+      color:var(--accent-dark);
+    }
+
+    .chat-thinking-sheet-paragraph,
+    .chat-thinking-sheet-content-box{
+      color:var(--text-primary);
+      font-size:13.5px;
+      line-height:1.8;
+      /* 修复问题 B：用 pre-line 而非 pre-wrap
+         pre-wrap 会保留所有空白和换行，token 级 \n 会渲染成竖排
+         pre-line 合并连续空格但保留换行，配合 word-break 横排折行
+         数据层已修复 token 间不再插 \n，这里做兜底 */
       white-space:pre-line;
       word-break:break-word;
     }
 
-    /* ── 动画 ── */
+    .chat-thinking-sheet-content-box{
+      padding:12px;
+      border-radius:18px;
+      background:var(--surface-muted);
+      box-shadow:inset 0 1px 0 color-mix(in srgb, var(--bg-card) 84%, transparent);
+      color:var(--text-secondary);
+      font-size:13px;
+      line-height:1.72;
+    }
+
+    .chat-thinking-sheet-section-title{
+      margin-bottom:8px;
+      color:var(--text-primary);
+      font-size:13px;
+      font-weight:600;
+      line-height:1.4;
+    }
+
+    .chat-thinking-sheet-side-note{
+      color:var(--text-hint);
+      font-size:12px;
+      line-height:1.5;
+      padding:0 4px;
+    }
+
+    .chat-thinking-sheet-info-list{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .chat-thinking-sheet-info-row{
+      display:grid;
+      grid-template-columns:72px minmax(0,1fr);
+      gap:10px;
+      align-items:start;
+    }
+
+    .chat-thinking-sheet-info-label{
+      color:var(--text-hint);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    .chat-thinking-sheet-info-value{
+      color:var(--text-secondary);
+      font-size:13px;
+      line-height:1.55;
+      word-break:break-word;
+    }
+
     @keyframes chatThinkingDotPulse{
-      0%,100%{transform:scale(.85);opacity:.55}
-      50%{transform:scale(1.12);opacity:1}
+      0%,100%{transform:scale(.9);opacity:.6}
+      50%{transform:scale(1.08);opacity:1}
     }
 
-    @keyframes chatThinkingSparkle{
-      0%,100%{transform:scale(1);opacity:.8}
-      50%{transform:scale(1.15);opacity:1}
-    }
-
-    /* ── 响应式 ── */
     @media(max-width:520px){
-      .chat-thinking-step-text{
-        padding:9px 11px;
+      .chat-thinking-preview-text-wrap{
+        padding:10px 11px;
       }
 
-      .chat-thinking-step-detail{
-        padding-left:52px;
+      .chat-thinking-sheet-info-row{
+        grid-template-columns:64px minmax(0,1fr);
       }
     }
 
     @media(prefers-reduced-motion:reduce){
-      .chat-thinking-header,
-      .chat-thinking-header-chevron,
-      .chat-thinking-step-row,
-      .chat-thinking-step-chevron,
-      .chat-thinking-steps,
-      .chat-thinking-step-detail,
-      .chat-thinking-step-dot[data-status="running"]::before,
-      .chat-thinking-card[data-running="true"] .chat-thinking-header-icon{
+      .chat-thinking-preview-btn,
+      .chat-thinking-preview-node,
+      .chat-thinking-sheet-mask,
+      .chat-thinking-sheet,
+      .chat-thinking-sheet-close,
+      .chat-thinking-preview-dot[data-status="running"]::before{
         transition:none;
         animation:none;
       }
