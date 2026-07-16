@@ -613,14 +613,29 @@ function getAvailableSources(endpointId = '') {
 async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['paid', 'free'] } = {}) {
   await ensureApiPoolMigrated();
   const poolItems = await getApiPoolItems();
+  // effectiveModel：失效回退到全局时清空，让全局各 source 用自己的默认模型，不串用原模型
+  let effectiveModel = model;
 
   // 1. 若指定 endpointId，先在 pool 里精确命中（角色级 endpointId / dream / memory 场景）
+  //    失效语义与 callAPI 一致：endpoint 删除/停用、模式3固定模型已不属于该 endpoint → 回退全局
   if (endpointId) {
     const matched = poolItems.find((item) => String(item.id) === String(endpointId));
     if (matched) {
       const matchedGroupType = matched.groupType === 'free' ? 'free' : 'paid';
-      const sources = buildPoolCandidateSources([matched], { model, groupTypes: [matchedGroupType] });
-      if (sources.length) return { sources, fromPool: true };
+      const hasModelList = Array.isArray(matched.models) && matched.models.length > 0;
+      const modelInvalid = effectiveModel
+        && hasModelList
+        && !matched.models.includes(effectiveModel)
+        && matched.model !== effectiveModel;
+      if (!modelInvalid) {
+        const sources = buildPoolCandidateSources([matched], { model: effectiveModel, groupTypes: [matchedGroupType] });
+        if (sources.length) return { sources, fromPool: true };
+      }
+      // 模型失效或 endpoint 无可用 source：回退全局，清空原模型
+      effectiveModel = '';
+    } else {
+      // endpoint 未命中池（被删除）：回退全局，清空原模型
+      effectiveModel = '';
     }
   }
 
@@ -634,8 +649,8 @@ async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['p
   const paidItems = paidWanted && paidEnabled ? poolItems.filter((item) => item.groupType !== 'free') : [];
   const freeItems = freeWanted && freeEnabled ? poolItems.filter((item) => item.groupType === 'free') : [];
 
-  const paidSources = buildPoolCandidateSources(paidItems, { model, groupTypes: ['paid'] });
-  const freeSources = buildPoolCandidateSources(freeItems, { model, groupTypes: ['free'] });
+  const paidSources = buildPoolCandidateSources(paidItems, { model: effectiveModel, groupTypes: ['paid'] });
+  const freeSources = buildPoolCandidateSources(freeItems, { model: effectiveModel, groupTypes: ['free'] });
 
   const poolSources = [...paidSources, ...freeSources];
   if (poolSources.length) return { sources: poolSources, fromPool: true };
@@ -1179,51 +1194,69 @@ export async function callAPI({
   const poolItems = await _getApiPoolItems();
   const groups = getPoolGroups();
 
-  // 角色级 endpointId：优先精确命中指定端点（用户明确选择，失败不回退其他端点）
+  // effectiveModel：失效回退到全局时清空，让全局各 source 用自己的默认模型，不串用原模型
+  let effectiveModel = model;
+
+  // 角色级 endpointId：优先精确命中指定端点（用户明确选择）
   // 重试规则与下方 paidSources 循环一致：多 key 依次尝试，可重试错误才换下一个 key
+  // 失效语义（按用户指令）：
+  //   - endpoint 被删除（未命中池）→ 回退全局轮换池
+  //   - endpoint 被停用（命中但无可用 source）→ 回退全局轮换池
+  //   - 模式3固定模型已不属于该 endpoint（models 列表已知且不含该模型）→ 回退全局轮换池
+  //   - endpoint 命中且有可用 source，仅运行时请求失败（网络/5xx 等）→ 不回退，只报一次错
+  // 回退时清空 effectiveModel，避免把原 endpoint 的模型串用到全局其他接口上
   if (endpointId) {
     const matched = poolItems.find((item) => String(item.id) === String(endpointId));
     if (matched) {
       const matchedGroupType = matched.groupType === 'free' ? 'free' : 'paid';
-      const epSources = buildPoolCandidateSources([matched], { model, groupTypes: [matchedGroupType] });
-      if (epSources.length) {
-        const epDefaultTimeout = matchedGroupType === 'free' ? FREE_TIMEOUT : PAID_TIMEOUT;
-        let epLastError = null;
-        for (const source of epSources) {
-          if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
-          try {
-            const result = await _requestOnce({
-              source, messages, systemPrompt, model: model || source.model, stream,
-              timeout: timeout || epDefaultTimeout, temperature, maxTokens, onChunk, signal
-            });
-            await _markPoolSourceSuccess(source, result.latencyMs || 0);
-            onDone?.(result);
-            return result;
-          } catch (error) {
+      // 模式3失效检测：endpoint 已知 models 列表（非空）且不含用户固定的模型，也不是默认模型
+      const hasModelList = Array.isArray(matched.models) && matched.models.length > 0;
+      const modelInvalid = effectiveModel
+        && hasModelList
+        && !matched.models.includes(effectiveModel)
+        && matched.model !== effectiveModel;
+      if (!modelInvalid) {
+        const epSources = buildPoolCandidateSources([matched], { model: effectiveModel, groupTypes: [matchedGroupType] });
+        if (epSources.length) {
+          const epDefaultTimeout = matchedGroupType === 'free' ? FREE_TIMEOUT : PAID_TIMEOUT;
+          let epLastError = null;
+          for (const source of epSources) {
             if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
-            const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
-            const status = getStatusFromError(normalizedError);
-            await _markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
-            epLastError = normalizedError;
-            const hasMore = epSources.indexOf(source) < epSources.length - 1;
-            if (hasMore && isRetryableError(status, Boolean(source.apiKey), source)) {
-              const nextSource = epSources[epSources.indexOf(source) + 1];
-              if (source.isUser) notifyRetry(nextSource?.name || '备用接口');
-              continue;
+            try {
+              const result = await _requestOnce({
+                source, messages, systemPrompt, model: effectiveModel || source.model, stream,
+                timeout: timeout || epDefaultTimeout, temperature, maxTokens, onChunk, signal
+              });
+              await _markPoolSourceSuccess(source, result.latencyMs || 0);
+              onDone?.(result);
+              return result;
+            } catch (error) {
+              if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
+              const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
+              const status = getStatusFromError(normalizedError);
+              await _markPoolSourceError(source, normalizedError.message || String(error?.message || ''), 0);
+              epLastError = normalizedError;
+              const hasMore = epSources.indexOf(source) < epSources.length - 1;
+              if (hasMore && isRetryableError(status, Boolean(source.apiKey), source)) {
+                const nextSource = epSources[epSources.indexOf(source) + 1];
+                if (source.isUser) notifyRetry(nextSource?.name || '备用接口');
+                continue;
+              }
+              break;
             }
-            break;
           }
+          // 全部 key 失败或遇到不可重试错误：用户明确选了这个 endpoint，运行时失败不静默回退其他端点
+          onError?.(epLastError || { message: '指定接口没接上', status: 0 });
+          return null;
         }
-        // 全部 key 失败或遇到不可重试错误：只报一次错，不回退到其他 endpoint
-        onError?.(epLastError || { message: '指定接口没接上', status: 0 });
-        return null;
+        // endpoint 命中但无可用 source（disabled / 无 key）：接口已停用，回退全局
       }
-      // endpointId 命中但无可用 source（disabled / 无 key / 模型不匹配等）：
-      // 用户已明确选择该端点，绝不悄悄改用其他 endpoint
-      onError?.({ message: '指定的接口当前不可用', status: 0 });
-      return null;
+      // 模型失效或 endpoint 无可用 source：回退全局，清空原模型，不串用到其他接口
+      effectiveModel = '';
+    } else {
+      // endpoint 未命中池（被删除）：回退全局，清空原模型
+      effectiveModel = '';
     }
-    // endpointId 未命中池，继续走正常 groupTypes 流程
   }
 
   const effectiveGroupTypes = Array.isArray(groupTypes) && groupTypes.length
@@ -1239,12 +1272,12 @@ export async function callAPI({
   const paidItems = paidWanted && paidEnabled ? poolItems.filter((item) => item.groupType !== 'free') : [];
   const freeItems = freeWanted && freeEnabled ? poolItems.filter((item) => item.groupType === 'free') : [];
 
-  const paidSources = buildPoolCandidateSources(paidItems, { model, groupTypes: ['paid'] });
-  const freeSources = buildPoolCandidateSources(freeItems, { model, groupTypes: ['free'] });
+  const paidSources = buildPoolCandidateSources(paidItems, { model: effectiveModel, groupTypes: ['paid'] });
+  const freeSources = buildPoolCandidateSources(freeItems, { model: effectiveModel, groupTypes: ['free'] });
 
   if (!paidSources.length && !freeSources.length) {
     return await callLegacyFallback({
-      messages, systemPrompt, model, stream, timeout, temperature, maxTokens, onChunk, onDone, onError, signal
+      messages, systemPrompt, model: effectiveModel, stream, timeout, temperature, maxTokens, onChunk, onDone, onError, signal
     });
   }
 
@@ -1254,7 +1287,7 @@ export async function callAPI({
     if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
     try {
       const result = await _requestOnce({
-        source, messages, systemPrompt, model: model || source.model, stream,
+        source, messages, systemPrompt, model: effectiveModel || source.model, stream,
         timeout: timeout || PAID_TIMEOUT, temperature, maxTokens, onChunk, signal
       });
       await _markPoolSourceSuccess(source, result.latencyMs || 0);
@@ -1280,7 +1313,7 @@ export async function callAPI({
     if (signal?.aborted) { onError?.({ message: '已取消', status: 408 }); return null; }
     try {
       const result = await _requestOnce({
-        source, messages, systemPrompt, model: model || source.model, stream,
+        source, messages, systemPrompt, model: effectiveModel || source.model, stream,
         timeout: timeout || FREE_TIMEOUT, temperature, maxTokens, onChunk, signal
       });
       await _markPoolSourceSuccess(source, result.latencyMs || 0);

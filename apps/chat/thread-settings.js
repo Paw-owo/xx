@@ -84,6 +84,7 @@ const state = {
   userProfiles: [],
   worldbooks: [],
   poolModels: [],
+  poolEndpoints: [],
   poolGroups: { paid: { name: '付费组' }, free: { name: '免费组' } },
   config: { ...DEFAULT_CHAT_CONFIG },
   saving: false
@@ -121,6 +122,7 @@ export function unmountThreadSettings() {
   state.userProfiles = [];
   state.worldbooks = [];
   state.poolModels = [];
+  state.poolEndpoints = [];
   state.poolGroups = { paid: { name: '付费组' }, free: { name: '免费组' } };
   state.config = { ...DEFAULT_CHAT_CONFIG };
   state.saving = false;
@@ -144,6 +146,7 @@ async function loadData() {
   state.userProfiles = loadUserProfiles();
   state.worldbooks = normalizeArray(await getAllDB('worldbook').catch(() => []));
   state.poolModels = await getMergedPoolModels().catch(() => []);
+  state.poolEndpoints = await getApiPoolItems().catch(() => []);
   state.poolGroups = getPoolGroups();
 }
 
@@ -378,9 +381,7 @@ function createApiSection() {
   const api = getApiConfig();
   const section = card('模型和连接', '控制这个 AI 怎么连到模型。');
 
-  const statusText = api.useGlobal || api.poolGroup === 'all'
-    ? '跟随轮换池'
-    : `固定 · ${getGroupName(api.poolGroup)} · ${api.model || '未选模型'}`;
+  const statusText = describeApiStatus(api);
 
   const entry = el('button', 'settings-nav-item api-section-entry');
   entry.type = 'button';
@@ -399,6 +400,31 @@ function createApiSection() {
 
   section.append(entry);
   return section;
+}
+
+// 根据当前 apiConfig 生成摘要文本（图标行 + 弹层标题共用）
+// 三种模式：global 跟随全局；group 固定 endpoint（模型走默认）；model 固定 endpoint+model
+function describeApiStatus(api) {
+  if (!api) return '跟随轮换池';
+  // 模式1：跟随全局轮换池
+  if (api.useGlobal || api.poolGroup === 'all') return '跟随轮换池';
+  // 模式2/3：固定 endpoint
+  const endpointId = String(api.endpointId || '');
+  const endpoint = endpointId ? findPoolEndpoint(endpointId) : null;
+  if (!endpoint) return '原 API 配置已不可用';
+  const name = endpoint.name || '未命名接口';
+  // 模式2：固定 endpoint，不固定模型
+  if (!api.model) return `${name} · 分组内选择`;
+  // 模式3：固定 endpoint + 模型
+  const modelStillValid = (endpoint.models || []).includes(api.model) || endpoint.model === api.model;
+  if (!modelStillValid) return `${name} · 原模型已不可用`;
+  return `${name} · ${api.model}`;
+}
+
+// 在 state.poolEndpoints 中按 id 查找接口项（实时读取设置 APP 数据源）
+function findPoolEndpoint(endpointId) {
+  const list = Array.isArray(state.poolEndpoints) ? state.poolEndpoints : [];
+  return list.find((item) => String(item.id) === String(endpointId)) || null;
 }
 
 function getGroupName(groupKey) {
@@ -420,153 +446,260 @@ function getApiConfig() {
   return base;
 }
 
+// 三级选择器：第一步选模式，第二步选接口项（endpoint），第三步按需选模型
+// 数据源铁律：接口项与模型实时读取设置 APP 的 getApiPoolItems()，禁止手写名单
 function openApiDetailSheet() {
   const api = getApiConfig();
-  let mode = api.useGlobal || api.poolGroup === 'all' ? 'global' : 'fixed';
-  let poolGroup = api.poolGroup === 'all' ? 'paid' : (api.poolGroup || 'paid');
-  let model = api.model || '';
+  // 草稿：{ mode, endpointId, model }；mode ∈ 'global' | 'group' | 'model'
+  // mode=global 跟随全局；mode=group 固定 endpoint（模型走默认）；mode=model 固定 endpoint+model
+  let draft = {
+    mode: resolveDraftMode(api),
+    endpointId: String(api.endpointId || ''),
+    model: String(api.model || '')
+  };
+  let page = 'mode'; // 'mode' | 'endpoint' | 'model'
 
-  const overlay = el('div', 'settings-confirm-overlay');
+  const overlay = el('div', 'settings-confirm-overlay api-sheet-overlay');
+  const sheet = el('section', 'settings-confirm-card api-detail-card api-sheet');
 
-  const cardEl = el('section', 'settings-confirm-card api-detail-card');
+  // 头部
+  const header = el('div', 'api-sheet-header');
+  const backBtn = el('button', 'api-sheet-nav');
+  backBtn.type = 'button';
+  backBtn.setAttribute('aria-label', '返回上一步');
+  backBtn.append(safeIcon('back', 18));
+  const heading = el('div', 'api-sheet-heading');
+  const title = el('div', 'settings-confirm-title', '模型和连接');
+  const subtitle = el('div', 'settings-confirm-desc', '只影响这个角色，不会改动其他角色。');
+  heading.append(title, subtitle);
+  const closeBtn = el('button', 'api-sheet-nav');
+  closeBtn.type = 'button';
+  closeBtn.setAttribute('aria-label', '关闭');
+  closeBtn.append(safeIcon('close', 18));
+  header.append(backBtn, heading, closeBtn);
 
-  cardEl.append(
-    el('div', 'settings-confirm-title', '模型和连接'),
-    el('div', 'settings-confirm-desc', '选完会自动保存，不会影响其他角色。')
-  );
-
-  const body = el('div', 'api-detail-body');
-
-  // 模式选择
-  const modeRow = el('div', 'api-detail-segment');
-  const globalBtn = el('button', `api-detail-pill ${mode === 'global' ? 'active' : ''}`, '跟随轮换池');
-  const fixedBtn = el('button', `api-detail-pill ${mode === 'fixed' ? 'active' : ''}`, '固定分组和模型');
-  modeRow.append(globalBtn, fixedBtn);
-  body.append(el('div', 'settings-label', '连接方式'), modeRow);
-
-  // 固定选项容器
-  const fixedBox = el('div', 'api-detail-fixed');
-  body.append(fixedBox);
-
-  function renderFixed() {
-    fixedBox.innerHTML = '';
-
-    // 分组选择
-    const groupRow = el('div', 'api-detail-segment');
-    const paidBtn = el('button', `api-detail-pill ${poolGroup === 'paid' ? 'active' : ''}`, state.poolGroups.paid?.name || '付费组');
-    const freeBtn = el('button', `api-detail-pill ${poolGroup === 'free' ? 'active' : ''}`, state.poolGroups.free?.name || '免费组');
-    groupRow.append(paidBtn, freeBtn);
-    fixedBox.append(el('div', 'settings-label', '固定分组'), groupRow);
-
-    paidBtn.addEventListener('click', () => {
-      poolGroup = 'paid';
-      model = '';
-      renderFixed();
-    });
-
-    freeBtn.addEventListener('click', () => {
-      poolGroup = 'free';
-      model = '';
-      renderFixed();
-    });
-
-    // 模型选择
-    const groupEnabled = state.poolGroups[poolGroup]?.enabled !== false;
-    if (!groupEnabled) {
-      fixedBox.append(el('p', 'settings-note', `这个分组在全局设置里被关掉了，打开后才能用哦。`));
-    }
-
-    const modelLabel = el('div', 'settings-label', '模型');
-    fixedBox.append(modelLabel);
-
-    const modelInput = el('input', 'settings-input');
-    modelInput.type = 'text';
-    modelInput.placeholder = '例如 gpt-4o-mini，也可以从下面选';
-    modelInput.value = model;
-
-    modelInput.addEventListener('change', () => {
-      model = modelInput.value.trim();
-    });
-
-    fixedBox.append(modelInput);
-
-    // 可选模型列表
-    const picker = createPoolModelPicker(model, (value) => {
-      model = value;
-      modelInput.value = value;
-    });
-
-    fixedBox.append(picker);
-  }
-
-  function renderBody() {
-    fixedBox.style.display = mode === 'fixed' ? 'flex' : 'none';
-    if (mode === 'fixed') renderFixed();
-  }
-
-  globalBtn.addEventListener('click', () => {
-    mode = 'global';
-    globalBtn.classList.add('active');
-    fixedBtn.classList.remove('active');
-    renderBody();
-  });
-
-  fixedBtn.addEventListener('click', () => {
-    mode = 'fixed';
-    fixedBtn.classList.add('active');
-    globalBtn.classList.remove('active');
-    renderBody();
-  });
-
-  renderBody();
-
-  cardEl.append(body);
+  // 页面容器
+  const pages = el('div', 'api-sheet-pages');
+  const modePage = el('div', 'api-sheet-page');
+  const endpointPage = el('div', 'api-sheet-page');
+  endpointPage.style.display = 'none';
+  const modelPage = el('div', 'api-sheet-page');
+  modelPage.style.display = 'none';
+  pages.append(modePage, endpointPage, modelPage);
 
   // 底部按钮
-  const actions = el('div', 'settings-confirm-actions');
+  const actions = el('div', 'settings-confirm-actions api-sheet-footer');
+  const cancelBtn = el('button', 'settings-confirm-btn ghost', '取消');
+  cancelBtn.type = 'button';
+  const nextBtn = el('button', 'settings-confirm-btn primary', '下一步');
+  nextBtn.type = 'button';
+  actions.append(cancelBtn, nextBtn);
 
-  const cancel = el('button', 'settings-confirm-btn ghost', '取消');
-  cancel.type = 'button';
-  cancel.addEventListener('click', () => overlay.remove());
+  sheet.append(header, pages, actions);
+  overlay.append(sheet);
 
-  const confirm = el('button', 'settings-confirm-btn primary', '保存');
-  confirm.type = 'button';
-  confirm.addEventListener('click', async () => {
-    confirm.disabled = true;
-    confirm.textContent = '保存中...';
+  // ── 模式解析：旧配置 → 三模式草稿 ──
+  function resolveDraftMode(cfg) {
+    if (cfg.useGlobal || cfg.poolGroup === 'all') return 'global';
+    if (cfg.endpointId && cfg.model) return 'model';
+    if (cfg.endpointId) return 'group';
+    return 'global';
+  }
 
+  // ── 渲染模式页 ──
+  function renderModePage() {
+    modePage.replaceChildren();
+    const modes = [
+      { key: 'global', title: '跟随全局轮换池', desc: '由设置中心自动选择当前可用连接' },
+      { key: 'group', title: '固定一个 API 配置组', desc: '固定接口，模型仍按这个接口自己的规则选择' },
+      { key: 'model', title: '固定接口里的模型', desc: '先选接口，再指定其中一个模型' }
+    ];
+    modes.forEach((m) => {
+      const card = el('button', `api-choice-card ${draft.mode === m.key ? 'selected' : ''}`);
+      card.type = 'button';
+      const copy = el('div', 'api-choice-copy');
+      copy.append(el('strong', '', m.title), el('small', '', m.desc));
+      const check = el('span', 'api-choice-check');
+      if (draft.mode === m.key) check.append(safeIcon('check', 14));
+      card.append(copy, check);
+      card.addEventListener('click', () => {
+        draft.mode = m.key;
+        renderModePage();
+        updateFooter();
+      });
+      modePage.append(card);
+    });
+  }
+
+  // ── 渲染接口项页（实时读取 state.poolEndpoints）──
+  function renderEndpointPage() {
+    endpointPage.replaceChildren();
+    const endpoints = getActiveEndpoints();
+    if (!endpoints.length) {
+      const empty = el('p', 'settings-note', '还没有可用的接口，先去设置中心添加一个吧。');
+      endpointPage.append(empty);
+      return;
+    }
+    endpoints.forEach((ep) => {
+      const card = el('button', `api-choice-card ${draft.endpointId === String(ep.id) ? 'selected' : ''}`);
+      card.type = 'button';
+      const copy = el('div', 'api-choice-copy');
+      const groupTag = ep.groupType === 'free' ? '免费' : '付费';
+      copy.append(
+        el('strong', '', ep.name || '未命名接口'),
+        el('small', '', `${groupTag} · ${ep.model || ep.models?.[0] || '未配置模型'}`)
+      );
+      const check = el('span', 'api-choice-check');
+      if (draft.endpointId === String(ep.id)) check.append(safeIcon('check', 14));
+      card.append(copy, check);
+      card.addEventListener('click', () => {
+        draft.endpointId = String(ep.id);
+        // 切接口时清空模型（避免跨接口残留），模式3会在模型页重选
+        draft.model = '';
+        renderEndpointPage();
+        updateFooter();
+      });
+      endpointPage.append(card);
+    });
+  }
+
+  // ── 渲染模型页（读取所选 endpoint 的 models[]）──
+  function renderModelPage() {
+    modelPage.replaceChildren();
+    const ep = findPoolEndpoint(draft.endpointId);
+    if (!ep) {
+      modelPage.append(el('p', 'settings-note', '原接口已不可用，请返回重新选择。'));
+      return;
+    }
+    const models = collectEndpointModels(ep);
+    if (!models.length) {
+      modelPage.append(el('p', 'settings-note', '这个接口还没有可用模型，先去设置中心给它配一个吧。'));
+      return;
+    }
+    models.forEach((modelName) => {
+      const card = el('button', `api-choice-card ${draft.model === modelName ? 'selected' : ''}`);
+      card.type = 'button';
+      const copy = el('div', 'api-choice-copy');
+      copy.append(el('strong', '', modelName), el('small', '', ep.name || '未命名接口'));
+      const check = el('span', 'api-choice-check');
+      if (draft.model === modelName) check.append(safeIcon('check', 14));
+      card.append(copy, check);
+      card.addEventListener('click', () => {
+        draft.model = modelName;
+        renderModelPage();
+        updateFooter();
+      });
+      modelPage.append(card);
+    });
+  }
+
+  // ── 可用接口项：status !== 'disabled'，按更新时间倒序 ──
+  function getActiveEndpoints() {
+    return (state.poolEndpoints || [])
+      .filter((ep) => ep && ep.status !== 'disabled')
+      .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  }
+
+  // ── 收集接口项的模型列表：models[] + 主 model，去重保序 ──
+  function collectEndpointModels(ep) {
+    const list = [];
+    const push = (v) => { const s = String(v || '').trim(); if (s && !list.includes(s)) list.push(s); };
+    if (Array.isArray(ep.models)) ep.models.forEach(push);
+    push(ep.model);
+    return list;
+  }
+
+  // ── 页面切换 ──
+  function setPage(next) {
+    page = next;
+    modePage.style.display = next === 'mode' ? '' : 'none';
+    endpointPage.style.display = next === 'endpoint' ? '' : 'none';
+    modelPage.style.display = next === 'model' ? '' : 'none';
+    backBtn.style.visibility = next === 'mode' ? 'hidden' : 'visible';
+    if (next === 'mode') { title.textContent = '模型和连接'; subtitle.textContent = '只影响这个角色，不会改动其他角色。'; renderModePage(); }
+    if (next === 'endpoint') { title.textContent = '选择 API 配置组'; subtitle.textContent = '同步设置中心已有接口。'; renderEndpointPage(); }
+    if (next === 'model') {
+      const ep = findPoolEndpoint(draft.endpointId);
+      title.textContent = '选择模型';
+      subtitle.textContent = ep ? `固定给 ${ep.name || '该接口'} 单独使用` : '请先选择接口';
+      renderModelPage();
+    }
+    updateFooter();
+  }
+
+  // ── 底部按钮文案与行为 ──
+  function updateFooter() {
+    if (page === 'mode') {
+      nextBtn.textContent = draft.mode === 'global' ? '保存' : '下一步';
+      nextBtn.disabled = false;
+    } else if (page === 'endpoint') {
+      nextBtn.textContent = (draft.mode === 'group') ? '保存' : '下一步';
+      nextBtn.disabled = !draft.endpointId;
+    } else if (page === 'model') {
+      nextBtn.textContent = '保存';
+      nextBtn.disabled = !draft.model;
+    }
+  }
+
+  // ── 下一步/保存 ──
+  function goNext() {
+    if (page === 'mode') {
+      if (draft.mode === 'global') { saveAndClose(); return; }
+      setPage('endpoint'); return;
+    }
+    if (page === 'endpoint') {
+      if (!draft.endpointId) { showToast('先选一个 API 配置组呀'); return; }
+      if (draft.mode === 'group') { saveAndClose(); return; }
+      setPage('model'); return;
+    }
+    if (page === 'model') {
+      if (!draft.model) { showToast('这个接口还没有可选模型'); return; }
+      saveAndClose();
+    }
+  }
+
+  // ── 保存：按模式写入 apiConfig（只存稳定 ID，不复制名称/配置）──
+  async function saveAndClose() {
+    nextBtn.disabled = true;
+    nextBtn.textContent = '保存中...';
     const own = { ...DEFAULT_API_CONFIG, ...(state.character?.apiConfig || {}) };
-
     try {
-      if (mode === 'global') {
+      if (draft.mode === 'global') {
         await updateCharacter({
           apiConfig: { ...own, useGlobal: true, poolGroup: 'all', endpointId: '', model: '' }
         });
       } else {
+        // 模式2/3：固定 endpoint。poolGroup 记该 endpoint 的 groupType（仅作元数据展示用）。
+        // resolveGroupTypes 在 useGlobal===false && endpointId 时直接返回完整全局池，
+        // 不按 poolGroup 过滤；endpointId 命中时 callAPI 用该 endpoint 的 sources，失效才回退全局。
+        const ep = findPoolEndpoint(draft.endpointId);
+        const poolGroup = ep ? (ep.groupType === 'free' ? 'free' : 'paid') : 'paid';
+        const model = draft.mode === 'model' ? draft.model : '';
         await updateCharacter({
-          apiConfig: { ...own, useGlobal: false, poolGroup, endpointId: '', model }
+          apiConfig: { ...own, useGlobal: false, poolGroup, endpointId: draft.endpointId, model }
         });
       }
-
       overlay.remove();
       render();
     } catch (error) {
       console.error('[thread-settings] save apiConfig failed', error);
       showToast('保存失败，再试一次');
-      // 恢复按钮可点击状态，允许重试或取消，overlay 不关闭
-      confirm.disabled = false;
-      confirm.textContent = '保存';
+      nextBtn.disabled = false;
+      nextBtn.textContent = '保存';
     }
+  }
+
+  // ── 事件绑定 ──
+  backBtn.addEventListener('click', () => {
+    if (page === 'model') setPage('endpoint');
+    else if (page === 'endpoint') setPage('mode');
   });
+  closeBtn.addEventListener('click', () => overlay.remove());
+  cancelBtn.addEventListener('click', () => overlay.remove());
+  nextBtn.addEventListener('click', goNext);
+  overlay.addEventListener('click', (event) => { if (event.target === overlay) overlay.remove(); });
 
-  actions.append(cancel, confirm);
-  cardEl.append(actions);
-  overlay.append(cardEl);
-
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay) overlay.remove();
-  });
-
+  setPage('mode');
   document.body.append(overlay);
 }
 
@@ -1714,6 +1847,151 @@ function injectStyle() {
       flex-direction:column;
       gap:8px;
       animation:settingsConfirmCardIn 200ms ease;
+    }
+
+    /* 三级选择器 sheet：头部 + 分页 + 底部按钮 */
+    .api-sheet{
+      width:min(100%,440px);
+      max-height:min(88vh,680px);
+      display:flex;
+      flex-direction:column;
+      padding:18px 18px 14px;
+      overflow:hidden;
+      text-align:left;
+    }
+
+    .api-sheet-header{
+      display:grid;
+      grid-template-columns:40px minmax(0,1fr) 40px;
+      align-items:center;
+      gap:8px;
+      padding-bottom:10px;
+      border-bottom:1px solid var(--surface-muted);
+    }
+
+    .api-sheet-heading{
+      min-width:0;
+      text-align:center;
+    }
+
+    .api-sheet-heading .settings-confirm-title{
+      font-size:var(--font-size-base);
+      line-height:1.3;
+    }
+
+    .api-sheet-heading .settings-confirm-desc{
+      margin-top:2px;
+      font-size:12px;
+      line-height:1.4;
+    }
+
+    .api-sheet-nav{
+      width:40px;
+      height:40px;
+      display:grid;
+      place-items:center;
+      border-radius:14px;
+      background:var(--surface-muted);
+      color:var(--text-primary);
+      transition:var(--motion);
+    }
+
+    .api-sheet-nav:active{
+      transform:scale(var(--press-scale));
+    }
+
+    .api-sheet-pages{
+      flex:1 1 auto;
+      min-height:0;
+      overflow-y:auto;
+      overflow-x:hidden;
+      padding:12px 2px 4px;
+    }
+
+    .api-sheet-page{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      animation:settingsConfirmCardIn 200ms ease;
+    }
+
+    /* 选择卡：模式 / 接口项 / 模型共用 */
+    .api-choice-card{
+      width:100%;
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      align-items:center;
+      gap:10px;
+      padding:12px 14px;
+      border-radius:16px;
+      background:var(--surface-muted);
+      color:var(--text-primary);
+      text-align:left;
+      transition:var(--motion);
+    }
+
+    .api-choice-card:active{
+      transform:scale(0.985);
+    }
+
+    .api-choice-card.selected{
+      background:var(--accent-light);
+      box-shadow:inset 0 0 0 1.5px var(--accent-dark);
+    }
+
+    .api-choice-copy{
+      min-width:0;
+    }
+
+    .api-choice-copy strong{
+      display:block;
+      overflow:hidden;
+      font-size:var(--font-size-base);
+      font-weight:600;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .api-choice-copy small{
+      display:block;
+      overflow:hidden;
+      margin-top:2px;
+      color:var(--text-secondary);
+      font-size:12px;
+      line-height:1.4;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .api-choice-check{
+      display:grid;
+      width:22px;
+      height:22px;
+      flex:0 0 22px;
+      place-items:center;
+      border-radius:50%;
+      color:transparent;
+      background:transparent;
+      transition:var(--motion);
+    }
+
+    .api-choice-card.selected .api-choice-check{
+      color:var(--bg-card);
+      background:var(--accent-dark);
+    }
+
+    /* 复合选择器提升特异性，确保覆盖同特异性的 .settings-confirm-actions（flex-direction:column），
+       保证 API 三级弹层底部按钮横排。 */
+    .settings-confirm-actions.api-sheet-footer{
+      flex-direction:row;
+      gap:10px;
+      margin-top:12px;
+      padding-top:10px;
+      border-top:1px solid var(--surface-muted);
+    }
+
+    .settings-confirm-actions.api-sheet-footer .settings-confirm-btn{
+      flex:1;
     }
 
     .api-pool-model-picker{

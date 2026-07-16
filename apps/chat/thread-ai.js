@@ -297,15 +297,18 @@ function resolveGroupTypes(character) {
   if (!character) return ['paid', 'free'];
 
   const apiConfig = character?.apiConfig || {};
-  const poolGroup = apiConfig?.poolGroup || apiConfig?.groupType || '';
 
+  // 模式2/3：固定 endpoint。endpoint 命中时 callAPI 直接用该 endpoint 的 sources；
+  // 失效（删除/停用/模型不属于该 endpoint）回退到完整全局轮换池，不限制到原 endpoint 所属分组。
+  // poolGroup 字段在此模式下只是元数据，不作为分组过滤条件。
+  if (apiConfig?.useGlobal === false && apiConfig?.endpointId) {
+    return ['paid', 'free'];
+  }
+
+  const poolGroup = apiConfig?.poolGroup || apiConfig?.groupType || '';
   if (poolGroup === 'paid') return ['paid'];
   if (poolGroup === 'free') return ['free'];
   if (poolGroup === 'all') return ['paid', 'free'];
-
-  if (apiConfig?.useGlobal === false && apiConfig?.endpointId) {
-    return ['paid'];
-  }
 
   return ['paid', 'free'];
 }
