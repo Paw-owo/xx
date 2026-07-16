@@ -2,6 +2,7 @@
 // API 轮换池设置页：付费/免费分组管理、接口增删改查、测试
 // imports:
 //   from '../../core/api.js': getPoolGroups, setPoolGroups, getApiPoolItems, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, testPoolEndpoint, testAllPoolEndpoints
+//   from '../chat/sensory-ear.js': testEarEndpoint（耳朵接口走 Whisper STT，不能用 chat completions 测试）
 //   from '../../core/ui.js': showToast, showConfirm
 //   from '../../core/storage.js': generateId, getNow
 
@@ -16,6 +17,7 @@ import {
   testAllPoolEndpoints,
   fetchModelList
 } from '../../core/api.js';
+import { testEarEndpoint } from '../chat/sensory-ear.js';
 import { showToast, showConfirm } from '../../core/ui.js';
 import { generateId } from '../../core/storage.js';
 
@@ -359,53 +361,6 @@ function injectStyle() {
       font-size: var(--font-size-small);
       font-weight: 600;
     }
-
-    /* ═══ 耳朵占位卡片：纯展示，不可点 ═══ */
-    .api-pool-ear-placeholder {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 18px 16px;
-      border-radius: var(--radius-lg);
-      background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
-      color: var(--text-secondary);
-      cursor: default;
-      user-select: none;
-    }
-
-    .api-pool-ear-icon {
-      flex: 0 0 auto;
-      width: 56px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      background: var(--accent-light);
-      color: var(--accent-dark);
-    }
-
-    .api-pool-ear-textbox {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .api-pool-ear-text {
-      color: var(--text-primary);
-      font-size: var(--font-size-base);
-      font-weight: 600;
-      line-height: 1.35;
-    }
-
-    .api-pool-ear-hint {
-      color: var(--text-hint);
-      font-size: var(--font-size-small);
-      line-height: 1.4;
-    }
   `;
   document.head.appendChild(styleEl);
 }
@@ -444,13 +399,15 @@ function renderGroup(groupType) {
   const g = groups[groupType] || {};
   const groupItems = items.filter((item) => item.groupType === groupType);
   const isSensoryEye = groupType === 'sensory_eye';
+  const isSensoryEar = groupType === 'sensory_ear';
 
   const wrap = el('div', 'api-pool-group');
 
   const header = el('div', 'api-pool-group-header');
   const info = el('div');
+  const defaultName = groupType === 'paid' ? '付费组' : groupType === 'free' ? '免费组' : groupType === 'sensory_eye' ? '感官-眼睛' : '感官-耳朵';
   info.append(
-    el('div', 'api-pool-group-name', g.name || (groupType === 'paid' ? '付费组' : groupType === 'free' ? '免费组' : '感官-眼睛')),
+    el('div', 'api-pool-group-name', g.name || defaultName),
     el('div', 'api-pool-group-meta', `${groupItems.length} 个接口 · ${g.enabled !== false ? '已启用' : '已关闭'}`)
   );
   const toggle = el('button', `api-pool-toggle ${g.enabled !== false ? 'on' : ''}`);
@@ -465,20 +422,29 @@ function renderGroup(groupType) {
   wrap.append(header);
 
   if (!groupItems.length) {
-    const emptyText = groupType === 'paid'
-      ? '还没有付费接口，测好后存进来吧'
-      : groupType === 'free'
-        ? '还没有免费接口，加一个试试'
-        : '小眼睛需要什么：一个支持图片识别的接口。可以填 Gemini、Pollinations、OpenAI-compatible 中转站或任何公益接口。Model 名按你接口的实际模型填写。';
+    let emptyText;
+    if (groupType === 'paid') {
+      emptyText = '还没有付费接口，测好后存进来吧';
+    } else if (groupType === 'free') {
+      emptyText = '还没有免费接口，加一个试试';
+    } else if (isSensoryEye) {
+      emptyText = '小眼睛需要什么：一个支持图片识别的接口。可以填 Gemini、Pollinations、OpenAI-compatible 中转站或任何公益接口。Model 名按你接口的实际模型填写。';
+    } else {
+      emptyText = '小耳朵需要什么：一个兼容 OpenAI Whisper 格式的语音转文字接口，填 baseURL+模型名+Key 就行。';
+    }
     wrap.append(el('div', 'api-pool-empty', emptyText));
   } else {
     groupItems.forEach((item) => wrap.append(renderEndpoint(item)));
   }
 
-  // 眼睛分组卡片内提供独立"新增眼睛接口"入口，锁定 sensory_eye 分组，不走顶部全局新增
+  // 感官分组卡片内提供独立"新增接口"入口，锁定对应分组，不走顶部全局新增
   if (isSensoryEye) {
     const addBtn = el('button', 'api-pool-group-add', '新增眼睛接口');
     addBtn.addEventListener('click', () => openEditor(null, { lockGroup: 'sensory_eye' }));
+    wrap.append(addBtn);
+  } else if (isSensoryEar) {
+    const addBtn = el('button', 'api-pool-group-add', '新增耳朵接口');
+    addBtn.addEventListener('click', () => openEditor(null, { lockGroup: 'sensory_ear' }));
     wrap.append(addBtn);
   }
 
@@ -486,29 +452,17 @@ function renderGroup(groupType) {
 }
 
 // ═══════════════════════════════════════
-// 【感官分类区】眼睛复用分组编辑 UI，耳朵仅占位（无表单、无按钮、不可点）
+// 【感官分类区】眼睛、耳朵均复用分组编辑 UI，配置结构一致
+//   眼睛：支持图片识别的视觉接口
+//   耳朵：兼容 OpenAI Whisper 格式的语音转文字接口
 // ═══════════════════════════════════════
 
 function renderSensorySection() {
   const section = el('div', 'api-pool-sensory-section');
   section.append(el('div', 'api-pool-sensory-title', '感官'));
   section.append(renderGroup('sensory_eye'));
-  section.append(renderEarPlaceholder());
+  section.append(renderGroup('sensory_ear'));
   return section;
-}
-
-function renderEarPlaceholder() {
-  const card = el('div', 'api-pool-ear-placeholder');
-  // 耳机线条图标（内联 SVG，不依赖图标库；currentColor 跟随主题）
-  const icon = el('div', 'api-pool-ear-icon');
-  icon.innerHTML = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><path d="M4 13a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z"/><path d="M20 13a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2 1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1z"/></svg>';
-  const textBox = el('div', 'api-pool-ear-textbox');
-  textBox.append(
-    el('div', 'api-pool-ear-text', '小耳朵还在长，先不吵它'),
-    el('div', 'api-pool-ear-hint', '语音转文字功能稍后来陪你哦')
-  );
-  card.append(icon, textBox);
-  return card;
 }
 
 function renderEndpoint(item) {
@@ -532,10 +486,21 @@ function renderEndpoint(item) {
 
   const actions = el('div', 'api-pool-endpoint-actions');
   const testBtn = el('button', '', '测试');
-  testBtn.addEventListener('click', () => handleTest(item.id, testBtn, status));
+  // 耳朵分组走 Whisper STT 测试（发静音音频测连通），不能用 chat completions 测试
+  testBtn.addEventListener('click', () => {
+    if (item.groupType === 'sensory_ear') {
+      handleEarTest(item.id, testBtn, status);
+    } else {
+      handleTest(item.id, testBtn, status);
+    }
+  });
   const editBtn = el('button', '', '编辑');
-  // 眼睛分组 endpoint 编辑时锁定 sensory_eye，不在弹层里显示分组选择
-  const editOptions = item.groupType === 'sensory_eye' ? { lockGroup: 'sensory_eye' } : {};
+  // 感官分组 endpoint 编辑时锁定对应分组，不在弹层里显示分组选择
+  const editOptions = item.groupType === 'sensory_eye'
+    ? { lockGroup: 'sensory_eye' }
+    : item.groupType === 'sensory_ear'
+      ? { lockGroup: 'sensory_ear' }
+      : {};
   editBtn.addEventListener('click', () => openEditor(item, editOptions));
   const delBtn = el('button', 'danger', '删除');
   delBtn.addEventListener('click', () => handleDelete(item));
@@ -543,6 +508,34 @@ function renderEndpoint(item) {
   wrap.append(actions);
 
   return wrap;
+}
+
+// 耳朵接口测试：发静音音频验证连通，只测连通不测识别质量
+async function handleEarTest(id, btn, statusEl) {
+  const originalText = btn.textContent;
+  btn.textContent = '测试中…';
+  btn.disabled = true;
+  statusEl.className = 'api-pool-status testing';
+  statusEl.textContent = '测试中';
+  try {
+    const result = await testEarEndpoint(id);
+    if (result.ok) {
+      statusEl.className = 'api-pool-status ok';
+      statusEl.textContent = '正常';
+      showToast(`${result.latencyMs}ms 连接正常`);
+    } else {
+      statusEl.className = 'api-pool-status error';
+      statusEl.textContent = '异常';
+      showToast(result.message || '测试失败');
+    }
+  } catch (err) {
+    statusEl.className = 'api-pool-status error';
+    statusEl.textContent = '异常';
+    showToast(String(err?.message || '测试出错'));
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 async function handleTest(id, btn, statusEl) {
@@ -629,13 +622,18 @@ function openEditor(item, options = {}) {
   providerSelect.value = item?.provider || 'openai';
   providerWrap.append(providerSelect);
 
-  const modelField = createField('主模型', item?.model || '', lockGroup === 'sensory_eye' ? '从下拉选或手输模型名' : '例如 gpt-4o-mini');
+  const modelPlaceholder = lockGroup === 'sensory_eye'
+    ? '从下拉选或手输模型名'
+    : lockGroup === 'sensory_ear'
+      ? '例如 whisper-1 或中转站支持的语音模型名'
+      : '例如 gpt-4o-mini';
+  const modelField = createField('主模型', item?.model || '', modelPlaceholder);
 
-  // 眼睛分组专属：模型输入框同时支持"下拉分组全部模型"和"手动输入覆盖"
+  // 感官分组专属：模型输入框同时支持"下拉分组全部模型"和"手动输入覆盖"
   // 用 datalist 实现：input.list 指向 datalist，options 从该 endpoint 的 models 数组取
-  // paid/free 分组保持现有 chip 选择 UI 不变，只在眼睛分组加 datalist
-  if (lockGroup === 'sensory_eye') {
-    const listId = 'sensory-eye-model-list-' + Math.random().toString(36).slice(2, 8);
+  // paid/free 分组保持现有 chip 选择 UI 不变，只在感官分组加 datalist
+  if (lockGroup === 'sensory_eye' || lockGroup === 'sensory_ear') {
+    const listId = 'sensory-model-list-' + Math.random().toString(36).slice(2, 8);
     modelField.input.setAttribute('list', listId);
     const datalist = el('datalist');
     datalist.id = listId;
