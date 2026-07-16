@@ -3,8 +3,8 @@
 // 把结果整理成「隐形小助理递纸条」格式的中文 hidden note，供聊天上下文使用。
 //
 // 设计原则：
-// - 不写死供应商：默认 fallback 到 Pollinations，但配置项可覆盖；endpointMeta 抽象允许以后替换。
-// - 不写死 Key：pk_ 只在运行时从配置项 keys 或 options.apiKey 取，绝不落进任何 .js 文件。
+// - 不写死供应商：不内置任何 baseURL/model/key/默认格式，完全由眼睛分组配置驱动。
+// - 不写死 Key：apiKey 只在运行时从配置项 keys 或 options.apiKey 取，绝不落进任何 .js 文件。
 // - 失败不抛错：网络/429/5xx/解析失败一律返回降级纸条，emit 事件，不阻塞调用方。
 // - 不编造：提示词约束视觉模型只描述确定内容，不确定标注「不确定」；解析侧保留原文。
 // - 不接聊天：本模块只产出 note 字符串，不写聊天记录、不触发 AI 请求、不改渲染。
@@ -60,7 +60,7 @@ export async function analyzeImages(options = {}) {
   }
 
   try {
-    // 1. 解析眼睛 endpoint 候选列表（配置优先，fallback 默认）
+    // 1. 解析眼睛 endpoint（完全配置驱动，无内置 fallback）
     const endpointMeta = await resolveEyeEndpoint({ groupConfig, model, apiKey: options.apiKey, endpoint: options.endpoint });
 
     // 2. 没有可用 endpoint（未配置且未传 options.endpoint/apiKey）→ 降级纸条
@@ -131,12 +131,11 @@ export async function analyzeImages(options = {}) {
 }
 
 // ═══════════════════════════════════════
-// 【endpoint 解析】配置优先，fallback 默认 Pollinations
+// 【endpoint 解析】完全配置驱动，不内置任何 fallback endpoint
 //   返回 { url, apiKey, model, format, name } 或 null
-//   - 完全配置驱动：无内置 fallback endpoint，不偏向任何供应商
 //   - 优先级：options.endpoint/apiKey（测试/直连）> groupConfig > sensory_eye 分组配置项
 //   - 眼睛分组不存在/disabled/无 enabled endpoint → null（走降级纸条）
-//   - 有 endpoint 但无 apiKey → 尝试匿名请求（兼容 Pollinations 匿名/公益无 Key）
+//   - 有 endpoint 但无 apiKey → 尝试匿名请求（兼容公益无 Key 接口）
 //   - 格式判断：endpoint.requestFormat 优先，否则 baseURL 自动检测
 // ═══════════════════════════════════════
 
@@ -360,7 +359,7 @@ async function callOpenAIVision({ dataURLs, endpointMeta, model, prompt, signal 
 async function callGeminiVision({ dataURLs, endpointMeta, model, prompt, signal }) {
   const usedModel = model || endpointMeta.model;
   // Gemini URL：base + /v1beta/models/{model}:generateContent + ?key=
-  // endpointMeta.url 可能已是 baseURL（fallback）或用户填的含 /v1beta 的地址，统一规整
+  // endpointMeta.url 是用户填的 baseURL 或含 /v1beta 的地址，统一规整
   const url = buildGeminiUrl(endpointMeta.url, usedModel, endpointMeta.apiKey);
 
   const parts = [

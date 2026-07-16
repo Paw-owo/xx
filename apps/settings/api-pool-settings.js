@@ -629,7 +629,31 @@ function openEditor(item, options = {}) {
   providerSelect.value = item?.provider || 'openai';
   providerWrap.append(providerSelect);
 
-  const modelField = createField('主模型', item?.model || '', '例如 gpt-4o-mini');
+  const modelField = createField('主模型', item?.model || '', lockGroup === 'sensory_eye' ? '从下拉选或手输模型名' : '例如 gpt-4o-mini');
+
+  // 眼睛分组专属：模型输入框同时支持"下拉分组全部模型"和"手动输入覆盖"
+  // 用 datalist 实现：input.list 指向 datalist，options 从该 endpoint 的 models 数组取
+  // paid/free 分组保持现有 chip 选择 UI 不变，只在眼睛分组加 datalist
+  if (lockGroup === 'sensory_eye') {
+    const listId = 'sensory-eye-model-list-' + Math.random().toString(36).slice(2, 8);
+    modelField.input.setAttribute('list', listId);
+    const datalist = el('datalist');
+    datalist.id = listId;
+    // 从该 endpoint 的 models 数组填充下拉选项；拉取模型后也会更新
+    const fillDatalist = (models) => {
+      datalist.innerHTML = '';
+      (Array.isArray(models) ? models : []).forEach((m) => {
+        if (!m) return;
+        const opt = el('option');
+        opt.value = m;
+        datalist.append(opt);
+      });
+    };
+    fillDatalist(item?.models);
+    modelField.wrap.append(datalist);
+    // 暴露更新函数给 fetchBtn 回调，拉取成功后刷新下拉
+    modelField.refreshDatalist = fillDatalist;
+  }
 
   // 拉取模型区域：用当前表单的地址+key+类型真实请求模型列表，成功展示可选、失败给提示且不清空手填
   let draftModels = Array.isArray(item?.models) ? item.models : [];
@@ -678,6 +702,10 @@ function openEditor(item, options = {}) {
       }
       draftModels = models;
       renderModelPicker();
+      // 眼睛分组：同步刷新模型下拉选项，让用户能从下拉里选到刚拉到的模型
+      if (typeof modelField.refreshDatalist === 'function') {
+        modelField.refreshDatalist(models);
+      }
       showToast(`拉到 ${models.length} 个模型啦`);
     } catch (err) {
       showToast(formatPoolEditorError(err));
@@ -736,6 +764,13 @@ function openEditor(item, options = {}) {
       source: item?.source || '',
       status: 'active'
     };
+
+    // 眼睛分组专属：存 requestFormat 字段，供 ai-sensory-eye.js 判断请求格式
+    // provider → requestFormat 映射：gemini→'gemini'，其余（openai/anthropic/ollama）→'openai'
+    // paid/free 不加此字段，保持现有行为完全不变
+    if (selectedGroup === 'sensory_eye') {
+      payload.requestFormat = provider === 'gemini' ? 'gemini' : 'openai';
+    }
 
     try {
       if (isEdit) {
