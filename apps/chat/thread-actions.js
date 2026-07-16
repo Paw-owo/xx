@@ -42,6 +42,7 @@ export async function saveMessageOnly(state, text, extra = {}) {
     quoteMessageId: state.quotedMessageId || extra.quoteMessageId || '',
     quoteText: await resolveQuoteText(state, state.quotedMessageId || extra.quoteMessageId || ''),
     imageBase64: extra.imageBase64 || '',
+    images: Array.isArray(extra.images) ? extra.images : [],
     stickerId: extra.stickerId || '',
     stickerImageBase64: extra.stickerImageBase64 || '',
     stickerDescription: extra.stickerDescription || '',
@@ -80,9 +81,11 @@ export async function sendThreadMessage(state, text, extra = {}) {
   }
 
   const content = String(text || '').trim();
-  if (!content) return null;
+  const hasImages = Array.isArray(extra.images) && extra.images.length > 0;
+  // 纯图片无配文也允许发送（type 为 image 时 content 可为空）
+  if (!content && !hasImages) return null;
 
-  const type = normalizeMessageType(extra.type || 'text');
+  const type = normalizeMessageType(extra.type || (hasImages ? 'image' : 'text'));
 
   const message = buildBaseMessage(state, {
     ...extra,
@@ -92,6 +95,7 @@ export async function sendThreadMessage(state, text, extra = {}) {
     quoteMessageId: state.quotedMessageId || extra.quoteMessageId || '',
     quoteText: await resolveQuoteText(state, state.quotedMessageId || extra.quoteMessageId || ''),
     imageBase64: extra.imageBase64 || '',
+    images: hasImages ? extra.images : [],
     stickerId: extra.stickerId || '',
     stickerImageBase64: extra.stickerImageBase64 || '',
     stickerDescription: extra.stickerDescription || '',
@@ -423,12 +427,18 @@ export async function resendThreadMessage(state, messageId) {
   }
 
   const content = String(target.content || '').trim();
-  if (!content) {
+  const images = Array.isArray(target.images) ? target.images.slice() : [];
+  // 图片消息：允许无文字，靠 images 内容发送；文字消息：仍要求有 content
+  if (!content && images.length === 0) {
     showToast('这条没有文字内容');
     return null;
   }
 
-  return sendThreadMessage(state, content, { triggerAI: true });
+  return sendThreadMessage(state, content, {
+    triggerAI: true,
+    type: images.length > 0 ? 'image' : 'text',
+    images
+  });
 }
 
 export async function stopThreadAIReply(state, options = {}) {
@@ -551,6 +561,7 @@ export async function sendImageMessage(state, imageBase64, caption = '', extra =
     type: 'image',
     content: String(caption || '[图片]').trim(),
     imageBase64: image,
+    images: [image],
     quoteMessageId: state.quotedMessageId || extra.quoteMessageId || '',
     quoteText: await resolveQuoteText(state, state.quotedMessageId || extra.quoteMessageId || '')
   });
@@ -561,6 +572,36 @@ export async function sendImageMessage(state, imageBase64, caption = '', extra =
   if (message.role === 'user' && extra.triggerAI !== false) {
     await requestAIReplySafely(state);
   }
+
+  return message;
+}
+
+// 图文同轮发送：把多张图片 + 配文合成一条 type:'image' 消息
+// content 存配文（可为空字符串），images 存压缩后的 base64 数组
+// AI 上下文仍由 thread-ai.js 的 formatMessageForPrompt 返回 [图片] caption 占位符，不追求识图
+export async function sendImageTextMessage(state, { text = '', images = [], quoteMessageId = '' } = {}) {
+  const caption = String(text || '').trim();
+  const imageList = Array.isArray(images)
+    ? images.map((img) => String(img || '').trim()).filter(Boolean)
+    : [];
+
+  if (!caption && imageList.length === 0) {
+    showToast('写点什么或选张图吧');
+    return null;
+  }
+
+  const message = buildBaseMessage(state, {
+    role: normalizeRole('user'),
+    type: 'image',
+    content: caption,
+    imageBase64: imageList[0] || '',
+    images: imageList,
+    quoteMessageId: state.quotedMessageId || quoteMessageId || '',
+    quoteText: await resolveQuoteText(state, state.quotedMessageId || quoteMessageId || '')
+  });
+
+  await saveMessage(state, message);
+  clearQuote(state);
 
   return message;
 }
@@ -734,6 +775,7 @@ function buildBaseMessage(state, data = {}) {
     quoteMessageId: String(data.quoteMessageId || ''),
     quoteText: String(data.quoteText || ''),
     imageBase64: String(data.imageBase64 || ''),
+    images: Array.isArray(data.images) ? data.images.map((img) => String(img || '').trim()).filter(Boolean) : [],
     stickerId: String(data.stickerId || ''),
     stickerImageBase64: String(data.stickerImageBase64 || ''),
     stickerDescription: String(data.stickerDescription || ''),

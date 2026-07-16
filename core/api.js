@@ -15,8 +15,15 @@ const API_POOL_GROUPS_KEY = 'app_api_pool_groups';
 
 const DEFAULT_GROUPS = {
   paid: { id: 'paid', name: '付费组', type: 'paid', enabled: true },
-  free: { id: 'free', name: '免费组', type: 'free', enabled: true }
+  free: { id: 'free', name: '免费组', type: 'free', enabled: true },
+  // 感官分组底座：眼睛可配 endpoint（默认关，避免误调用），耳朵仅占位（禁止配 endpoint）
+  // endpoints/models 仍存 IndexedDB api_pool（按 groupType 关联），分组对象只存元数据，不另建双份数据源
+  sensory_eye: { id: 'sensory_eye', name: '感官-眼睛', type: 'sensory', enabled: false },
+  sensory_ear: { id: 'sensory_ear', name: '感官-耳朵', type: 'sensory', enabled: false }
 };
+
+// 合法 groupType 白名单：normalizePoolItem 据此保留感官分组，不再强制归 paid/free
+const VALID_GROUP_TYPES = ['paid', 'free', 'sensory_eye', 'sensory_ear'];
 
 const MODEL_ALIAS_RULES = [
   { label: 'gpt-4o', keywords: ['gpt-4o', 'gpt4o'] },
@@ -105,7 +112,7 @@ function notifyPoolHint(msg) {
 // 【URL 处理】
 // ═══════════════════════════════════════
 
-function normalizeEndpointUrl(endpoint) {
+export function normalizeEndpointUrl(endpoint) {
   // 去末尾斜杠，并去重末尾 /v1（避免 https://x.com/v1/v1 → /v1/v1/chat/completions）
   return String(endpoint || '').trim().replace(/\/+$/, '').replace(/\/v1\/v1$/i, '/v1');
 }
@@ -128,7 +135,7 @@ function urlHasV1(url) {
   }
 }
 
-function smartChatUrl(base, provider) {
+export function smartChatUrl(base, provider) {
   if (provider === 'anthropic') {
     if (urlHasPathKeyword(base, '/messages')) return base;
     if (urlHasV1(base)) return base + '/messages';
@@ -272,17 +279,23 @@ function findEndpoint(endpointId = '') {
 
 export function getPoolGroups() {
   const saved = getData(API_POOL_GROUPS_KEY) || {};
+  // 旧数据没有感官分组时自动补默认空结构；已有则保留用户配置
   return {
     paid: { ...DEFAULT_GROUPS.paid, ...(saved.paid || {}) },
-    free: { ...DEFAULT_GROUPS.free, ...(saved.free || {}) }
+    free: { ...DEFAULT_GROUPS.free, ...(saved.free || {}) },
+    sensory_eye: { ...DEFAULT_GROUPS.sensory_eye, ...(saved.sensory_eye || {}) },
+    sensory_ear: { ...DEFAULT_GROUPS.sensory_ear, ...(saved.sensory_ear || {}) }
   };
 }
 
 export function setPoolGroups(groups) {
   const current = getPoolGroups();
+  // 保留未传入分组的当前状态，避免 toggle paid/free 时清掉感官配置
   const next = {
     paid: { ...DEFAULT_GROUPS.paid, ...current.paid, ...(groups?.paid || {}) },
-    free: { ...DEFAULT_GROUPS.free, ...current.free, ...(groups?.free || {}) }
+    free: { ...DEFAULT_GROUPS.free, ...current.free, ...(groups?.free || {}) },
+    sensory_eye: { ...DEFAULT_GROUPS.sensory_eye, ...current.sensory_eye, ...(groups?.sensory_eye || {}) },
+    sensory_ear: { ...DEFAULT_GROUPS.sensory_ear, ...current.sensory_ear, ...(groups?.sensory_ear || {}) }
   };
   setData(API_POOL_GROUPS_KEY, next);
 }
@@ -346,21 +359,32 @@ export async function getApiPoolItems() {
 export async function getApiEndpointMetas() {
   const items = await getApiPoolItems();
   const groups = getPoolGroups();
-  return items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    groupType: item.groupType,
-    groupName: item.groupName,
-    provider: item.provider,
-    model: item.model,
-    models: Array.isArray(item.models) ? item.models : [],
-    status: item.status,
-    groupEnabled: groups[item.groupType]?.enabled !== false
-  }));
+  // 感官分组不暴露给角色编辑器的聊天接口选择，避免眼睛/耳朵 endpoint 混入聊天池选择列表
+  return items
+    .filter((item) => item.groupType !== 'sensory_eye' && item.groupType !== 'sensory_ear')
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      groupType: item.groupType,
+      groupName: item.groupName,
+      provider: item.provider,
+      model: item.model,
+      models: Array.isArray(item.models) ? item.models : [],
+      status: item.status,
+      groupEnabled: groups[item.groupType]?.enabled !== false
+    }));
 }
 
 function getPoolLastSuccess() {
-  return getData(API_POOL_LAST_SUCCESS_KEY) || { paid: '', free: '' };
+  // 底座对称：为感官分组预留字段，本轮感官不参与请求，不会写入，仅保证结构完整
+  const saved = getData(API_POOL_LAST_SUCCESS_KEY);
+  return {
+    paid: '',
+    free: '',
+    sensory_eye: '',
+    sensory_ear: '',
+    ...(saved && typeof saved === 'object' ? saved : {})
+  };
 }
 
 function setPoolLastSuccess(groupType, id) {
@@ -374,10 +398,15 @@ function normalizePoolItem(item) {
   const keys = Array.isArray(item?.keys)
     ? item.keys.map((k) => String(k || '').trim()).filter(Boolean)
     : String(item?.apiKey || '').trim() ? [String(item.apiKey).trim()] : [];
+  // 保留感官 groupType（sensory_eye/sensory_ear），不再强制归 paid/free
+  // 非法/缺失 groupType 回退到 paid（兼容旧数据：旧 normalizePoolItem 把非 free 都归 paid）
+  const rawGroupType = String(item?.groupType || '').trim();
+  const groupType = VALID_GROUP_TYPES.includes(rawGroupType) ? rawGroupType : 'paid';
+  const groupName = String(item?.groupName || '').trim() || DEFAULT_GROUPS[groupType]?.name || '未分组';
   return {
     id: item?.id || generateId('pool'),
-    groupType: item?.groupType === 'free' ? 'free' : 'paid',
-    groupName: String(item?.groupName || '').trim() || (item?.groupType === 'free' ? '免费组' : '付费组'),
+    groupType,
+    groupName,
     name: String(item?.name || '').trim() || '未命名接口',
     endpoint,
     provider,
@@ -386,6 +415,9 @@ function normalizePoolItem(item) {
     models: Array.isArray(item?.models) ? [...new Set(item.models.map((m) => String(m || '').trim()).filter(Boolean))] : [],
     source: item?.source || '',
     status: item?.status || 'active',
+    // 保留 requestFormat（眼睛分组保存时写入，供 ai-sensory-eye.js 判断请求格式）
+    // 之前缺失会导致眼睛 endpoint 读取后丢失该字段，只能靠 baseURL 猜格式
+    requestFormat: String(item?.requestFormat || '').trim(),
     lastSuccessAt: item?.lastSuccessAt || '',
     lastErrorAt: item?.lastErrorAt || '',
     lastErrorMessage: item?.lastErrorMessage || '',
@@ -452,19 +484,23 @@ function normalizeModelAlias(modelName) {
 export async function getMergedPoolModels() {
   const items = await getApiPoolItems();
   const map = new Map();
-  items.map(normalizePoolItem).forEach((item) => {
-    const allModels = [...item.models, item.model].filter(Boolean);
-    allModels.forEach((modelName) => {
-      const key = normalizeModelAlias(modelName) || modelName;
-      if (!map.has(key)) {
-        map.set(key, { key, name: modelName, aliases: [modelName], sources: [item.id] });
-        return;
-      }
-      const current = map.get(key);
-      if (!current.aliases.includes(modelName)) current.aliases.push(modelName);
-      if (!current.sources.includes(item.id)) current.sources.push(item.id);
+  // 感官分组的模型不混入聊天模型合并列表，避免眼睛/耳朵模型污染聊天模型选择器
+  items
+    .map(normalizePoolItem)
+    .filter((item) => item.groupType === 'paid' || item.groupType === 'free')
+    .forEach((item) => {
+      const allModels = [...item.models, item.model].filter(Boolean);
+      allModels.forEach((modelName) => {
+        const key = normalizeModelAlias(modelName) || modelName;
+        if (!map.has(key)) {
+          map.set(key, { key, name: modelName, aliases: [modelName], sources: [item.id] });
+          return;
+        }
+        const current = map.get(key);
+        if (!current.aliases.includes(modelName)) current.aliases.push(modelName);
+        if (!current.sources.includes(item.id)) current.sources.push(item.id);
+      });
     });
-  });
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
@@ -621,7 +657,8 @@ async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['p
   if (endpointId) {
     const matched = poolItems.find((item) => String(item.id) === String(endpointId));
     if (matched) {
-      const matchedGroupType = matched.groupType === 'free' ? 'free' : 'paid';
+      // 直接保留 matched.groupType：旧数据只有 paid/free 行为不变，未来感官 endpointId 也能正确命中
+      const matchedGroupType = matched.groupType;
       const hasModelList = Array.isArray(matched.models) && matched.models.length > 0;
       const modelInvalid = effectiveModel
         && hasModelList
@@ -640,13 +677,14 @@ async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['p
   }
 
   // 2. 否则按 groupTypes 走池（默认 paid+free，行为与 callAPI 一致）
+  //    精确匹配 groupType，避免感官 endpoint（sensory_eye/sensory_ear）混入聊天 paid 池
   const groups = getPoolGroups();
   const paidEnabled = groups.paid?.enabled !== false;
   const freeEnabled = groups.free?.enabled !== false;
   const paidWanted = groupTypes.includes('paid') || groupTypes.includes('all');
   const freeWanted = groupTypes.includes('free') || groupTypes.includes('all');
 
-  const paidItems = paidWanted && paidEnabled ? poolItems.filter((item) => item.groupType !== 'free') : [];
+  const paidItems = paidWanted && paidEnabled ? poolItems.filter((item) => item.groupType === 'paid') : [];
   const freeItems = freeWanted && freeEnabled ? poolItems.filter((item) => item.groupType === 'free') : [];
 
   const paidSources = buildPoolCandidateSources(paidItems, { model: effectiveModel, groupTypes: ['paid'] });
@@ -1626,6 +1664,8 @@ export async function testAllPoolEndpoints() {
   const items = await getApiPoolItems();
   const results = [];
   for (const item of items) {
+    // 耳朵分组只解析保存不参与任何请求：跳过 sensory_ear，避免"全部测试"触发耳朵 endpoint
+    if (item.groupType === 'sensory_ear') continue;
     const result = await testPoolEndpoint(item.id);
     results.push({ id: item.id, name: item.name || '未命名', groupType: item.groupType, ...result });
   }

@@ -33,6 +33,8 @@ import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
 
 import { tryLocalOrSiliconFlowReply } from './thread-ai-local.js';
+import { analyzeImages } from './ai-sensory-eye.js';
+import { getPoolGroups } from '../../core/api.js';
 
 // thinking 纯函数共享模块：消除 sanitizer 漂移，测试直接测真实生产代码
 import {
@@ -1392,7 +1394,7 @@ async function buildPrompt({
   const userProfile = loadUserProfileForCharacter(activeCharacter);
   const userName = getUserDisplayName(userProfile);
   const currentTime = formatCurrentTime();
-  const context = buildMessageContext(messages, mode, userName);
+  const context = await buildMessageContext(messages, mode, userName);
   const chatConfig = getChatConfig(activeCharacter?.id || '');
 
   const memoryPrompt = await buildCoreMemoryPrompt(activeCharacter?.id || '', {
@@ -1745,31 +1747,95 @@ function buildProactivePrompt(reason, messages, userName, character) {
   ].filter(Boolean).join('\n');
 }
 
-function buildMessageContext(messages, mode, userName) {
-  return normalizeList(messages)
+async function buildMessageContext(messages, mode, userName) {
+  const list = normalizeList(messages)
     .slice(-AI_CONTEXT_LIMIT)
     .filter((message) => !message.isPending)
-    .filter((message) => message.versionStatus !== 'archived')
-    .map((message) => {
-      if (message.role === 'assistant') {
-        return {
-          role: 'assistant',
-          content: formatMessageForPrompt(message, mode, userName)
-        };
-      }
+    .filter((message) => message.versionStatus !== 'archived');
 
-      if (message.role === 'system') {
-        return {
-          role: 'system',
-          content: String(message.content || '')
-        };
-      }
+  // 读一次眼睛分组配置，供本批图片消息共用（避免每条消息各读一次）
+  let eyeGroup = null;
+  try {
+    const groups = getPoolGroups();
+    eyeGroup = groups?.sensory_eye || null;
+  } catch (_) { eyeGroup = null; }
 
-      return {
-        role: 'user',
+  const out = [];
+  for (const message of list) {
+    if (message.role === 'assistant') {
+      out.push({
+        role: 'assistant',
         content: formatMessageForPrompt(message, mode, userName)
-      };
+      });
+      continue;
+    }
+
+    if (message.role === 'system') {
+      out.push({
+        role: 'system',
+        content: String(message.content || '')
+      });
+      continue;
+    }
+
+    // 图片消息：走眼睛识图，把图片替换成"纸条 + 配文"的纯文本上下文
+    // 用户侧仍正常显示原图（渲染由 thread-render.js 负责，这里只改交给主模型的内容）
+    if (message.type === 'image') {
+      out.push({
+        role: 'user',
+        content: await formatImageMessageForPrompt(message, mode, userName, eyeGroup)
+      });
+      continue;
+    }
+
+    out.push({
+      role: 'user',
+      content: formatMessageForPrompt(message, mode, userName)
     });
+  }
+  return out;
+}
+
+// 图片消息 → 纸条 + 配文 的纯文本包装，交给主模型
+//   兼容旧数据：只有 imageBase64 单图没有 images 数组时，当成 [imageBase64] 处理
+//   识图失败/未配置 → analyzeImages 返回降级纸条，照常包装，不抛错不阻塞
+async function formatImageMessageForPrompt(message, mode, userName, eyeGroup) {
+  const prefix = mode === 'group'
+    ? `${message.role === 'user' ? userName : message.characterName || '我'}：`
+    : '';
+  const caption = String(message.content || '').trim();
+  const imageList = Array.isArray(message.images) && message.images.length > 0
+    ? message.images
+    : (message.imageBase64 ? [message.imageBase64] : []);
+
+  let note = '';
+  if (imageList.length > 0) {
+    try {
+      const result = await analyzeImages({
+        images: imageList,
+        groupConfig: eyeGroup,
+        model: eyeGroup?.model || ''
+      });
+      note = String(result?.note || '').trim();
+    } catch (err) {
+      // analyzeImages 设计上永不抛错；能走到这里说明模块加载/import 等未预期异常。
+      // 必须给降级纸条：否则主模型只看到配文，完全不知道用户发了图，
+      // 违反"识图失败时主模型也必须收到明确降级纸条，不能静默变成普通 [图片]"。
+      // 文案与 ai-sensory-eye.js 的 buildAllFailedNote 保持一致，不暴露技术细节。
+      const n = imageList.length;
+      note = n <= 1
+        ? '对方发来 1 张图片，但小眼睛暂时没看清，稍后再试试。'
+        : `对方发来 ${n} 张图片，但小眼睛暂时没看清，稍后再试试。`;
+    }
+  } else {
+    // 兜底：没有真实图片数据（images 数组和 imageBase64 都空），仍要告诉主模型这是图片消息
+    note = '对方发来图片，但小眼睛暂时没看清，稍后再试试。';
+  }
+
+  const captionLine = caption ? `配文：${caption}` : '（无配文）';
+  // note 已是结构化中文纸条（含"对方发来 N 张图片"+ 逐张参考 + 关联 + 可信度）
+  // 这里只做包装，让主模型知道这是图片消息 + 配文 + 识图参考
+  return `${prefix}${captionLine}\n${note}`.trim();
 }
 
 function formatMessageForPrompt(message, mode, userName = '你') {
