@@ -10,10 +10,10 @@
 // - 不接聊天：本模块只产出 note 字符串，不写聊天记录、不触发 AI 请求、不改渲染。
 //
 // imports:
-//   from '../../core/api.js': getPoolGroups, getApiPoolItems
+//   from '../../core/api.js': getPoolGroups, getApiPoolItems, normalizeEndpointUrl, smartChatUrl, buildHeaders
 //   from '../../core/app-bus.js': emit
 
-import { getPoolGroups, getApiPoolItems } from '../../core/api.js';
+import { getPoolGroups, getApiPoolItems, normalizeEndpointUrl, smartChatUrl, buildHeaders } from '../../core/api.js';
 import { emit } from '../../core/app-bus.js';
 
 // ═══════════════════════════════════════
@@ -29,6 +29,90 @@ const DEFAULT_EMPTY_EYE_GROUP = { id: 'sensory_eye', name: '感官-眼睛', type
 // 单张压缩后体积上限（base64 字符串长度近似），避免请求体过大
 const MAX_COMPRESSED_BASE64_LEN = 1024 * 1024; // ≈1MB
 const MIN_QUALITY = 0.3;
+
+// ═══════════════════════════════════════
+// 【受控脱敏诊断】仅当 window.__sensoryEyeDebug === true 时输出，默认关闭
+//   浏览器控制台手动开启：window.__sensoryEyeDebug = true
+//   关闭：window.__sensoryEyeDebug = false 或 delete window.__sensoryEyeDebug
+//   严禁打印：完整 Key、完整 base64、原始图片内容、完整私人响应体
+//   只打印：脱敏 URL（query key 已替换为 <masked>）、HTTP 状态码、content-type、
+//           脱敏错误码与 message 片段、model、requestFormat、图片张数与每张 bytes+MIME
+// ═══════════════════════════════════════
+
+function sensoryEyeDebug(label, payload) {
+  try {
+    if (typeof window === 'undefined' || window.__sensoryEyeDebug !== true) return;
+    // 始终只打印脱敏后的对象，不打印原始请求/响应
+    console.log(`[sensory-eye] ${label}`, payload);
+  } catch (_) {
+    // 诊断自身不能影响主流程
+  }
+}
+
+// 脱敏 URL：去掉 query 中的 key（保留 path 和其他 query）
+function maskUrl(rawUrl) {
+  try {
+    const u = new URL(String(rawUrl || ''));
+    if (u.searchParams.has('key')) u.searchParams.set('key', '<masked>');
+    return u.toString();
+  } catch {
+    return String(rawUrl || '').replace(/([?&])key=[^&]*/gi, '$1key=<masked>');
+  }
+}
+
+// 脱敏错误：保留 status 和 message 片段（不含 key）
+function maskError(err) {
+  if (!err) return null;
+  return {
+    name: err.name || '',
+    status: err.status || 0,
+    message: String(err.message || '').slice(0, 200),
+    bodyText: String(err.bodyText || '').slice(0, 200)
+  };
+}
+
+// 脱敏图片信息：每张图返回 { mime, bytes }（不含 base64）
+function describeImages(dataURLs) {
+  return (dataURLs || []).map((url) => {
+    const s = String(url || '');
+    const match = s.match(/^data:([^;]+);base64,(.*)$/);
+    return {
+      mime: match ? match[1] : 'image/jpeg',
+      bytes: match ? match[2].length : 0
+    };
+  });
+}
+
+// 脱敏响应结构：只打印形状和关键字段，不打印正文（避免泄漏私人识图内容）
+function summarizeResponse(data) {
+  if (data === null || data === undefined) return { type: 'null' };
+  if (typeof data !== 'object') return { type: typeof data, len: String(data).length };
+  if (data.error && typeof data.error === 'object') {
+    return {
+      type: 'error',
+      error: {
+        message: String(data.error.message || '').slice(0, 200),
+        code: data.error.code || data.error.type || ''
+      }
+    };
+  }
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  if (!choices.length) {
+    return { type: 'no_choices', topKeys: Object.keys(data).slice(0, 10) };
+  }
+  const msg = choices[0]?.message || choices[0]?.delta || {};
+  const content = msg.content;
+  let contentShape = 'missing';
+  if (typeof content === 'string') contentShape = `string(${content.length})`;
+  else if (Array.isArray(content)) contentShape = `array(${content.length})`;
+  return {
+    type: 'ok',
+    choicesCount: choices.length,
+    hasReasoningContent: Boolean(msg.reasoning_content),
+    contentShape,
+    finishReason: choices[0]?.finish_reason || ''
+  };
+}
 
 // ═══════════════════════════════════════
 // 【主入口】analyzeImages
@@ -65,11 +149,27 @@ export async function analyzeImages(options = {}) {
 
     // 2. 没有可用 endpoint（未配置且未传 options.endpoint/apiKey）→ 降级纸条
     if (!endpointMeta) {
+      sensoryEyeDebug('resolve_endpoint_failed', {
+        reason: 'no_endpoint_or_group_disabled',
+        hasExplicitEndpoint: Boolean(options.endpoint),
+        hasExplicitApiKey: Boolean(options.apiKey)
+      });
       return {
         ok: false,
         note: buildUnconfiguredNote(count)
       };
     }
+
+    // 诊断：记录实际加载的脱敏 endpoint 元数据（不含 apiKey 原文，只记存在+长度）
+    sensoryEyeDebug('resolve_endpoint_ok', {
+      url: maskUrl(endpointMeta.url),
+      model: endpointMeta.model || '(empty)',
+      provider: endpointMeta.provider || 'openai',
+      requestFormat: endpointMeta.format || 'openai',
+      hasApiKey: Boolean(endpointMeta.apiKey),
+      apiKeyLen: endpointMeta.apiKey ? endpointMeta.apiKey.length : 0,
+      name: endpointMeta.name || ''
+    });
 
     // 3. 压缩所有图片（失败的单张标记跳过，不阻塞其他张）
     const compressed = await compressAll(images, maxSize, quality);
@@ -143,13 +243,14 @@ async function resolveEyeEndpoint({ groupConfig, model, apiKey, endpoint }) {
   // 路径 A：调用方直接传了完整 endpoint（测试页或未来直连场景）
   // apiKey 可选：有则带认证，无则匿名请求
   if (endpoint) {
-    const fullUrl = buildFullUrl(endpoint);
-    if (!fullUrl) return null;
+    const meta = buildOpenAIRequestUrl(endpoint);
+    if (!meta.url) return null;
     return {
-      url: fullUrl,
+      url: meta.url,
       apiKey: apiKey || '',
       model: model || '',
-      format: resolveFormat({ url: fullUrl }),
+      provider: 'openai',
+      format: resolveFormat({ url: meta.url }),
       name: '自定义眼睛接口'
     };
   }
@@ -190,36 +291,38 @@ async function resolveEyeEndpoint({ groupConfig, model, apiKey, endpoint }) {
   const first = sorted[0];
   if (!first.endpoint) return null;
 
-  const fullUrl = buildFullUrl(first.endpoint);
+  const meta = buildOpenAIRequestUrl(first.endpoint);
+  if (!meta.url) return null;
   // apiKey 可选：配置项 keys[0] 优先，否则匿名（兼容公益无 Key 接口）
   const key = (first.keys && first.keys[0]) || '';
   return {
-    url: fullUrl,
+    url: meta.url,
     apiKey: key,
     model: model || first.model || '',
-    format: resolveFormat({ url: fullUrl, requestFormat: first.requestFormat }),
+    provider: first.provider || 'openai',
+    format: resolveFormat({ url: meta.url, requestFormat: first.requestFormat }),
     name: first.name || '眼睛接口'
   };
+}
+
+// 用 api.js 的统一 URL 规范化构造 OpenAI-compatible 请求 URL
+// 复用 smartChatUrl + normalizeEndpointUrl，与"测试接口"走完全相同的 URL 逻辑，
+// 避免之前独立 buildFullUrl 与测试接口 URL 不一致（如 /v1/v1 去重、边界判断）
+function buildOpenAIRequestUrl(rawEndpoint) {
+  const base = normalizeEndpointUrl(rawEndpoint);
+  if (!base) return { url: '' };
+  return { url: smartChatUrl(base, 'openai') };
 }
 
 // 格式判断优先级：
 //   1. endpoint.requestFormat 字段（用户显式指定 'openai' | 'gemini'）
 //   2. baseURL 自动检测：含 generativelanguage.googleapis.com → 'gemini'
 //   3. 其余 → 'openai'（OpenAI-compatible，含 Pollinations / 中转站 / OpenAI 官方）
+//   注意：模型名（gemini/grok/claude）不决定协议，中转站即使转发这些模型也通常仍是 OpenAI-compatible
 function resolveFormat({ url, requestFormat }) {
   const explicit = String(requestFormat || '').trim().toLowerCase();
   if (explicit === 'gemini' || explicit === 'openai') return explicit;
   return /generativelanguage\.googleapis\.com/i.test(String(url || '')) ? 'gemini' : 'openai';
-}
-
-// 把用户填的 endpoint（可能带 /v1、可能不带、可能已是完整 /v1/chat/completions）拼成完整请求 URL
-// 规则：已含 /chat/completions 直接用；含 /v1 追加 /chat/completions；否则追加 /v1/chat/completions
-function buildFullUrl(endpoint) {
-  const base = String(endpoint || '').trim().replace(/\/+$/, '');
-  if (!base) return '';
-  if (/\/chat\/completions$/i.test(base)) return base;
-  if (/\/v1(\/|$)/i.test(base)) return base + '/chat/completions';
-  return base + '/v1/chat/completions';
 }
 
 // ═══════════════════════════════════════
@@ -309,6 +412,8 @@ export async function callVisionEndpoint({ dataURLs, endpointMeta, model, prompt
 }
 
 // OpenAI-compatible 请求：POST {url}，body {model, messages:[{role:'user', content:[{text},{image_url}]}]}
+//   headers 复用 api.js 的 buildHeaders，与"测试接口"走完全相同的鉴权构造，
+//   避免之前只支持 Bearer 导致 anthropic 风格中转站鉴权失败
 async function callOpenAIVision({ dataURLs, endpointMeta, model, prompt, signal }) {
   const content = [
     { type: 'text', text: prompt },
@@ -322,17 +427,42 @@ async function callOpenAIVision({ dataURLs, endpointMeta, model, prompt, signal 
     temperature: 0.2 // 低温度，减少视觉模型发散编造
   };
 
-  const headers = { 'Content-Type': 'application/json' };
-  if (endpointMeta.apiKey) {
-    headers['Authorization'] = `Bearer ${endpointMeta.apiKey}`;
+  // 复用 api.js 的 buildHeaders：openai→Bearer，anthropic→x-api-key，ollama→无鉴权
+  const provider = endpointMeta.provider || 'openai';
+  const headers = buildHeaders(endpointMeta.apiKey, provider);
+
+  sensoryEyeDebug('openai_request', {
+    url: maskUrl(endpointMeta.url),
+    model: body.model,
+    provider,
+    requestFormat: endpointMeta.format || 'openai',
+    promptLen: String(prompt || '').length,
+    imageCount: dataURLs.length,
+    images: describeImages(dataURLs),
+    hasAuth: Boolean(endpointMeta.apiKey)
+  });
+
+  let res;
+  try {
+    res = await fetch(endpointMeta.url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal,
+      cache: 'no-store'
+    });
+  } catch (networkErr) {
+    sensoryEyeDebug('openai_network_error', { error: maskError(networkErr) });
+    // AbortError（超时）原样上抛，保留 describeError 的 timeout 识别和重试逻辑
+    if (networkErr?.name === 'AbortError') throw networkErr;
+    const err = new Error(`vision_network:${networkErr?.name || 'fetch_failed'}`);
+    err.cause = networkErr;
+    throw err;
   }
 
-  const res = await fetch(endpointMeta.url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal,
-    cache: 'no-store'
+  sensoryEyeDebug('openai_response_status', {
+    status: res.status,
+    contentType: res.headers.get('content-type') || ''
   });
 
   if (!res.ok) {
@@ -340,14 +470,36 @@ async function callOpenAIVision({ dataURLs, endpointMeta, model, prompt, signal 
     const err = new Error(`vision_http_${res.status}`);
     err.status = res.status;
     err.bodyText = text?.slice(0, 300); // 仅留前 300 字便于排查，不含 key
+    sensoryEyeDebug('openai_http_error', {
+      status: res.status,
+      bodyText: err.bodyText,
+      contentType: res.headers.get('content-type') || ''
+    });
     throw err;
   }
 
-  const data = await res.json().catch(() => null);
+  const rawText = await res.text().catch(() => '');
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch (parseErr) {
+    // 非 JSON 响应：保留明确原因，不能静默吞掉成 empty_response
+    sensoryEyeDebug('openai_non_json', {
+      rawLen: rawText.length,
+      rawHead: rawText.slice(0, 200)
+    });
+    const err = new Error('vision_non_json_response');
+    err.bodyText = rawText.slice(0, 300);
+    throw err;
+  }
+
+  sensoryEyeDebug('openai_response_shape', { shape: summarizeResponse(data) });
+
   const text = extractOpenAIText(data);
   if (!text) {
     const err = new Error('vision_empty_response');
-    err.raw = data;
+    err.shape = summarizeResponse(data);
+    sensoryEyeDebug('openai_empty_text', { shape: err.shape });
     throw err;
   }
   return text;
@@ -377,12 +529,38 @@ async function callGeminiVision({ dataURLs, endpointMeta, model, prompt, signal 
 
   const headers = { 'Content-Type': 'application/json' };
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-    signal,
-    cache: 'no-store'
+  sensoryEyeDebug('gemini_request', {
+    url: maskUrl(url),
+    model: usedModel,
+    provider: endpointMeta.provider || 'gemini',
+    requestFormat: 'gemini',
+    promptLen: String(prompt || '').length,
+    imageCount: dataURLs.length,
+    images: describeImages(dataURLs),
+    hasAuth: Boolean(endpointMeta.apiKey)
+  });
+
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal,
+      cache: 'no-store'
+    });
+  } catch (networkErr) {
+    sensoryEyeDebug('gemini_network_error', { error: maskError(networkErr) });
+    // AbortError（超时）原样上抛，保留 describeError 的 timeout 识别和重试逻辑
+    if (networkErr?.name === 'AbortError') throw networkErr;
+    const err = new Error(`vision_network:${networkErr?.name || 'fetch_failed'}`);
+    err.cause = networkErr;
+    throw err;
+  }
+
+  sensoryEyeDebug('gemini_response_status', {
+    status: res.status,
+    contentType: res.headers.get('content-type') || ''
   });
 
   if (!res.ok) {
@@ -390,14 +568,35 @@ async function callGeminiVision({ dataURLs, endpointMeta, model, prompt, signal 
     const err = new Error(`vision_http_${res.status}`);
     err.status = res.status;
     err.bodyText = text?.slice(0, 300);
+    sensoryEyeDebug('gemini_http_error', {
+      status: res.status,
+      bodyText: err.bodyText,
+      contentType: res.headers.get('content-type') || ''
+    });
     throw err;
   }
 
-  const data = await res.json().catch(() => null);
+  const rawText = await res.text().catch(() => '');
+  let data = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch (parseErr) {
+    sensoryEyeDebug('gemini_non_json', {
+      rawLen: rawText.length,
+      rawHead: rawText.slice(0, 200)
+    });
+    const err = new Error('vision_non_json_response');
+    err.bodyText = rawText.slice(0, 300);
+    throw err;
+  }
+
+  sensoryEyeDebug('gemini_response_shape', { shape: summarizeResponse(data) });
+
   const text = extractGeminiText(data);
   if (!text) {
     const err = new Error('vision_empty_response');
-    err.raw = data;
+    err.shape = summarizeResponse(data);
+    sensoryEyeDebug('gemini_empty_text', { shape: err.shape });
     throw err;
   }
   return text;
@@ -432,15 +631,52 @@ function parseDataURL(dataURL) {
 
 function extractOpenAIText(data) {
   if (!data) return '';
-  // OpenAI 兼容：choices[0].message.content
+  // 显式 error 响应：不当作"empty"，让上层 message 区分；这里仍返回空，由调用方 shape 报错
+  if (data.error && typeof data.error === 'object') return '';
+
   const choices = Array.isArray(data.choices) ? data.choices : [];
-  const msg = choices[0]?.message || choices[0]?.delta;
-  const content = msg?.content;
-  if (typeof content === 'string') return content.trim();
-  // 部分实现返回数组
+  const first = choices[0] || null;
+  const msg = first?.message || first?.delta || {};
+
+  // 1. content 字符串（OpenAI 标准）
+  const content = msg.content;
+  if (typeof content === 'string' && content.trim()) return content.trim();
+
+  // 2. content 数组：拼 text + image_url 之外的 text 字段
   if (Array.isArray(content)) {
-    return content.map((c) => (typeof c === 'string' ? c : c?.text || '')).join('').trim();
+    const joined = content
+      .map((c) => {
+        if (typeof c === 'string') return c;
+        if (!c || typeof c !== 'object') return '';
+        // 中转站可能用 {type:'text', text} 或 {type:'output_text', output_text} 或直接 {text}
+        return c.text || c.output_text || c.content || '';
+      })
+      .join('')
+      .trim();
+    if (joined) return joined;
   }
+
+  // 3. reasoning_content：DeepSeek-R1 / 部分中转站把"思考过程"放这里，content 留空
+  //    作为 fallback 取用，总比给空纸条强（上层 prompt 已约束客观描述）
+  const reasoning = msg.reasoning_content;
+  if (typeof reasoning === 'string' && reasoning.trim()) return reasoning.trim();
+  if (Array.isArray(reasoning)) {
+    const joined = reasoning
+      .map((c) => (typeof c === 'string' ? c : (c && typeof c === 'object' ? (c.text || c.content || '') : '')))
+      .join('')
+      .trim();
+    if (joined) return joined;
+  }
+
+  // 4. 旧版 completions API：choices[0].text
+  if (typeof first?.text === 'string' && first.text.trim()) return first.text.trim();
+
+  // 5. 非标准包装：data.output.text / data.message.content
+  const outText = data?.output?.text;
+  if (typeof outText === 'string' && outText.trim()) return outText.trim();
+  const msgContent = data?.message?.content;
+  if (typeof msgContent === 'string' && msgContent.trim()) return msgContent.trim();
+
   return '';
 }
 

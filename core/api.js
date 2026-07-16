@@ -112,7 +112,7 @@ function notifyPoolHint(msg) {
 // 【URL 处理】
 // ═══════════════════════════════════════
 
-function normalizeEndpointUrl(endpoint) {
+export function normalizeEndpointUrl(endpoint) {
   // 去末尾斜杠，并去重末尾 /v1（避免 https://x.com/v1/v1 → /v1/v1/chat/completions）
   return String(endpoint || '').trim().replace(/\/+$/, '').replace(/\/v1\/v1$/i, '/v1');
 }
@@ -135,7 +135,7 @@ function urlHasV1(url) {
   }
 }
 
-function smartChatUrl(base, provider) {
+export function smartChatUrl(base, provider) {
   if (provider === 'anthropic') {
     if (urlHasPathKeyword(base, '/messages')) return base;
     if (urlHasV1(base)) return base + '/messages';
@@ -415,6 +415,9 @@ function normalizePoolItem(item) {
     models: Array.isArray(item?.models) ? [...new Set(item.models.map((m) => String(m || '').trim()).filter(Boolean))] : [],
     source: item?.source || '',
     status: item?.status || 'active',
+    // 保留 requestFormat（眼睛分组保存时写入，供 ai-sensory-eye.js 判断请求格式）
+    // 之前缺失会导致眼睛 endpoint 读取后丢失该字段，只能靠 baseURL 猜格式
+    requestFormat: String(item?.requestFormat || '').trim(),
     lastSuccessAt: item?.lastSuccessAt || '',
     lastErrorAt: item?.lastErrorAt || '',
     lastErrorMessage: item?.lastErrorMessage || '',
