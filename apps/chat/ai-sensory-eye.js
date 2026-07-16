@@ -17,21 +17,14 @@ import { getPoolGroups, getApiPoolItems } from '../../core/api.js';
 import { emit } from '../../core/app-bus.js';
 
 // ═══════════════════════════════════════
-// 【常量】默认视觉 endpoint（仅作 fallback，可被配置或 options 覆盖）
-//   不含 Key；Key 始终在运行时从配置项 keys 或 options.apiKey 取
+// 【常量】本模块中立：不写死任何供应商、baseURL、model、Key、默认请求格式。
+//   眼睛分组完全由用户在设置-API配置-感官-眼睛里配置驱动；
+//   空配置或无可用 endpoint 时返回降级纸条，不发起任何请求。
 // ═══════════════════════════════════════
 
-const DEFAULT_VISION_ENDPOINT = {
-  // 默认 fallback：Google AI Studio Gemini native（免费额度大，中文视觉较好）
-  // 用户可在 sensory_eye 分组配自己的 endpoint 覆盖；format 由 baseURL 自动判断
-  baseURL: 'https://generativelanguage.googleapis.com',
-  path: '/v1beta/models',
-  // Gemini 视觉模型；可被 options.model 或配置项 model 覆盖
-  model: 'gemini-2.5-flash-lite-preview-06-17',
-  provider: 'gemini',
-  // format 不写死：由 buildEndpointMeta 根据 baseURL 自动判断（gemini / openai）
-  format: 'gemini'
-};
+// 眼睛分组默认空结构（仅占位，不含任何 endpoint/model/key）
+// getPoolGroups 已自动补默认空结构，这里只作文案兜底用
+const DEFAULT_EMPTY_EYE_GROUP = { id: 'sensory_eye', name: '感官-眼睛', type: 'sensory', enabled: false };
 
 // 单张压缩后体积上限（base64 字符串长度近似），避免请求体过大
 const MAX_COMPRESSED_BASE64_LEN = 1024 * 1024; // ≈1MB
@@ -139,21 +132,25 @@ export async function analyzeImages(options = {}) {
 
 // ═══════════════════════════════════════
 // 【endpoint 解析】配置优先，fallback 默认 Pollinations
-//   返回 { url, apiKey, model, provider, name } 或 null
-//   - 优先级：options.endpoint/apiKey > groupConfig > sensory_eye 分组配置项 > 默认 endpoint（需 options.apiKey）
-//   - 默认 endpoint 无 Key 不可用（Pollinations 现需 pk_），返回 null 走未配置纸条
+//   返回 { url, apiKey, model, format, name } 或 null
+//   - 完全配置驱动：无内置 fallback endpoint，不偏向任何供应商
+//   - 优先级：options.endpoint/apiKey（测试/直连）> groupConfig > sensory_eye 分组配置项
+//   - 眼睛分组不存在/disabled/无 enabled endpoint → null（走降级纸条）
+//   - 有 endpoint 但无 apiKey → 尝试匿名请求（兼容 Pollinations 匿名/公益无 Key）
+//   - 格式判断：endpoint.requestFormat 优先，否则 baseURL 自动检测
 // ═══════════════════════════════════════
 
 async function resolveEyeEndpoint({ groupConfig, model, apiKey, endpoint }) {
-  // 路径 A：调用方直接传了完整 endpoint + apiKey（测试页或未来直连场景）
-  if (endpoint && apiKey) {
+  // 路径 A：调用方直接传了完整 endpoint（测试页或未来直连场景）
+  // apiKey 可选：有则带认证，无则匿名请求
+  if (endpoint) {
     const fullUrl = buildFullUrl(endpoint);
+    if (!fullUrl) return null;
     return {
       url: fullUrl,
-      apiKey,
-      model: model || DEFAULT_VISION_ENDPOINT.model,
-      provider: DEFAULT_VISION_ENDPOINT.provider,
-      format: detectEndpointFormat(fullUrl),
+      apiKey: apiKey || '',
+      model: model || '',
+      format: resolveFormat({ url: fullUrl }),
       name: '自定义眼睛接口'
     };
   }
@@ -170,66 +167,49 @@ async function resolveEyeEndpoint({ groupConfig, model, apiKey, endpoint }) {
     }
   }
 
-  const eyeGroup = groups?.sensory_eye;
-  // 分组显式关闭时跳过配置项，遵循"分组 disabled → 不参与"约定
-  // 若调用方传了 apiKey，仍允许走默认 endpoint，方便测试
-  const groupDisabled = !!(eyeGroup && eyeGroup.enabled === false);
-  if (groupDisabled && !apiKey) return null;
+  const eyeGroup = groups?.sensory_eye || DEFAULT_EMPTY_EYE_GROUP;
+  // 分组显式关闭 → 不参与
+  if (eyeGroup.enabled === false) return null;
 
   // 从 api_pool 取 sensory_eye 的 endpoint 项，按 lastSuccessAt 排序（最近成功优先）
-  // 分组关闭时跳过配置项，直接走默认 fallback
   let poolItems = [];
-  if (!groupDisabled) {
-    try {
-      const all = await getApiPoolItems();
-      poolItems = all.filter((item) => item.groupType === 'sensory_eye' && item.status !== 'disabled');
-    } catch (_) {
-      poolItems = [];
-    }
+  try {
+    const all = await getApiPoolItems();
+    poolItems = all.filter((item) => item.groupType === 'sensory_eye' && item.status !== 'disabled');
+  } catch (_) {
+    poolItems = [];
   }
 
-  if (poolItems.length) {
-    // 按 lastSuccessAt 降序，最近成功的排第一；都没有成功记录则按原顺序
-    const sorted = [...poolItems].sort((a, b) => {
-      const ta = a.lastSuccessAt ? Date.parse(a.lastSuccessAt) : 0;
-      const tb = b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : 0;
-      return (tb || 0) - (ta || 0);
-    });
-    const first = sorted[0];
-    const key = (first.keys && first.keys[0]) || apiKey || '';
-    if (first.endpoint && key) {
-      const fullUrl = buildFullUrl(first.endpoint);
-      return {
-        url: fullUrl,
-        apiKey: key,
-        model: model || first.model || DEFAULT_VISION_ENDPOINT.model,
-        provider: first.provider || DEFAULT_VISION_ENDPOINT.provider,
-        format: detectEndpointFormat(fullUrl),
-        name: first.name || '眼睛接口'
-      };
-    }
-  }
+  if (!poolItems.length) return null; // 无可用 endpoint → 降级纸条
 
-  // 路径 C：fallback 到默认 Gemini native endpoint，但必须有 apiKey
-  if (apiKey) {
-    return {
-      url: DEFAULT_VISION_ENDPOINT.baseURL + DEFAULT_VISION_ENDPOINT.path,
-      apiKey,
-      model: model || DEFAULT_VISION_ENDPOINT.model,
-      provider: DEFAULT_VISION_ENDPOINT.provider,
-      format: DEFAULT_VISION_ENDPOINT.format,
-      name: 'Gemini 眼睛接口'
-    };
-  }
+  // 按 lastSuccessAt 降序，最近成功的排第一；都没有成功记录则按原顺序
+  const sorted = [...poolItems].sort((a, b) => {
+    const ta = a.lastSuccessAt ? Date.parse(a.lastSuccessAt) : 0;
+    const tb = b.lastSuccessAt ? Date.parse(b.lastSuccessAt) : 0;
+    return (tb || 0) - (ta || 0);
+  });
+  const first = sorted[0];
+  if (!first.endpoint) return null;
 
-  // 既无配置项，又无 options.apiKey → 未配置
-  return null;
+  const fullUrl = buildFullUrl(first.endpoint);
+  // apiKey 可选：配置项 keys[0] 优先，否则匿名（兼容公益无 Key 接口）
+  const key = (first.keys && first.keys[0]) || '';
+  return {
+    url: fullUrl,
+    apiKey: key,
+    model: model || first.model || '',
+    format: resolveFormat({ url: fullUrl, requestFormat: first.requestFormat }),
+    name: first.name || '眼睛接口'
+  };
 }
 
-// 根据 baseURL 自动判断请求格式：
-// - 含 generativelanguage.googleapis.com → 'gemini'（native 格式）
-// - 否则 → 'openai'（OpenAI-compatible，含 Pollinations / 中转站 / OpenAI 官方）
-function detectEndpointFormat(url) {
+// 格式判断优先级：
+//   1. endpoint.requestFormat 字段（用户显式指定 'openai' | 'gemini'）
+//   2. baseURL 自动检测：含 generativelanguage.googleapis.com → 'gemini'
+//   3. 其余 → 'openai'（OpenAI-compatible，含 Pollinations / 中转站 / OpenAI 官方）
+function resolveFormat({ url, requestFormat }) {
+  const explicit = String(requestFormat || '').trim().toLowerCase();
+  if (explicit === 'gemini' || explicit === 'openai') return explicit;
   return /generativelanguage\.googleapis\.com/i.test(String(url || '')) ? 'gemini' : 'openai';
 }
 
@@ -322,7 +302,7 @@ async function compressAll(images, maxSize, quality) {
 // ═══════════════════════════════════════
 
 export async function callVisionEndpoint({ dataURLs, endpointMeta, model, prompt, signal }) {
-  const format = endpointMeta.format || detectEndpointFormat(endpointMeta.url);
+  const format = endpointMeta.format || resolveFormat({ url: endpointMeta.url });
   if (format === 'gemini') {
     return callGeminiVision({ dataURLs, endpointMeta, model, prompt, signal });
   }
@@ -705,8 +685,9 @@ function buildAllFailedNote(count) {
 }
 
 function buildUnconfiguredNote(count) {
-  if (count <= 1) return '对方发来图片，但小眼睛还没配置，没能看清。';
-  return `对方发来 ${count} 张图片，但小眼睛还没配置，没能看清。`;
+  const hint = '你可以先去设置-API配置-感官-眼睛里加一个识图接口哦。';
+  if (count <= 1) return `对方发来图片，但小眼睛现在没配置好，没能看清。${hint}`;
+  return `对方发来 ${count} 张图片，但小眼睛现在没配置好，没能看清。${hint}`;
 }
 
 // ═══════════════════════════════════════

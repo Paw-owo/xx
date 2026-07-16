@@ -469,7 +469,7 @@ function renderGroup(groupType) {
       ? '还没有付费接口，测好后存进来吧'
       : groupType === 'free'
         ? '还没有免费接口，加一个试试'
-        : '小眼睛还空着，加一个能看图的接口吧';
+        : '小眼睛需要什么：一个支持图片识别的接口。可以填 Gemini、Pollinations、OpenAI-compatible 中转站或任何公益接口。Model 名按你接口的实际模型填写。';
     wrap.append(el('div', 'api-pool-empty', emptyText));
   } else {
     groupItems.forEach((item) => wrap.append(renderEndpoint(item)));
