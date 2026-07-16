@@ -411,7 +411,8 @@ function describeApiStatus(api) {
   // 模式2/3：固定 endpoint
   const endpointId = String(api.endpointId || '');
   const endpoint = endpointId ? findPoolEndpoint(endpointId) : null;
-  if (!endpoint) return '原 API 配置已不可用';
+  // endpoint 被删除或停用（status='disabled'）都视为不可用，与 callAPI 运行时回退语义一致
+  if (!endpoint || endpoint.status === 'disabled') return '原 API 配置已不可用';
   const name = endpoint.name || '未命名接口';
   // 模式2：固定 endpoint，不固定模型
   if (!api.model) return `${name} · 分组内选择`;
@@ -634,10 +635,15 @@ function openApiDetailSheet() {
       nextBtn.disabled = false;
     } else if (page === 'endpoint') {
       nextBtn.textContent = (draft.mode === 'group') ? '保存' : '下一步';
-      nextBtn.disabled = !draft.endpointId;
+      // 仅当 endpointId 仍在可用列表里才允许下一步/保存，避免把已停用/删除的 endpoint 再存回去
+      const activeIds = getActiveEndpoints().map((ep) => String(ep.id));
+      nextBtn.disabled = !activeIds.includes(String(draft.endpointId));
     } else if (page === 'model') {
       nextBtn.textContent = '保存';
-      nextBtn.disabled = !draft.model;
+      // 仅当 model 仍在该 endpoint 的可选模型列表里才允许保存，避免把已失效的模型再存回去
+      const ep = findPoolEndpoint(draft.endpointId);
+      const validModels = ep ? collectEndpointModels(ep) : [];
+      nextBtn.disabled = !validModels.includes(String(draft.model));
     }
   }
 
@@ -1849,18 +1855,28 @@ function injectStyle() {
       animation:settingsConfirmCardIn 200ms ease;
     }
 
-    /* 三级选择器 sheet：头部 + 分页 + 底部按钮 */
+    /* 三级选择器 sheet：接近 1:1 的小方形面板。
+       width 撑满 overlay 内容区并封顶 420px；aspect-ratio:1 让高度跟随宽度。
+       矮屏/横屏/键盘弹出时 max-height 封顶，自动降级为横向矩形，绝不变成竖长条。
+       头部与底部固定，中间 .api-sheet-pages 独立纵向滚动，模型再多也只滚列表。 */
     .api-sheet{
-      width:min(100%,440px);
-      max-height:min(88vh,680px);
+      width:min(100%,420px);
+      aspect-ratio:1 / 1;
+      max-height:min(86dvh,560px);
       display:flex;
       flex-direction:column;
-      padding:18px 18px 14px;
+      padding:16px 16px 12px;
       overflow:hidden;
       text-align:left;
     }
 
+    /* 该弹层 overlay 收窄内边距给方形面板更多空间；复合选择器提升特异性覆盖 .settings-confirm-overlay 的 24px padding */
+    .settings-confirm-overlay.api-sheet-overlay{
+      padding:14px;
+    }
+
     .api-sheet-header{
+      flex:0 0 auto;
       display:grid;
       grid-template-columns:40px minmax(0,1fr) 40px;
       align-items:center;
@@ -1981,8 +1997,9 @@ function injectStyle() {
     }
 
     /* 复合选择器提升特异性，确保覆盖同特异性的 .settings-confirm-actions（flex-direction:column），
-       保证 API 三级弹层底部按钮横排。 */
+       保证 API 三级弹层底部按钮横排；flex:0 0 auto 让底部固定，中间列表独立滚动。 */
     .settings-confirm-actions.api-sheet-footer{
+      flex:0 0 auto;
       flex-direction:row;
       gap:10px;
       margin-top:12px;
