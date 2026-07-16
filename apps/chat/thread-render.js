@@ -484,21 +484,37 @@ function createMessageContent(state, message, pageEl) {
     return content;
   }
 
-  if (message.type === 'image' && message.imageBase64) {
-    const frame = el('section', 'chat-message-image-frame');
-    const img = document.createElement('img');
-    img.src = message.imageBase64;
-    img.alt = '';
-    img.className = 'chat-message-image';
-    frame.appendChild(img);
+  if (message.type === 'image') {
+    // 兼容旧数据 imageBase64 单图 + 新数据 images 数组
+    const imageList = Array.isArray(message.images) && message.images.length > 0
+      ? message.images
+      : (message.imageBase64 ? [message.imageBase64] : []);
 
-    const caption = String(message.content || '').trim();
-    content.appendChild(frame);
-    if (caption && caption !== '[图片]' && !caption.startsWith('图片：')) {
-      content.appendChild(createTextBlock(caption));
+    if (imageList.length > 0) {
+      const frame = el('section', 'chat-message-image-frame');
+      if (imageList.length > 1) {
+        frame.classList.add('is-grid');
+        frame.style.setProperty('--img-count', String(imageList.length));
+      }
+
+      imageList.forEach((src) => {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = '';
+        img.className = 'chat-message-image';
+        img.loading = 'lazy';
+        frame.appendChild(img);
+      });
+
+      const caption = String(message.content || '').trim();
+      content.appendChild(frame);
+      if (caption && caption !== '[图片]' && !caption.startsWith('图片：')) {
+        content.appendChild(createTextBlock(caption));
+      }
+
+      return content;
     }
-
-    return content;
+    // 既无 images 也无 imageBase64，退化为纯文本展示 content
   }
 
   if (message.type === 'sticker') {
@@ -2051,6 +2067,25 @@ function injectStyle() {
       border-radius: 16px;
     }
 
+    /* 多图网格：2 张 2 列，3+ 张 3 列，最多 3 列 */
+    .chat-message-image-frame.is-grid {
+      width: min(72vw, 280px);
+      max-height: none;
+      display: grid;
+      grid-template-columns: repeat(min(3, var(--img-count, 3)), 1fr);
+      gap: 4px;
+      padding: 4px;
+    }
+
+    .chat-message-image-frame.is-grid .chat-message-image {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: 1 / 1;
+      max-height: none;
+      object-fit: cover;
+      border-radius: 10px;
+    }
+
     /* ── 表情包 ── */
 
     .chat-message-sticker-card {
@@ -2958,6 +2993,10 @@ function injectStyle() {
 
       .chat-message-image {
         max-height: 240px;
+      }
+
+      .chat-message-image-frame.is-grid {
+        width: min(80vw, 240px);
       }
 
       .chat-message-sticker-card {

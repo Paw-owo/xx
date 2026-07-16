@@ -32,6 +32,7 @@ const TOOL_GROUPS = [
   {
     label: '日常',
     tools: [
+      { id: 'image', title: '图片', icon: 'image' },
       { id: 'quickReply', title: '快捷回复', icon: 'chat' },
       { id: 'transfer', title: '转账', icon: 'transfer' },
       { id: 'phone', title: '电话', icon: 'phone' },
@@ -55,6 +56,8 @@ const TOOL_GROUPS = [
 // ═══════════════════════════════════════
 
 const TOOL_ICONS = {
+  // 图片：圆润相册 + 小山
+  image: '<rect x="2.4" y="3" width="11.2" height="10" rx="2.4" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.2" r="1.1" fill="currentColor"/><path d="M3 10.5L5.8 7.8C6.2 7.4 6.8 7.4 7.2 7.8L10 10.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 10.5L10.3 8.8C10.7 8.4 11.3 8.4 11.7 8.8L13 10.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   // 快捷回复：圆润小气泡，尾巴朝下
   chat: '<path d="M2.5 4.5C2.5 3.4 3.4 2.5 4.5 2.5H11.5C12.6 2.5 13.5 3.4 13.5 4.5V8.5C13.5 9.6 12.6 10.5 11.5 10.5H7L4.2 13C3.8 13.3 3.3 13 3.3 12.5V10.5C2.8 10.4 2.5 9.9 2.5 9.5V4.5Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.5" r="0.9" fill="currentColor"/><circle cx="8" cy="6.5" r="0.9" fill="currentColor"/><circle cx="10" cy="6.5" r="0.9" fill="currentColor"/>',
   // 小任务：剪贴板 + 勾选
@@ -332,6 +335,13 @@ async function handleToolClick(toolId, state, options, showDetail) {
       break;
     case 'quiz':
       showDetail('默契问答', buildQuizDetail(state, options));
+      break;
+    case 'image':
+      // 关闭工具箱后由 thread.js 触发文件选择，选图结果通过 onPickImages 回调回流到预览栏
+      closeToolsSheet(options);
+      if (typeof options?.onPickImages === 'function') {
+        options.onPickImages();
+      }
       break;
     case 'transfer':
       closeToolsSheet(options);
