@@ -337,11 +337,13 @@ async function handleToolClick(toolId, state, options, showDetail) {
       showDetail('默契问答', buildQuizDetail(state, options));
       break;
     case 'image':
-      // 关闭工具箱后由 thread.js 触发文件选择，选图结果通过 onPickImages 回调回流到预览栏
-      closeToolsSheet(options);
+      // 先触发文件选择器（必须在用户手势同步栈内，否则 iOS WebView 不打开 chooser），
+      // 再关闭工具箱。顺序不能反：先关闭会触发 hideBottomSheet 的样式重计算，
+      // 可能打断 input.click() 的用户手势激活态。
       if (typeof options?.onPickImages === 'function') {
         options.onPickImages();
       }
+      closeToolsSheet(options);
       break;
     case 'transfer':
       closeToolsSheet(options);

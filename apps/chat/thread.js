@@ -622,7 +622,9 @@ async function pickPendingImages() {
   input.type = 'file';
   input.accept = 'image/*';
   input.multiple = true;
-  input.style.display = 'none';
+  // 不能用 display:none：部分 iOS/Android WebView 对 display:none 的 input.click() 不触发文件选择器
+  // 改用绝对定位 + 透明度 0 + 1px 尺寸，保持在 DOM 里但不可见，click 能正常触发
+  input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
 
   return new Promise((resolve) => {
     input.addEventListener('change', async () => {

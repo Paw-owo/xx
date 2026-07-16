@@ -1817,9 +1817,19 @@ async function formatImageMessageForPrompt(message, mode, userName, eyeGroup) {
         model: eyeGroup?.model || ''
       });
       note = String(result?.note || '').trim();
-    } catch (_) {
-      note = ''; // analyzeImages 永不抛错，这里只是兜底
+    } catch (err) {
+      // analyzeImages 设计上永不抛错；能走到这里说明模块加载/import 等未预期异常。
+      // 必须给降级纸条：否则主模型只看到配文，完全不知道用户发了图，
+      // 违反"识图失败时主模型也必须收到明确降级纸条，不能静默变成普通 [图片]"。
+      // 文案与 ai-sensory-eye.js 的 buildAllFailedNote 保持一致，不暴露技术细节。
+      const n = imageList.length;
+      note = n <= 1
+        ? '对方发来 1 张图片，但小眼睛暂时没看清，稍后再试试。'
+        : `对方发来 ${n} 张图片，但小眼睛暂时没看清，稍后再试试。`;
     }
+  } else {
+    // 兜底：没有真实图片数据（images 数组和 imageBase64 都空），仍要告诉主模型这是图片消息
+    note = '对方发来图片，但小眼睛暂时没看清，稍后再试试。';
   }
 
   const captionLine = caption ? `配文：${caption}` : '（无配文）';
