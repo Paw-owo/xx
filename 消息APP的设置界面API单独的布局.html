@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>聊天设置预览</title>
+
+  <style>
+    :root {
+      --bg-base: #fdfaf3;
+      --bg-surface: #fffdf8;
+      --bg-soft: #faf4e9;
+      --bg-hover: #f7ecda;
+
+      --color-primary: #e7cca0;
+      --color-primary-light: #f2dfbd;
+      --color-primary-ultralight: #fcf4e3;
+      --color-primary-deep: #bc945c;
+
+      --text-primary: #695842;
+      --text-secondary: #9b896f;
+      --text-placeholder: #b9aa94;
+
+      --line-soft: #eee2cf;
+      --overlay: rgba(105, 88, 66, 0.28);
+
+      --shadow-card:
+        0 0.75rem 2rem rgba(215, 190, 148, 0.16),
+        0 0.15rem 0.5rem rgba(215, 190, 148, 0.12);
+
+      --shadow-float:
+        0 1.2rem 3.5rem rgba(178, 147, 100, 0.24);
+
+      --radius-sm: 0.75rem;
+      --radius-md: 1rem;
+      --radius-lg: 1.4rem;
+      --radius-xl: 2rem;
+      --radius-full: 999rem;
+
+      --duration-fast: 180ms;
+      --duration-normal: 280ms;
+      --ease-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+      --safe-top: env(safe-area-inset-top, 0rem);
+      --safe-bottom: env(safe-area-inset-bottom, 0rem);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family:
+        "PingFang SC",
+        "HarmonyOS Sans SC",
+        "Microsoft YaHei",
+        sans-serif;
+      font-weight: 500;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
+    }
+
+    svg {
+      display: block;
+      width: 1.35rem;
+      height: 1.35rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .phone-page {
+      width: min(100%, 40rem);
+      min-height: 100dvh;
+      margin: 0 auto;
+      padding:
+        calc(var(--safe-top) + 1rem)
+        clamp(1rem, 4vw, 1.5rem)
+        calc(var(--safe-bottom) + 2rem);
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 3.25rem minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 1.4rem;
+    }
+
+    .icon-button {
+      display: grid;
+      width: 3.25rem;
+      aspect-ratio: 1;
+      padding: 0;
+      place-items: center;
+      border: 0;
+      border-radius: var(--radius-lg);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-card);
+      cursor: pointer;
+      transition:
+        transform var(--duration-fast) var(--ease-soft),
+        background var(--duration-fast) ease;
+    }
+
+    .icon-button:active {
+      transform: scale(0.96);
+      background: var(--bg-hover);
+    }
+
+    .page-title {
+      min-width: 0;
+    }
+
+    .page-title h1 {
+      margin: 0;
+      font-size: clamp(1.25rem, 5vw, 1.55rem);
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .page-title p {
+      overflow: hidden;
+      margin: 0.2rem 0 0;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .save-status {
+      color: var(--text-placeholder);
+      font-size: 0.84rem;
+      white-space: nowrap;
+    }
+
+    .profile-card {
+      display: grid;
+      grid-template-columns: 4rem minmax(0, 1fr);
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1rem;
+      padding: 1.1rem;
+      border-radius: var(--radius-xl);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .avatar {
+      width: 4rem;
+      aspect-ratio: 1;
+      overflow: hidden;
+      border-radius: 1.25rem;
+      background:
+        linear-gradient(
+          145deg,
+          var(--color-primary-ultralight),
+          var(--color-primary-light)
+        );
+    }
+
+    .avatar svg {
+      width: 100%;
+      height: 100%;
+      padding: 1.1rem;
+      color: var(--color-primary-deep);
+    }
+
+    .profile-copy {
+      min-width: 0;
+    }
+
+    .profile-copy h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .profile-copy p {
+      margin: 0.35rem 0 0;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      line-height: 1.55;
+    }
+
+    .settings-list {
+      display: grid;
+      gap: 0.85rem;
+    }
+
+    .setting-section {
+      overflow: hidden;
+      border-radius: var(--radius-xl);
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-card);
+    }
+
+    .section-toggle {
+      display: grid;
+      width: 100%;
+      grid-template-columns: 2.65rem minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 1rem;
+      border: 0;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .section-icon {
+      display: grid;
+      width: 2.65rem;
+      aspect-ratio: 1;
+      place-items: center;
+      border-radius: 0.9rem;
+      color: var(--color-primary-deep);
+      background: var(--color-primary-ultralight);
+    }
+
+    .section-copy {
+      min-width: 0;
+    }
+
+    .section-copy strong {
+      display: block;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .section-copy span {
+      display: block;
+      overflow: hidden;
+      margin-top: 0.2rem;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .section-side {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-placeholder);
+      font-size: 0.76rem;
+    }
+
+    .chevron {
+      transition: transform var(--duration-normal) var(--ease-soft);
+    }
+
+    .setting-section[data-open="true"] .chevron {
+      transform: rotate(180deg);
+    }
+
+    .section-content {
+      display: grid;
+      grid-template-rows: 0fr;
+      transition: grid-template-rows var(--duration-normal) ease;
+    }
+
+    .setting-section[data-open="true"] .section-content {
+      grid-template-rows: 1fr;
+    }
+
+    .section-content-inner {
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .section-body {
+      display: grid;
+      gap: 0.65rem;
+      padding: 0 1rem 1rem;
+    }
+
+    .soft-divider {
+      height: 0.08rem;
+      margin: 0 0.25rem 0.25rem;
+      background:
+        linear-gradient(
+          90deg,
+          transparent,
+          var(--line-soft) 18%,
+          var(--line-soft) 82%,
+          transparent
+        );
+    }
+
+    .setting-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 1rem;
+      min-height: 4.1rem;
+      padding: 0.85rem 0.95rem;
+      border: 0;
+      border-radius: var(--radius-lg);
+      background: var(--bg-soft);
+      text-align: left;
+    }
+
+    button.setting-row {
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .row-copy {
+      min-width: 0;
+    }
+
+    .row-copy strong {
+      display: block;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .row-copy span {
+      display: block;
+      overflow: hidden;
+      margin-top: 0.22rem;
+      color: var(--text-secondary);
+      font-size: 0.79rem;
+      line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .row-value {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--color-primary-deep);
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .switch {
+      position: relative;
+      width: 3rem;
+      height: 1.7rem;
+      border: 0;
+      border-radius: var(--radius-full);
+      background: var(--line-soft);
+      cursor: pointer;
+      transition: background var(--duration-fast) ease;
+    }
+
+    .switch::after {
+      position: absolute;
+      top: 0.2rem;
+      left: 0.2rem;
+      width: 1.3rem;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-card);
+      content: "";
+      transition: transform var(--duration-normal) var(--ease-soft);
+    }
+
+    .switch[aria-checked="true"] {
+      background: var(--color-primary-deep);
+    }
+
+    .switch[aria-checked="true"]::after {
+      transform: translateX(1.3rem);
+    }
+
+    .connection-summary {
+      display: grid;
+      grid-template-columns: 2.65rem minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .connection-badge {
+      display: grid;
+      width: 2.65rem;
+      aspect-ratio: 1;
+      place-items: center;
+      border-radius: 0.9rem;
+      color: var(--color-primary-deep);
+      background: var(--color-primary-light);
+    }
+
+    .connection-name {
+      display: block;
+      overflow: hidden;
+      font-size: 0.94rem;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .connection-model {
+      display: block;
+      overflow: hidden;
+      margin-top: 0.2rem;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .overlay {
+      position: fixed;
+      z-index: 20;
+      inset: 0;
+      display: grid;
+      align-items: end;
+      justify-items: center;
+      padding-top: var(--safe-top);
+      background: var(--overlay);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--duration-normal) ease;
+    }
+
+    .overlay[data-open="true"] {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .sheet {
+      display: flex;
+      width: min(100%, 40rem);
+      max-height: min(86dvh, 52rem);
+      flex-direction: column;
+      overflow: hidden;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      background: var(--bg-surface);
+      box-shadow: var(--shadow-float);
+      transform: translateY(105%);
+      transition: transform var(--duration-normal) var(--ease-soft);
+    }
+
+    .overlay[data-open="true"] .sheet {
+      transform: translateY(0);
+    }
+
+    .sheet-handle {
+      width: 2.8rem;
+      height: 0.3rem;
+      margin: 0.65rem auto 0;
+      border-radius: var(--radius-full);
+      background: var(--line-soft);
+    }
+
+    .sheet-header {
+      display: grid;
+      grid-template-columns: 2.65rem minmax(0, 1fr) 2.65rem;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.75rem 1rem 0.9rem;
+    }
+
+    .sheet-heading {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .sheet-heading h2 {
+      margin: 0;
+      font-size: 1.12rem;
+      font-weight: 700;
+    }
+
+    .sheet-heading p {
+      overflow: hidden;
+      margin: 0.18rem 0 0;
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sheet-nav-button {
+      display: grid;
+      width: 2.65rem;
+      aspect-ratio: 1;
+      padding: 0;
+      place-items: center;
+      border: 0;
+      border-radius: 0.9rem;
+      background: var(--bg-soft);
+      cursor: pointer;
+    }
+
+    .sheet-nav-button.is-hidden {
+      visibility: hidden;
+    }
+
+    .sheet-pages {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .sheet-page {
+      height: 100%;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0.2rem 1rem calc(var(--safe-bottom) + 1.25rem);
+    }
+
+    .sheet-page[hidden] {
+      display: none;
+    }
+
+    .mode-list,
+    .choice-list {
+      display: grid;
+      gap: 0.7rem;
+    }
+
+    .choice-card {
+      display: grid;
+      width: 100%;
+      grid-template-columns: 2.65rem minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 0.8rem;
+      padding: 0.9rem;
+      border: 0.08rem solid transparent;
+      border-radius: var(--radius-lg);
+      background: var(--bg-soft);
+      text-align: left;
+      cursor: pointer;
+      transition:
+        border-color var(--duration-fast) ease,
+        background var(--duration-fast) ease,
+        transform var(--duration-fast) var(--ease-soft);
+    }
+
+    .choice-card:active {
+      transform: scale(0.985);
+    }
+
+    .choice-card[data-selected="true"] {
+      border-color: var(--color-primary-deep);
+      background: var(--color-primary-ultralight);
+    }
+
+    .choice-icon {
+      display: grid;
+      width: 2.65rem;
+      aspect-ratio: 1;
+      place-items: center;
+      border-radius: 0.9rem;
+      color: var(--color-primary-deep);
+      background: var(--bg-surface);
+    }
+
+    .choice-copy {
+      min-width: 0;
+    }
+
+    .choice-copy strong {
+      display: block;
+      overflow: hidden;
+      font-size: 0.92rem;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .choice-copy span {
+      display: block;
+      overflow: hidden;
+      margin-top: 0.2rem;
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+      line-height: 1.45;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .choice-check {
+      display: grid;
+      width: 1.55rem;
+      aspect-ratio: 1;
+      place-items: center;
+      border: 0.1rem solid var(--line-soft);
+      border-radius: 50%;
+      color: transparent;
+      background: var(--bg-surface);
+    }
+
+    .choice-card[data-selected="true"] .choice-check {
+      border-color: var(--color-primary-deep);
+      color: var(--bg-surface);
+      background: var(--color-primary-deep);
+    }
+
+    .choice-check svg {
+      width: 0.95rem;
+      height: 0.95rem;
+      stroke-width: 2.5;
+    }
+
+    .group-header {
+      margin: 0.4rem 0 0.75rem;
+      padding: 0 0.2rem;
+    }
+
+    .group-header strong {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .group-header span {
+      display: block;
+      margin-top: 0.22rem;
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+      line-height: 1.45;
+    }
+
+    .type-label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 1.6rem;
+      margin-top: 0.45rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: var(--radius-full);
+      color: var(--color-primary-deep);
+      background: var(--color-primary-ultralight);
+      font-size: 0.68rem;
+      font-weight: 700;
+    }
+
+    .empty-tip {
+      padding: 1.1rem;
+      border-radius: var(--radius-lg);
+      color: var(--text-secondary);
+      background: var(--bg-soft);
+      font-size: 0.82rem;
+      line-height: 1.6;
+      text-align: center;
+    }
+
+    .sheet-footer {
+      display: grid;
+      grid-template-columns: 1fr 1.4fr;
+      gap: 0.7rem;
+      padding:
+        0.85rem 1rem
+        calc(var(--safe-bottom) + 0.85rem);
+      background:
+        linear-gradient(
+          180deg,
+          transparent,
+          var(--bg-surface) 18%
+        );
+    }
+
+    .footer-button {
+      min-height: 3.3rem;
+      padding: 0.75rem 1rem;
+      border: 0;
+      border-radius: var(--radius-full);
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform var(--duration-fast) var(--ease-soft);
+    }
+
+    .footer-button:active {
+      transform: scale(0.97);
+    }
+
+    .footer-button.secondary {
+      background: var(--bg-soft);
+    }
+
+    .footer-button.primary {
+      color: var(--bg-surface);
+      background:
+        linear-gradient(
+          135deg,
+          var(--color-primary-deep),
+          var(--color-primary)
+        );
+      box-shadow: var(--shadow-card);
+    }
+
+    .toast {
+      position: fixed;
+      z-index: 50;
+      left: 50%;
+      bottom: calc(var(--safe-bottom) + 1.2rem);
+      max-width: calc(100% - 2rem);
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-full);
+      color: var(--bg-surface);
+      background: var(--text-primary);
+      box-shadow: var(--shadow-float);
+      font-size: 0.82rem;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 1rem);
+      transition:
+        opacity var(--duration-normal) ease,
+        transform var(--duration-normal) var(--ease-soft);
+    }
+
+    .toast[data-show="true"] {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    @media (min-width: 40rem) {
+      .phone-page {
+        padding-top: calc(var(--safe-top) + 1.5rem);
+      }
+
+      .sheet {
+        margin-bottom: 1rem;
+        border-radius: var(--radius-xl);
+      }
+
+      .overlay {
+        align-items: center;
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="phone-page">
+    <header class="topbar">
+      <button class="icon-button" type="button" aria-label="返回">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+      </button>
+
+      <div class="page-title">
+        <h1>聊天设置</h1>
+        <p>正在调整 小梦</p>
+      </div>
+
+      <span class="save-status" id="saveStatus">已自动保存</span>
+    </header>
+
+    <section class="profile-card">
+      <div class="avatar" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <circle cx="12" cy="8" r="3.5"></circle>
+          <path d="M5.5 20c.5-4 2.7-6 6.5-6s6 2 6.5 6"></path>
+        </svg>
+      </div>
+
+      <div class="profile-copy">
+        <h2>小梦</h2>
+        <p>这里只调整 TA 在当前聊天里的连接、记忆与回复习惯。</p>
+      </div>
+    </section>
+
+    <div class="settings-list">
+      <section class="setting-section" data-open="true">
+        <button class="section-toggle" type="button">
+          <span class="section-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"></path>
+            </svg>
+          </span>
+
+          <span class="section-copy">
+            <strong>模型和连接</strong>
+            <span id="connectionSectionSummary">GLM 工作组 · GLM-5.2</span>
+          </span>
+
+          <span class="section-side">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </span>
+        </button>
+
+        <div class="section-content">
+          <div class="section-content-inner">
+            <div class="section-body">
+              <div class="soft-divider"></div>
+
+              <button class="setting-row" id="openConnection" type="button">
+                <span class="connection-summary">
+                  <span class="connection-badge">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 7H6a4 4 0 0 0 0 8h3"></path>
+                      <path d="M15 7h3a4 4 0 0 1 0 8h-3"></path>
+                      <path d="M8 12h8"></path>
+                    </svg>
+                  </span>
+
+                  <span>
+                    <strong class="connection-name" id="connectionName">
+                      GLM 工作组
+                    </strong>
+                    <span class="connection-model" id="connectionModel">
+                      固定模型 · GLM-5.2
+                    </span>
+                  </span>
+                </span>
+
+                <span class="row-value">
+                  更换
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="setting-section" data-open="false">
+        <button class="section-toggle" type="button">
+          <span class="section-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5Z"></path>
+              <path d="M4 5.5v16"></path>
+              <path d="M8 7h8"></path>
+            </svg>
+          </span>
+
+          <span class="section-copy">
+            <strong>记忆</strong>
+            <span>12 条聊天记忆 · 允许自动整理</span>
+          </span>
+
+          <span class="section-side">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </span>
+        </button>
+
+        <div class="section-content">
+          <div class="section-content-inner">
+            <div class="section-body">
+              <div class="soft-divider"></div>
+
+              <div class="setting-row">
+                <span class="row-copy">
+                  <strong>带进聊天的记忆</strong>
+                  <span>每次回复最多带入 12 条相关记忆</span>
+                </span>
+                <span class="row-value">12</span>
+              </div>
+
+              <div class="setting-row">
+                <span class="row-copy">
+                  <strong>允许自动整理</strong>
+                  <span>让 TA 把重要的事收进自己的记忆里</span>
+                </span>
+                <button
+                  class="switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="允许自动整理"
+                ></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="setting-section" data-open="false">
+        <button class="section-toggle" type="button">
+          <span class="section-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"></path>
+              <path d="M5 11a7 7 0 0 0 14 0"></path>
+              <path d="M12 18v3"></path>
+            </svg>
+          </span>
+
+          <span class="section-copy">
+            <strong>声音和感官</strong>
+            <span>语音、眼睛、耳朵与通话习惯</span>
+          </span>
+
+          <span class="section-side">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </span>
+        </button>
+
+        <div class="section-content">
+          <div class="section-content-inner">
+            <div class="section-body">
+              <div class="soft-divider"></div>
+
+              <div class="setting-row">
+                <span class="row-copy">
+                  <strong>自动朗读</strong>
+                  <span>TA 回复后自动读给你听</span>
+                </span>
+                <button
+                  class="switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="false"
+                  aria-label="自动朗读"
+                ></button>
+              </div>
+
+              <div class="setting-row">
+                <span class="row-copy">
+                  <strong>允许看图片</strong>
+                  <span>收到图片时自动理解画面</span>
+                </span>
+                <button
+                  class="switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="true"
+                  aria-label="允许看图片"
+                ></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="setting-section" data-open="false">
+        <button class="section-toggle" type="button">
+          <span class="section-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 5h18"></path>
+              <path d="M7 12h10"></path>
+              <path d="M10 19h4"></path>
+            </svg>
+          </span>
+
+          <span class="section-copy">
+            <strong>回复习惯</strong>
+            <span>气泡、长度、主动回复与思考过程</span>
+          </span>
+
+          <span class="section-side">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </span>
+        </button>
+
+        <div class="section-content">
+          <div class="section-content-inner">
+            <div class="section-body">
+              <div class="soft-divider"></div>
+
+              <button class="setting-row" type="button">
+                <span class="row-copy">
+                  <strong>回复显示</strong>
+                  <span>调整气泡模式与思考过程展示</span>
+                </span>
+                <span class="row-value">
+                  气泡模式
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="setting-section" data-open="false">
+        <button class="section-toggle" type="button">
+          <span class="section-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+              <path d="m8 13 2.5-2.5L15 15l2-2 2 2"></path>
+              <circle cx="15.5" cy="9" r="1"></circle>
+            </svg>
+          </span>
+
+          <span class="section-copy">
+            <strong>聊天外观</strong>
+            <span>单独壁纸、透明度与气泡样式</span>
+          </span>
+
+          <span class="section-side">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </span>
+        </button>
+
+        <div class="section-content">
+          <div class="section-content-inner">
+            <div class="section-body">
+              <div class="soft-divider"></div>
+
+              <button class="setting-row" type="button">
+                <span class="row-copy">
+                  <strong>聊天壁纸</strong>
+                  <span>只更换这一个聊天的背景</span>
+                </span>
+                <span class="row-value">
+                  更换
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m9 18 6-6-6-6"></path>
+                  </svg>
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="setting-section" data-open="false">
+        <button class="section-toggle" type="button">
+          <span class="section-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3 4 7v5c0 4.8 3.4 7.8 8 9 4.6-1.2 8-4.2 8-9V7Z"></path>
+              <path d="m9 12 2 2 4-4"></path>
+            </svg>
+          </span>
+
+          <span class="section-copy">
+            <strong>会话管理</strong>
+            <span>置顶、免打扰、导出与清理记录</span>
+          </span>
+
+          <span class="section-side">
+            <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m6 9 6 6 6-6"></path>
+            </svg>
+          </span>
+        </button>
+
+        <div class="section-content">
+          <div class="section-content-inner">
+            <div class="section-body">
+              <div class="soft-divider"></div>
+
+              <div class="setting-row">
+                <span class="row-copy">
+                  <strong>消息免打扰</strong>
+                  <span>保留消息，但不主动提醒</span>
+                </span>
+                <button
+                  class="switch"
+                  type="button"
+                  role="switch"
+                  aria-checked="false"
+                  aria-label="消息免打扰"
+                ></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="overlay" id="connectionOverlay" data-open="false">
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-handle"></div>
+
+      <header class="sheet-header">
+        <button
+          class="sheet-nav-button is-hidden"
+          id="sheetBack"
+          type="button"
+          aria-label="返回上一步"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 18-6-6 6-6"></path>
+          </svg>
+        </button>
+
+        <div class="sheet-heading">
+          <h2 id="sheetTitle">模型和连接</h2>
+          <p id="sheetSubtitle">只影响小梦，不会改动其他角色</p>
+        </div>
+
+        <button
+          class="sheet-nav-button"
+          id="sheetClose"
+          type="button"
+          aria-label="关闭"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12"></path>
+            <path d="M18 6 6 18"></path>
+          </svg>
+        </button>
+      </header>
+
+      <div class="sheet-pages">
+        <div class="sheet-page" id="modePage">
+          <div class="mode-list">
+            <button class="choice-card mode-choice" data-mode="global" type="button">
+              <span class="choice-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7h11"></path>
+                  <path d="m12 4 3 3-3 3"></path>
+                  <path d="M20 17H9"></path>
+                  <path d="m12 14-3 3 3 3"></path>
+                </svg>
+              </span>
+
+              <span class="choice-copy">
+                <strong>跟随全局轮换池</strong>
+                <span>由设置中心自动选择当前可用连接</span>
+              </span>
+
+              <span class="choice-check">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 12 4 4 8-8"></path>
+                </svg>
+              </span>
+            </button>
+
+            <button class="choice-card mode-choice" data-mode="group" type="button">
+              <span class="choice-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="4" width="7" height="7" rx="2"></rect>
+                  <rect x="14" y="4" width="7" height="7" rx="2"></rect>
+                  <rect x="3" y="15" width="7" height="5" rx="2"></rect>
+                  <rect x="14" y="15" width="7" height="5" rx="2"></rect>
+                </svg>
+              </span>
+
+              <span class="choice-copy">
+                <strong>固定一个 API 分组</strong>
+                <span>固定分组，模型仍按这个分组自己的规则选择</span>
+              </span>
+
+              <span class="choice-check">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 12 4 4 8-8"></path>
+                </svg>
+              </span>
+            </button>
+
+            <button
+              class="choice-card mode-choice"
+              data-mode="model"
+              data-selected="true"
+              type="button"
+            >
+              <span class="choice-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 7H6a4 4 0 0 0 0 8h3"></path>
+                  <path d="M15 7h3a4 4 0 0 1 0 8h-3"></path>
+                  <path d="M8 12h8"></path>
+                </svg>
+              </span>
+
+              <span class="choice-copy">
+                <strong>固定分组里的模型</strong>
+                <span>先选 API 分组，再指定其中一个模型</span>
+              </span>
+
+              <span class="choice-check">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m6 12 4 4 8-8"></path>
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div class="sheet-page" id="groupPage" hidden>
+          <div class="group-header">
+            <strong>选择 API 分组</strong>
+            <span>这里直接读取设置中心已经保存的分组与自定义名称。</span>
+          </div>
+
+          <div class="choice-list" id="groupList"></div>
+        </div>
+
+        <div class="sheet-page" id="modelPage" hidden>
+          <div class="group-header">
+            <strong id="modelGroupName">选择模型</strong>
+            <span>只显示当前分组中已经保存并启用的模型。</span>
+          </div>
+
+          <div class="choice-list" id="modelList"></div>
+        </div>
+      </div>
+
+      <footer class="sheet-footer">
+        <button class="footer-button secondary" id="cancelButton" type="button">
+          取消
+        </button>
+        <button class="footer-button primary" id="nextButton" type="button">
+          下一步
+        </button>
+      </footer>
+    </section>
+  </div>
+
+  <div class="toast" id="toast" role="status">已经替小梦收好啦</div>
+
+  <script>
+    const apiGroups = [
+      {
+        id: "glm-work",
+        name: "GLM 工作组",
+        type: "付费分组",
+        description: "写代码、审仓库和复杂任务优先使用",
+        models: [
+          { id: "glm-5.2", name: "GLM-5.2" },
+          { id: "glm-5-turbo", name: "GLM-5-Turbo" },
+          { id: "glm-5", name: "GLM-5" }
+        ]
+      },
+      {
+        id: "daily-chat",
+        name: "日常陪伴组",
+        type: "付费分组",
+        description: "聊天自然，适合日常陪伴与长对话",
+        models: [
+          { id: "deepseek-v4-pro", name: "DeepSeek-V4-Pro" },
+          { id: "kimi-k2.6", name: "Kimi-K2.6" }
+        ]
+      },
+      {
+        id: "free-backup",
+        name: "免费备用组",
+        type: "免费分组",
+        description: "额度充足时自动作为备用连接",
+        models: [
+          { id: "qwen-plus", name: "Qwen3.7-Plus" },
+          { id: "doubao-turbo", name: "Doubao-Seed-2.1-Turbo" }
+        ]
+      }
+    ];
+
+    const state = {
+      saved: {
+        mode: "model",
+        groupId: "glm-work",
+        modelId: "glm-5.2"
+      },
+      draft: {
+        mode: "model",
+        groupId: "glm-work",
+        modelId: "glm-5.2"
+      },
+      page: "mode"
+    };
+
+    const overlay = document.querySelector("#connectionOverlay");
+    const openConnection = document.querySelector("#openConnection");
+    const closeButton = document.querySelector("#sheetClose");
+    const backButton = document.querySelector("#sheetBack");
+    const cancelButton = document.querySelector("#cancelButton");
+    const nextButton = document.querySelector("#nextButton");
+
+    const title = document.querySelector("#sheetTitle");
+    const subtitle = document.querySelector("#sheetSubtitle");
+
+    const modePage = document.querySelector("#modePage");
+    const groupPage = document.querySelector("#groupPage");
+    const modelPage = document.querySelector("#modelPage");
+
+    const groupList = document.querySelector("#groupList");
+    const modelList = document.querySelector("#modelList");
+    const modelGroupName = document.querySelector("#modelGroupName");
+
+    const connectionName = document.querySelector("#connectionName");
+    const connectionModel = document.querySelector("#connectionModel");
+    const sectionSummary = document.querySelector("#connectionSectionSummary");
+    const saveStatus = document.querySelector("#saveStatus");
+    const toast = document.querySelector("#toast");
+
+    function cloneConfig(config) {
+      return {
+        mode: config.mode,
+        groupId: config.groupId,
+        modelId: config.modelId
+      };
+    }
+
+    function findGroup(groupId) {
+      return apiGroups.find(group => group.id === groupId) || null;
+    }
+
+    function findModel(group, modelId) {
+      return group?.models.find(model => model.id === modelId) || null;
+    }
+
+    function iconForGroup() {
+      return `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="4" width="7" height="7" rx="2"></rect>
+          <rect x="14" y="4" width="7" height="7" rx="2"></rect>
+          <rect x="3" y="15" width="7" height="5" rx="2"></rect>
+          <rect x="14" y="15" width="7" height="5" rx="2"></rect>
+        </svg>
+      `;
+    }
+
+    function iconForModel() {
+      return `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 7H6a4 4 0 0 0 0 8h3"></path>
+          <path d="M15 7h3a4 4 0 0 1 0 8h-3"></path>
+          <path d="M8 12h8"></path>
+        </svg>
+      `;
+    }
+
+    function checkIcon() {
+      return `
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m6 12 4 4 8-8"></path>
+        </svg>
+      `;
+    }
+
+    function renderModes() {
+      document.querySelectorAll(".mode-choice").forEach(button => {
+        button.dataset.selected =
+          String(button.dataset.mode === state.draft.mode);
+      });
+    }
+
+    function renderGroups() {
+      groupList.innerHTML = apiGroups.map(group => {
+        const selected = group.id === state.draft.groupId;
+
+        return `
+          <button
+            class="choice-card group-choice"
+            data-group-id="${group.id}"
+            data-selected="${selected}"
+            type="button"
+          >
+            <span class="choice-icon">${iconForGroup()}</span>
+
+            <span class="choice-copy">
+              <strong>${group.name}</strong>
+              <span>${group.description}</span>
+              <span class="type-label">${group.type}</span>
+            </span>
+
+            <span class="choice-check">${checkIcon()}</span>
+          </button>
+        `;
+      }).join("");
+
+      document.querySelectorAll(".group-choice").forEach(button => {
+        button.addEventListener("click", () => {
+          const group = findGroup(button.dataset.groupId);
+          if (!group) return;
+
+          state.draft.groupId = group.id;
+
+          const currentModelStillExists =
+            group.models.some(model => model.id === state.draft.modelId);
+
+          if (!currentModelStillExists) {
+            state.draft.modelId = group.models[0]?.id || null;
+          }
+
+          renderGroups();
+        });
+      });
+    }
+
+    function renderModels() {
+      const group = findGroup(state.draft.groupId);
+      modelGroupName.textContent = group
+        ? `${group.name}里的模型`
+        : "选择模型";
+
+      if (!group || group.models.length === 0) {
+        modelList.innerHTML = `
+          <div class="empty-tip">
+            这个分组暂时还没有可用模型，先去设置中心给它添一个吧。
+          </div>
+        `;
+        return;
+      }
+
+      modelList.innerHTML = group.models.map(model => {
+        const selected = model.id === state.draft.modelId;
+
+        return `
+          <button
+            class="choice-card model-choice"
+            data-model-id="${model.id}"
+            data-selected="${selected}"
+            type="button"
+          >
+            <span class="choice-icon">${iconForModel()}</span>
+
+            <span class="choice-copy">
+              <strong>${model.name}</strong>
+              <span>${group.name}</span>
+            </span>
+
+            <span class="choice-check">${checkIcon()}</span>
+          </button>
+        `;
+      }).join("");
+
+      document.querySelectorAll(".model-choice").forEach(button => {
+        button.addEventListener("click", () => {
+          state.draft.modelId = button.dataset.modelId;
+          renderModels();
+        });
+      });
+    }
+
+    function setPage(page) {
+      state.page = page;
+
+      modePage.hidden = page !== "mode";
+      groupPage.hidden = page !== "group";
+      modelPage.hidden = page !== "model";
+
+      backButton.classList.toggle("is-hidden", page === "mode");
+
+      if (page === "mode") {
+        title.textContent = "模型和连接";
+        subtitle.textContent = "只影响小梦，不会改动其他角色";
+        nextButton.textContent =
+          state.draft.mode === "global" ? "保存" : "下一步";
+      }
+
+      if (page === "group") {
+        title.textContent = "选择 API 分组";
+        subtitle.textContent = "同步设置中心已有配置";
+        nextButton.textContent =
+          state.draft.mode === "group" ? "保存" : "下一步";
+        renderGroups();
+      }
+
+      if (page === "model") {
+        title.textContent = "选择模型";
+        subtitle.textContent = "固定给小梦单独使用";
+        nextButton.textContent = "保存";
+        renderModels();
+      }
+    }
+
+    function openSheet() {
+      state.draft = cloneConfig(state.saved);
+      renderModes();
+      setPage("mode");
+      overlay.dataset.open = "true";
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeSheet() {
+      overlay.dataset.open = "false";
+      document.body.style.overflow = "";
+    }
+
+    function goNext() {
+      if (state.page === "mode") {
+        if (state.draft.mode === "global") {
+          saveSelection();
+          return;
+        }
+
+        setPage("group");
+        return;
+      }
+
+      if (state.page === "group") {
+        if (!state.draft.groupId) {
+          showToast("先选一个 API 分组呀");
+          return;
+        }
+
+        if (state.draft.mode === "group") {
+          saveSelection();
+          return;
+        }
+
+        setPage("model");
+        return;
+      }
+
+      if (state.page === "model") {
+        if (!state.draft.modelId) {
+          showToast("这个分组还没有可选模型");
+          return;
+        }
+
+        saveSelection();
+      }
+    }
+
+    function goBack() {
+      if (state.page === "model") {
+        setPage("group");
+        return;
+      }
+
+      if (state.page === "group") {
+        setPage("mode");
+      }
+    }
+
+    function saveSelection() {
+      state.saved = cloneConfig(state.draft);
+      updateSummary();
+
+      saveStatus.textContent = "正在保存…";
+
+      window.setTimeout(() => {
+        saveStatus.textContent = "已自动保存";
+        showToast("已经替小梦收好啦");
+      }, 420);
+
+      closeSheet();
+    }
+
+    function updateSummary() {
+      const config = state.saved;
+
+      if (config.mode === "global") {
+        connectionName.textContent = "跟随全局轮换池";
+        connectionModel.textContent = "由设置中心自动选择";
+        sectionSummary.textContent = "跟随全局轮换池";
+        return;
+      }
+
+      const group = findGroup(config.groupId);
+
+      if (!group) {
+        connectionName.textContent = "原分组已不可用";
+        connectionModel.textContent = "将回到全局轮换池";
+        sectionSummary.textContent = "需要重新选择";
+        return;
+      }
+
+      if (config.mode === "group") {
+        connectionName.textContent = group.name;
+        connectionModel.textContent = "固定分组 · 模型自动选择";
+        sectionSummary.textContent = `${group.name} · 分组内轮换`;
+        return;
+      }
+
+      const model = findModel(group, config.modelId);
+
+      if (!model) {
+        connectionName.textContent = group.name;
+        connectionModel.textContent = "原模型已不可用，请重新选择";
+        sectionSummary.textContent = `${group.name} · 需要重新选择`;
+        return;
+      }
+
+      connectionName.textContent = group.name;
+      connectionModel.textContent = `固定模型 · ${model.name}`;
+      sectionSummary.textContent = `${group.name} · ${model.name}`;
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.dataset.show = "true";
+
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => {
+        toast.dataset.show = "false";
+      }, 1800);
+    }
+
+    document.querySelectorAll(".section-toggle").forEach(toggle => {
+      toggle.addEventListener("click", () => {
+        const section = toggle.closest(".setting-section");
+        section.dataset.open = String(section.dataset.open !== "true");
+      });
+    });
+
+    document.querySelectorAll(".switch").forEach(toggle => {
+      toggle.addEventListener("click", () => {
+        const checked = toggle.getAttribute("aria-checked") === "true";
+        toggle.setAttribute("aria-checked", String(!checked));
+      });
+    });
+
+    document.querySelectorAll(".mode-choice").forEach(button => {
+      button.addEventListener("click", () => {
+        state.draft.mode = button.dataset.mode;
+        renderModes();
+        nextButton.textContent =
+          state.draft.mode === "global" ? "保存" : "下一步";
+      });
+    });
+
+    openConnection.addEventListener("click", openSheet);
+    closeButton.addEventListener("click", closeSheet);
+    cancelButton.addEventListener("click", closeSheet);
+    nextButton.addEventListener("click", goNext);
+    backButton.addEventListener("click", goBack);
+
+    overlay.addEventListener("click", event => {
+      if (event.target === overlay) closeSheet();
+    });
+
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && overlay.dataset.open === "true") {
+        closeSheet();
+      }
+    });
+
+    updateSummary();
+  </script>
+</body>
+</html>
