@@ -1855,14 +1855,16 @@ function injectStyle() {
       animation:settingsConfirmCardIn 200ms ease;
     }
 
-    /* 三级选择器 sheet：接近 1:1 的小方形面板。
-       width 撑满 overlay 内容区并封顶 420px；aspect-ratio:1 让高度跟随宽度。
-       矮屏/横屏/键盘弹出时 max-height 封顶，自动降级为横向矩形，绝不变成竖长条。
-       头部与底部固定，中间 .api-sheet-pages 独立纵向滚动，模型再多也只滚列表。 */
+    /* 三级选择器 sheet：接近 1:1 的方形面板，整体放大。
+       width 取可视区域约 90%（clamp 响应式，封顶 460px），不写死单一设备尺寸。
+       height 用显式值（非 aspect-ratio）给 flex 子项明确边界，避免内容撑破容器
+       导致底部按钮区压住列表项；略高于宽度（94vw vs 90vw）保持近 1:1。
+       极矮屏/横屏由 max-height 封顶，自动降级为横向矩形，绝不变成竖长条。
+       头部与底部 flex:0 0 auto 固定，中间 .api-sheet-pages 独立纵向滚动。 */
     .api-sheet{
-      width:min(100%,420px);
-      aspect-ratio:1 / 1;
-      max-height:min(86dvh,560px);
+      width:clamp(280px,90vw,460px);
+      height:clamp(290px,94vw,480px);
+      max-height:min(88dvh,600px);
       display:flex;
       flex-direction:column;
       padding:16px 16px 12px;
@@ -1921,7 +1923,7 @@ function injectStyle() {
       min-height:0;
       overflow-y:auto;
       overflow-x:hidden;
-      padding:12px 2px 4px;
+      padding:12px 2px 14px;
     }
 
     .api-sheet-page{
