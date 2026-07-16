@@ -22,12 +22,15 @@ import { emit } from '../../core/app-bus.js';
 // ═══════════════════════════════════════
 
 const DEFAULT_VISION_ENDPOINT = {
-  // Pollinations OpenAI 兼容入口；用户可在 sensory_eye 分组配自己的 endpoint 覆盖
-  baseURL: 'https://gen.pollinations.ai',
-  path: '/v1/chat/completions',
-  // Pollinations 上中文较好的视觉模型；可被 options.model 或配置项 model 覆盖
-  model: 'gemini',
-  provider: 'openai'
+  // 默认 fallback：Google AI Studio Gemini native（免费额度大，中文视觉较好）
+  // 用户可在 sensory_eye 分组配自己的 endpoint 覆盖；format 由 baseURL 自动判断
+  baseURL: 'https://generativelanguage.googleapis.com',
+  path: '/v1beta/models',
+  // Gemini 视觉模型；可被 options.model 或配置项 model 覆盖
+  model: 'gemini-2.5-flash-lite-preview-06-17',
+  provider: 'gemini',
+  // format 不写死：由 buildEndpointMeta 根据 baseURL 自动判断（gemini / openai）
+  format: 'gemini'
 };
 
 // 单张压缩后体积上限（base64 字符串长度近似），避免请求体过大
@@ -144,11 +147,13 @@ export async function analyzeImages(options = {}) {
 async function resolveEyeEndpoint({ groupConfig, model, apiKey, endpoint }) {
   // 路径 A：调用方直接传了完整 endpoint + apiKey（测试页或未来直连场景）
   if (endpoint && apiKey) {
+    const fullUrl = buildFullUrl(endpoint);
     return {
-      url: buildFullUrl(endpoint),
+      url: fullUrl,
       apiKey,
       model: model || DEFAULT_VISION_ENDPOINT.model,
       provider: DEFAULT_VISION_ENDPOINT.provider,
+      format: detectEndpointFormat(fullUrl),
       name: '自定义眼睛接口'
     };
   }
@@ -193,29 +198,39 @@ async function resolveEyeEndpoint({ groupConfig, model, apiKey, endpoint }) {
     const first = sorted[0];
     const key = (first.keys && first.keys[0]) || apiKey || '';
     if (first.endpoint && key) {
+      const fullUrl = buildFullUrl(first.endpoint);
       return {
-        url: buildFullUrl(first.endpoint),
+        url: fullUrl,
         apiKey: key,
         model: model || first.model || DEFAULT_VISION_ENDPOINT.model,
         provider: first.provider || DEFAULT_VISION_ENDPOINT.provider,
+        format: detectEndpointFormat(fullUrl),
         name: first.name || '眼睛接口'
       };
     }
   }
 
-  // 路径 C：fallback 到默认 Pollinations endpoint，但必须有 apiKey（pk_）
+  // 路径 C：fallback 到默认 Gemini native endpoint，但必须有 apiKey
   if (apiKey) {
     return {
       url: DEFAULT_VISION_ENDPOINT.baseURL + DEFAULT_VISION_ENDPOINT.path,
       apiKey,
       model: model || DEFAULT_VISION_ENDPOINT.model,
       provider: DEFAULT_VISION_ENDPOINT.provider,
-      name: 'Pollinations 眼睛接口'
+      format: DEFAULT_VISION_ENDPOINT.format,
+      name: 'Gemini 眼睛接口'
     };
   }
 
   // 既无配置项，又无 options.apiKey → 未配置
   return null;
+}
+
+// 根据 baseURL 自动判断请求格式：
+// - 含 generativelanguage.googleapis.com → 'gemini'（native 格式）
+// - 否则 → 'openai'（OpenAI-compatible，含 Pollinations / 中转站 / OpenAI 官方）
+function detectEndpointFormat(url) {
+  return /generativelanguage\.googleapis\.com/i.test(String(url || '')) ? 'gemini' : 'openai';
 }
 
 // 把用户填的 endpoint（可能带 /v1、可能不带、可能已是完整 /v1/chat/completions）拼成完整请求 URL
@@ -299,12 +314,23 @@ async function compressAll(images, maxSize, quality) {
 }
 
 // ═══════════════════════════════════════
-// 【视觉请求】OpenAI 兼容格式
-//   callVisionEndpoint：单次请求，传一组 dataURL
+// 【视觉请求】支持两种格式
+//   - openai（OpenAI-compatible，含 Pollinations / 中转站 / OpenAI 官方）
+//   - gemini（Google AI Studio native）
+//   callVisionEndpoint：单次请求，传一组 dataURL，按 endpointMeta.format 分发
 //   callVisionWithFallback：多图先一次传，失败降级逐张
 // ═══════════════════════════════════════
 
 export async function callVisionEndpoint({ dataURLs, endpointMeta, model, prompt, signal }) {
+  const format = endpointMeta.format || detectEndpointFormat(endpointMeta.url);
+  if (format === 'gemini') {
+    return callGeminiVision({ dataURLs, endpointMeta, model, prompt, signal });
+  }
+  return callOpenAIVision({ dataURLs, endpointMeta, model, prompt, signal });
+}
+
+// OpenAI-compatible 请求：POST {url}，body {model, messages:[{role:'user', content:[{text},{image_url}]}]}
+async function callOpenAIVision({ dataURLs, endpointMeta, model, prompt, signal }) {
   const content = [
     { type: 'text', text: prompt },
     ...dataURLs.map((url) => ({ type: 'image_url', image_url: { url } }))
@@ -339,7 +365,7 @@ export async function callVisionEndpoint({ dataURLs, endpointMeta, model, prompt
   }
 
   const data = await res.json().catch(() => null);
-  const text = extractVisionText(data);
+  const text = extractOpenAIText(data);
   if (!text) {
     const err = new Error('vision_empty_response');
     err.raw = data;
@@ -348,7 +374,84 @@ export async function callVisionEndpoint({ dataURLs, endpointMeta, model, prompt
   return text;
 }
 
-function extractVisionText(data) {
+// Gemini native 请求：POST {baseURL}/v1beta/models/{model}:generateContent?key={apiKey}
+//   body {contents:[{role:'user',parts:[{text:prompt}, {inlineData:{mimeType, data:base64WithoutPrefix}}]}]}
+//   解析：candidates[0].content.parts[0].text
+async function callGeminiVision({ dataURLs, endpointMeta, model, prompt, signal }) {
+  const usedModel = model || endpointMeta.model;
+  // Gemini URL：base + /v1beta/models/{model}:generateContent + ?key=
+  // endpointMeta.url 可能已是 baseURL（fallback）或用户填的含 /v1beta 的地址，统一规整
+  const url = buildGeminiUrl(endpointMeta.url, usedModel, endpointMeta.apiKey);
+
+  const parts = [
+    { text: prompt },
+    ...dataURLs.map((dataURL) => {
+      const { mimeType, base64 } = parseDataURL(dataURL);
+      return { inlineData: { mimeType, data: base64 } };
+    })
+  ];
+
+  const body = {
+    contents: [{ role: 'user', parts }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 600 }
+  };
+
+  const headers = { 'Content-Type': 'application/json' };
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    signal,
+    cache: 'no-store'
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const err = new Error(`vision_http_${res.status}`);
+    err.status = res.status;
+    err.bodyText = text?.slice(0, 300);
+    throw err;
+  }
+
+  const data = await res.json().catch(() => null);
+  const text = extractGeminiText(data);
+  if (!text) {
+    const err = new Error('vision_empty_response');
+    err.raw = data;
+    throw err;
+  }
+  return text;
+}
+
+// 规整 Gemini 请求 URL：
+//   输入可能是 https://generativelanguage.googleapis.com 或 .../v1beta 或 .../v1beta/models
+//   输出固定 https://.../v1beta/models/{model}:generateContent?key={apiKey}
+function buildGeminiUrl(rawUrl, model, apiKey) {
+  let base = String(rawUrl || '').trim().replace(/\/+$/, '');
+  // 去掉已有的 /models/xxx:generateContent 之类后缀，回到 baseURL
+  base = base.replace(/\/v1beta\/models\/.*$/i, '').replace(/\/v1beta\/?$/i, '');
+  const cleanModel = encodeURIComponent(String(model || '').trim());
+  const url = `${base}/v1beta/models/${cleanModel}:generateContent`;
+  if (apiKey) {
+    // Gemini 用 query param 传 key，不用 Authorization 头
+    return `${url}?key=${encodeURIComponent(apiKey)}`;
+  }
+  return url;
+}
+
+// 把 data:image/jpeg;base64,xxxx 拆成 { mimeType, base64 }
+function parseDataURL(dataURL) {
+  const s = String(dataURL || '');
+  const match = s.match(/^data:([^;]+);base64,(.*)$/);
+  if (match) {
+    return { mimeType: match[1] || 'image/jpeg', base64: match[2] || '' };
+  }
+  // 纯 base64 兜底按 jpeg
+  return { mimeType: 'image/jpeg', base64: s };
+}
+
+function extractOpenAIText(data) {
   if (!data) return '';
   // OpenAI 兼容：choices[0].message.content
   const choices = Array.isArray(data.choices) ? data.choices : [];
@@ -360,6 +463,15 @@ function extractVisionText(data) {
     return content.map((c) => (typeof c === 'string' ? c : c?.text || '')).join('').trim();
   }
   return '';
+}
+
+// Gemini native 响应解析：candidates[0].content.parts[*].text 拼接
+function extractGeminiText(data) {
+  if (!data) return '';
+  const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  const parts = candidates[0]?.content?.parts;
+  if (!Array.isArray(parts)) return '';
+  return parts.map((p) => (typeof p?.text === 'string' ? p.text : '')).join('').trim();
 }
 
 async function callVisionWithFallback({ images, endpointMeta, model, signal, count }) {
