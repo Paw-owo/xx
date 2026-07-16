@@ -320,6 +320,92 @@ function injectStyle() {
       background: var(--accent-light);
       color: var(--accent-dark);
     }
+
+    /* ═══ 感官分类区 ═══ */
+    .api-pool-sensory-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .api-pool-sensory-title {
+      padding: 6px 4px 0;
+      color: var(--text-secondary);
+      font-size: var(--font-size-small);
+      font-weight: 600;
+    }
+
+    .api-pool-group-add {
+      width: 100%;
+      height: 38px;
+      border-radius: 14px;
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      font-size: var(--font-size-small);
+      font-weight: 600;
+      transition: var(--motion);
+    }
+
+    .api-pool-group-add:active {
+      transform: var(--press-scale);
+    }
+
+    .api-pool-group-locked {
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: var(--surface-muted);
+      color: var(--text-secondary);
+      font-size: var(--font-size-small);
+      font-weight: 600;
+    }
+
+    /* ═══ 耳朵占位卡片：纯展示，不可点 ═══ */
+    .api-pool-ear-placeholder {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 16px;
+      border-radius: var(--radius-lg);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-sm);
+      color: var(--text-secondary);
+      cursor: default;
+      user-select: none;
+    }
+
+    .api-pool-ear-icon {
+      flex: 0 0 auto;
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--accent-light);
+      color: var(--accent-dark);
+    }
+
+    .api-pool-ear-textbox {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .api-pool-ear-text {
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .api-pool-ear-hint {
+      color: var(--text-hint);
+      font-size: var(--font-size-small);
+      line-height: 1.4;
+    }
   `;
   document.head.appendChild(styleEl);
 }
@@ -339,7 +425,8 @@ async function loadData() {
 function renderAll() {
   if (!container) return;
   container.replaceChildren();
-  container.append(renderActions(), renderGroup('paid'), renderGroup('free'));
+  // 感官分类作为独立大区放在 paid/free 之后，眼睛复用分组编辑 UI，耳朵仅占位
+  container.append(renderActions(), renderGroup('paid'), renderGroup('free'), renderSensorySection());
 }
 
 function renderActions() {
@@ -356,13 +443,14 @@ function renderActions() {
 function renderGroup(groupType) {
   const g = groups[groupType] || {};
   const groupItems = items.filter((item) => item.groupType === groupType);
+  const isSensoryEye = groupType === 'sensory_eye';
 
   const wrap = el('div', 'api-pool-group');
 
   const header = el('div', 'api-pool-group-header');
   const info = el('div');
   info.append(
-    el('div', 'api-pool-group-name', g.name || (groupType === 'paid' ? '付费组' : '免费组')),
+    el('div', 'api-pool-group-name', g.name || (groupType === 'paid' ? '付费组' : groupType === 'free' ? '免费组' : '感官-眼睛')),
     el('div', 'api-pool-group-meta', `${groupItems.length} 个接口 · ${g.enabled !== false ? '已启用' : '已关闭'}`)
   );
   const toggle = el('button', `api-pool-toggle ${g.enabled !== false ? 'on' : ''}`);
@@ -377,12 +465,50 @@ function renderGroup(groupType) {
   wrap.append(header);
 
   if (!groupItems.length) {
-    wrap.append(el('div', 'api-pool-empty', groupType === 'paid' ? '还没有付费接口，测好后存进来吧' : '还没有免费接口，加一个试试'));
-    return wrap;
+    const emptyText = groupType === 'paid'
+      ? '还没有付费接口，测好后存进来吧'
+      : groupType === 'free'
+        ? '还没有免费接口，加一个试试'
+        : '小眼睛还空着，加一个能看图的接口吧';
+    wrap.append(el('div', 'api-pool-empty', emptyText));
+  } else {
+    groupItems.forEach((item) => wrap.append(renderEndpoint(item)));
   }
 
-  groupItems.forEach((item) => wrap.append(renderEndpoint(item)));
+  // 眼睛分组卡片内提供独立"新增眼睛接口"入口，锁定 sensory_eye 分组，不走顶部全局新增
+  if (isSensoryEye) {
+    const addBtn = el('button', 'api-pool-group-add', '新增眼睛接口');
+    addBtn.addEventListener('click', () => openEditor(null, { lockGroup: 'sensory_eye' }));
+    wrap.append(addBtn);
+  }
+
   return wrap;
+}
+
+// ═══════════════════════════════════════
+// 【感官分类区】眼睛复用分组编辑 UI，耳朵仅占位（无表单、无按钮、不可点）
+// ═══════════════════════════════════════
+
+function renderSensorySection() {
+  const section = el('div', 'api-pool-sensory-section');
+  section.append(el('div', 'api-pool-sensory-title', '感官'));
+  section.append(renderGroup('sensory_eye'));
+  section.append(renderEarPlaceholder());
+  return section;
+}
+
+function renderEarPlaceholder() {
+  const card = el('div', 'api-pool-ear-placeholder');
+  // 耳机线条图标（内联 SVG，不依赖图标库；currentColor 跟随主题）
+  const icon = el('div', 'api-pool-ear-icon');
+  icon.innerHTML = '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13v-1a8 8 0 0 1 16 0v1"/><path d="M4 13a2 2 0 0 1 2 2v2a2 2 0 0 1-2 2 1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z"/><path d="M20 13a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2 1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1z"/></svg>';
+  const textBox = el('div', 'api-pool-ear-textbox');
+  textBox.append(
+    el('div', 'api-pool-ear-text', '小耳朵还在长，先不吵它'),
+    el('div', 'api-pool-ear-hint', '语音转文字功能稍后来陪你哦')
+  );
+  card.append(icon, textBox);
+  return card;
 }
 
 function renderEndpoint(item) {
@@ -408,7 +534,9 @@ function renderEndpoint(item) {
   const testBtn = el('button', '', '测试');
   testBtn.addEventListener('click', () => handleTest(item.id, testBtn, status));
   const editBtn = el('button', '', '编辑');
-  editBtn.addEventListener('click', () => openEditor(item));
+  // 眼睛分组 endpoint 编辑时锁定 sensory_eye，不在弹层里显示分组选择
+  const editOptions = item.groupType === 'sensory_eye' ? { lockGroup: 'sensory_eye' } : {};
+  editBtn.addEventListener('click', () => openEditor(item, editOptions));
   const delBtn = el('button', 'danger', '删除');
   delBtn.addEventListener('click', () => handleDelete(item));
   actions.append(testBtn, editBtn, delBtn);
@@ -467,8 +595,9 @@ async function handleDelete(item) {
   options?.onRefresh?.();
 }
 
-function openEditor(item) {
+function openEditor(item, options = {}) {
   const isEdit = !!item;
+  const lockGroup = options.lockGroup || '';
   const overlay = el('div', 'settings-sheet-overlay');
   overlay.style.cssText = 'position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.3);';
 
@@ -559,16 +688,24 @@ function openEditor(item) {
 
   renderModelPicker();
 
-  let selectedGroup = item?.groupType || 'paid';
+  // 分组选择：lockGroup 时锁定该分组（眼睛入口新增/编辑时锁定 sensory_eye），不渲染切换按钮
+  // 否则保留原 paid/free 切换 UI，现有 paid/free 分组行为完全不变
+  let selectedGroup = lockGroup || item?.groupType || 'paid';
   const groupWrap = el('div');
   groupWrap.append(el('label', 'api-pool-group-meta', '分组'));
-  const groupBtns = el('div', 'api-pool-form-group');
-  const paidBtn = el('button', selectedGroup === 'paid' ? 'active' : '', groups.paid?.name || '付费组');
-  const freeBtn = el('button', selectedGroup === 'free' ? 'active' : '', groups.free?.name || '免费组');
-  paidBtn.addEventListener('click', () => { selectedGroup = 'paid'; paidBtn.classList.add('active'); freeBtn.classList.remove('active'); });
-  freeBtn.addEventListener('click', () => { selectedGroup = 'free'; freeBtn.classList.add('active'); paidBtn.classList.remove('active'); });
-  groupBtns.append(paidBtn, freeBtn);
-  groupWrap.append(groupBtns);
+  if (lockGroup) {
+    // 只读标签：显示锁定分组名，不可切换
+    const lockLabel = el('div', 'api-pool-group-locked', groups[lockGroup]?.name || lockGroup);
+    groupWrap.append(lockLabel);
+  } else {
+    const groupBtns = el('div', 'api-pool-form-group');
+    const paidBtn = el('button', selectedGroup === 'paid' ? 'active' : '', groups.paid?.name || '付费组');
+    const freeBtn = el('button', selectedGroup === 'free' ? 'active' : '', groups.free?.name || '免费组');
+    paidBtn.addEventListener('click', () => { selectedGroup = 'paid'; paidBtn.classList.add('active'); freeBtn.classList.remove('active'); });
+    freeBtn.addEventListener('click', () => { selectedGroup = 'free'; freeBtn.classList.add('active'); paidBtn.classList.remove('active'); });
+    groupBtns.append(paidBtn, freeBtn);
+    groupWrap.append(groupBtns);
+  }
 
   sheet.append(nameField.wrap, urlField.wrap, keyField.wrap, providerWrap, modelField.wrap, fetchBtn, modelArea, groupWrap);
 
@@ -588,7 +725,8 @@ function openEditor(item) {
 
     const payload = {
       groupType: selectedGroup,
-      groupName: selectedGroup === 'free' ? (groups.free?.name || '免费组') : (groups.paid?.name || '付费组'),
+      // 按 selectedGroup 从分组元数据取名字，兼容 paid/free/sensory_eye/sensory_ear
+      groupName: groups[selectedGroup]?.name || selectedGroup,
       name,
       endpoint,
       provider,
