@@ -28,6 +28,14 @@ import {
 } from './thread-relationship.js';
 import { checkThreadProactiveMessages, abortActiveAIJobsForUnmount } from './thread-ai.js';
 import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
+import {
+  startRecording,
+  stopRecording,
+  cancelRecording,
+  transcribeAudio,
+  getRecorderState,
+  MAX_RECORD_MS
+} from './sensory-ear.js';
 
 const STYLE_ID = 'chat-thread-style';
 const PAGE_SIZE = 50;
@@ -70,7 +78,10 @@ const state = {
   renderOnly: null,
   wallpaperImage: '',
   wallpaperOpacity: 1,
-  pendingImages: []
+  pendingImages: [],
+  // 耳朵语音输入状态：'idle' | 'recording' | 'transcribing'
+  earState: 'idle',
+  earElapsedMs: 0
 };
 
 // ═══════════════════════════════════════
@@ -190,6 +201,14 @@ export function unmountChatThread() {
   state.stoppingAI = false;
   state.messageQueue = [];
   state.pendingImages = [];
+  // 卸载时清理录音：避免离开会话后录音仍在进行、麦克风轨道泄漏
+  try {
+    if (getRecorderState() === 'recording') {
+      cancelRecording();
+    }
+  } catch (_) {}
+  state.earState = 'idle';
+  state.earElapsedMs = 0;
   window.__chatActiveThread = null;
 
   // 移除壁纸变更监听，避免卸载后异步回写旧 state
@@ -556,6 +575,14 @@ function createInputBar() {
   const sticker = iconButton('smile', '表情包');
   sticker.addEventListener('click', () => openStickerSheet(state, { onRefresh: reloadAndRender }));
 
+  // 麦克风按钮（语音输入）：发送按钮左边，点击开始/停止录音
+  const mic = el('button', 'chat-thread-mic');
+  mic.type = 'button';
+  mic.setAttribute('aria-label', '语音输入');
+  mic.append(createIcon('mic', 20));
+  mic.addEventListener('click', () => handleMicClick(input, mic, send));
+  updateMicButtonState(mic);
+
   const send = el('button', 'chat-thread-send');
   send.type = 'button';
 
@@ -572,12 +599,195 @@ function createInputBar() {
     updateSendButtonState(send, input);
   }
 
+  // 录音中：禁用发送按钮，防止误操作
+  if (state.earState === 'recording' || state.earState === 'transcribing') {
+    send.disabled = true;
+  }
+
   // 待发送图片预览栏（跨整行，放在输入区上方）
   const pendingWrap = renderPendingImages();
-  bar.append(pendingWrap, tools, input, sticker, send);
+  // 录音状态栏（跨整行，放在输入区上方，与图片预览栏并列）
+  const recordingWrap = renderRecordingBar(input, mic, send);
+  bar.append(pendingWrap, recordingWrap, tools, input, sticker, mic, send);
   if (state.pendingImages.length > 0) bar.classList.add('has-pending-images');
+  if (state.earState !== 'idle') bar.classList.add('has-recording');
   requestAnimationFrame(() => autoResize(input));
   return bar;
+}
+
+// ═══════════════════════════════════════
+// 【耳朵语音输入】麦克风按钮 + 录音状态机
+//   idle：点击 → 开始录音
+//   recording：点击麦克风 → 停止并转 STT；点取消 → 丢弃不转
+//   transcribing：按钮禁用，等 STT 完成
+//   STT 成功 → 文字追加到输入框末尾（不覆盖现有文字），光标放末尾
+//   STT 失败 → toast 提示，不填入内容
+// ═══════════════════════════════════════
+
+function updateMicButtonState(micBtn) {
+  if (!micBtn) return;
+  micBtn.classList.remove('is-recording', 'is-transcribing');
+  if (state.earState === 'recording') {
+    micBtn.classList.add('is-recording');
+    micBtn.setAttribute('aria-label', '停止录音');
+  } else if (state.earState === 'transcribing') {
+    micBtn.classList.add('is-transcribing');
+    micBtn.disabled = true;
+    micBtn.setAttribute('aria-label', '转换中');
+  } else {
+    micBtn.disabled = false;
+    micBtn.setAttribute('aria-label', '语音输入');
+  }
+}
+
+// 录音状态栏：录音中显示计时 + 取消按钮；转换中显示"转换中..."
+function renderRecordingBar(input, micBtn, sendBtn) {
+  const wrap = el('div', 'chat-recording-bar');
+  if (state.earState === 'idle') return wrap;
+
+  if (state.earState === 'recording') {
+    wrap.classList.add('is-recording');
+    // 录音脉冲圆点
+    const dot = el('span', 'chat-recording-dot');
+    // 计时文本
+    const timer = el('span', 'chat-recording-timer', formatRecordMs(state.earElapsedMs));
+    // 取消按钮
+    const cancelBtn = el('button', 'chat-recording-cancel');
+    cancelBtn.type = 'button';
+    cancelBtn.setAttribute('aria-label', '取消录音');
+    cancelBtn.append(createIcon('close', 14));
+    cancelBtn.addEventListener('click', () => handleCancelRecording(input, micBtn, sendBtn));
+    wrap.append(dot, timer, cancelBtn);
+  } else if (state.earState === 'transcribing') {
+    wrap.classList.add('is-transcribing');
+    const spinner = el('span', 'chat-recording-spinner');
+    const text = el('span', 'chat-recording-timer', '转换中…');
+    wrap.append(spinner, text);
+  }
+  return wrap;
+}
+
+function formatRecordMs(ms) {
+  const totalSec = Math.floor(Math.max(0, ms) / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  // 60 秒上限显示
+  const displaySec = Math.min(s, 59);
+  return `${String(m).padStart(1, '0')}:${String(displaySec).padStart(2, '0')}`;
+}
+
+// 麦克风点击：idle→开始录音；recording→停止转 STT；transcribing→忽略
+async function handleMicClick(input, micBtn, sendBtn) {
+  if (state.earState === 'transcribing') return;
+
+  if (state.earState === 'recording') {
+    // 停止并转 STT
+    await handleStopAndTranscribe(input, micBtn, sendBtn);
+    return;
+  }
+
+  // 开始录音
+  const result = await startRecording({
+    onAutoStop: () => handleStopAndTranscribe(input, micBtn, sendBtn),
+    onTick: (ms) => {
+      state.earElapsedMs = ms;
+      // 只更新计时文本，不触发整体 render（避免 textarea 失焦）
+      const timerEl = document.querySelector('.chat-recording-timer');
+      if (timerEl) timerEl.textContent = formatRecordMs(ms);
+    }
+  });
+
+  if (!result.ok) {
+    const msg = reasonToStartToast(result.reason);
+    if (msg) showToast(msg);
+    return;
+  }
+
+  state.earState = 'recording';
+  state.earElapsedMs = 0;
+  render();
+}
+
+// 停止录音并转 STT
+async function handleStopAndTranscribe(input, micBtn, sendBtn) {
+  if (getRecorderState() !== 'recording') return;
+
+  // 先切 transcribing 状态，让 UI 立即反馈
+  state.earState = 'transcribing';
+  updateMicButtonState(micBtn);
+  if (sendBtn) sendBtn.disabled = true;
+  // 更新录音栏显示
+  const bar = document.querySelector('.chat-recording-bar');
+  if (bar) {
+    bar.classList.remove('is-recording');
+    bar.classList.add('is-transcribing');
+    bar.innerHTML = '';
+    const spinner = el('span', 'chat-recording-spinner');
+    const text = el('span', 'chat-recording-timer', '转换中…');
+    bar.append(spinner, text);
+  }
+
+  const stopResult = await stopRecording();
+  if (!stopResult.ok || stopResult.cancelled || !stopResult.blob) {
+    state.earState = 'idle';
+    state.earElapsedMs = 0;
+    render();
+    return;
+  }
+
+  // 调 STT
+  const sttResult = await transcribeAudio(stopResult.blob);
+  state.earState = 'idle';
+  state.earElapsedMs = 0;
+
+  if (sttResult.ok && sttResult.text) {
+    // 文字追加到输入框末尾（不覆盖现有文字），光标放末尾
+    const existing = String(input.value || '');
+    const newText = sttResult.text;
+    const sep = existing && !existing.endsWith(' ') ? ' ' : '';
+    input.value = existing + sep + newText;
+    state.inputValue = input.value;
+    persistDraft();
+    autoResize(input);
+    updateSendButtonState(sendBtn, input);
+    // 光标放末尾并聚焦
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  } else {
+    // 失败：toast 提示，不填入内容
+    showToast(sttResult.message || '没听清，再试一次');
+  }
+  render();
+}
+
+// 取消录音：丢弃音频，不调 STT
+async function handleCancelRecording(input, micBtn, sendBtn) {
+  if (getRecorderState() !== 'recording') {
+    state.earState = 'idle';
+    state.earElapsedMs = 0;
+    render();
+    return;
+  }
+  await cancelRecording();
+  state.earState = 'idle';
+  state.earElapsedMs = 0;
+  render();
+}
+
+// 录音启动失败 → 可爱提示
+function reasonToStartToast(reason) {
+  switch (reason) {
+    case 'permission_denied':
+      return '没拿到麦克风权限，去浏览器设置里允许一下哦';
+    case 'no_device':
+      return '没找到麦克风设备';
+    case 'not_supported':
+      return '当前浏览器不支持录音';
+    case 'busy':
+      return '还在录音中，先停一下再试';
+    default:
+      return '录音没启动成功，再试一次';
+  }
 }
 
 // 发送按钮高亮：有文字或有待发图片时高亮，否则半透明
@@ -1239,7 +1449,7 @@ function injectStyle() {
     .chat-thread-input-bar{
       flex:0 0 auto;
       display:grid;
-      grid-template-columns:auto minmax(0,1fr) auto auto;
+      grid-template-columns:auto minmax(0,1fr) auto auto auto;
       align-items:end;
       gap:8px;
       padding:12px 20px calc(14px + env(safe-area-inset-bottom));
@@ -1335,6 +1545,103 @@ function injectStyle() {
 
     .chat-thread-send.is-ai-working{
       animation:chatThreadPulse 1100ms ease-in-out infinite;
+    }
+
+    /* 麦克风按钮：线条风，颜色走 CSS 变量 */
+    .chat-thread-mic{
+      flex:0 0 auto;
+      width:36px;
+      height:36px;
+      border:none;
+      border-radius:50%;
+      background:transparent;
+      color:var(--text-secondary);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+      transition:color var(--duration-fast) var(--ease-out),background var(--duration-fast) var(--ease-out);
+    }
+    .chat-thread-mic:active{transform:scale(0.92)}
+    .chat-thread-mic svg{width:20px;height:20px}
+    .chat-thread-mic.is-recording{
+      color:var(--text-on-primary);
+      background:var(--color-danger);
+      animation:chatMicPulse 1100ms ease-in-out infinite;
+    }
+    .chat-thread-mic.is-transcribing{
+      opacity:var(--opacity-disabled);
+      cursor:not-allowed;
+    }
+    @keyframes chatMicPulse{
+      0%,100%{transform:scale(1);box-shadow:0 0 0 0 color-mix(in srgb,var(--color-danger) 45%,transparent)}
+      50%{transform:scale(1.06);box-shadow:0 0 0 6px color-mix(in srgb,var(--color-danger) 0%,transparent)}
+    }
+
+    /* 录音状态栏：跨整行，放在输入框上方（与图片预览栏并列） */
+    .chat-recording-bar{
+      grid-column:1 / -1;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 4px 2px;
+      font-size:12px;
+      color:var(--text-secondary);
+      min-height:0;
+    }
+    .chat-recording-bar.is-recording{
+      color:var(--color-danger);
+    }
+    .chat-recording-bar.is-transcribing{
+      color:var(--text-secondary);
+    }
+    .chat-recording-dot{
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:var(--color-danger);
+      flex:0 0 auto;
+      animation:chatRecDot 900ms ease-in-out infinite;
+    }
+    @keyframes chatRecDot{
+      0%,100%{opacity:1;transform:scale(1)}
+      50%{opacity:.4;transform:scale(0.7)}
+    }
+    .chat-recording-timer{
+      font-variant-numeric:tabular-nums;
+      flex:0 0 auto;
+      font-weight:600;
+    }
+    .chat-recording-cancel{
+      margin-left:auto;
+      width:28px;
+      height:28px;
+      border:none;
+      border-radius:50%;
+      background:var(--surface-muted);
+      color:var(--text-secondary);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      -webkit-tap-highlight-color:transparent;
+      flex:0 0 auto;
+    }
+    .chat-recording-cancel:active{transform:scale(0.9)}
+    .chat-recording-cancel svg{width:14px;height:14px}
+    .chat-recording-spinner{
+      width:14px;
+      height:14px;
+      border:2px solid var(--surface-muted);
+      border-top-color:var(--accent);
+      border-radius:50%;
+      flex:0 0 auto;
+      animation:chatRecSpin 800ms linear infinite;
+    }
+    @keyframes chatRecSpin{to{transform:rotate(360deg)}}
+    .chat-thread-input-bar.has-recording{
+      grid-template-rows:auto 1fr;
     }
 
     .chat-load-more-wrap{
