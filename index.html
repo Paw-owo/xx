@@ -263,6 +263,19 @@
       transition: none;
     }
 
+    /* 落位 settling 态：松手瞬间 .dragging → .settling，保持 transition:none 并锁定
+       拖拽态 transform(scale 1.035)，隔离 :active 伪类与 transition 的叠加。
+       浏览器在 pointerup 后通常还会保留一帧 :active，若此时直接移除 .dragging，
+       :active 的 scale(.96) 会叠加恢复的 transition:all 触发 1.035→0.96→1.0 双段缩闪。
+       settling 持续约两帧 + 短延迟，待 :active 释放后再移除，此时 transform 从
+       1.035 单次平滑回到 none（轻点按压反馈不受影响，轻点不进入 dragging/settling）。 */
+    .desktop-item.settling {
+      z-index: 20;
+      opacity: .94;
+      transform: scale(1.035);
+      transition: none;
+    }
+
     .desktop-icon {
       width: calc(74px * var(--desktop-icon-scale));
       flex-direction: column;
@@ -1999,13 +2012,26 @@
           if (startParent && element.parentElement !== startParent) { startParent.appendChild(element); }
         }
 
+        // 落位收尾：先 .dragging → .settling，保持 transition:none + scale(1.035)，
+        // 隔离 pointerup 后残留一帧的 :active 伪类，避免 :active 的 scale(.96) 叠加
+        // 恢复的 transition:all 触发 1.035→0.96→1.0 双段缩闪。待下一帧 + 短延迟
+        // （:active 已释放）后再移除 .settling，transform 单次平滑回弹。
         element.classList.remove('dragging');
+        element.classList.add('settling');
         pagesEl.classList.remove('dragging');
         silentEdit = true;
         updateEditingClass();
         // 拖拽发生过则抑制随后的合成 click，防止误开下方 / 原位置 APP
         clickSuppressor.suppress();
         dragState = null;
+        // 双 rAF 确保跨过当前帧与下一帧渲染（:active 在此期间释放），再延迟 60ms 兜底
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            element.classList.remove('settling');
+          });
+        });
+        // 兜底：极端情况下 rAF 仍早于 :active 释放时，60ms 后强制清理
+        window.setTimeout(() => { element.classList.remove('settling'); }, 120);
       };
 
       const onMove = (moveEvent) => {
