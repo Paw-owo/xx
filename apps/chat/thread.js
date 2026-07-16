@@ -11,7 +11,7 @@
 //   from './thread-ai.js': checkThreadProactiveMessages
 //   from './thread-settings.js': mountThreadSettings, unmountThreadSettings
 
-import { getData, setData, getDB, getByIndexDB } from '../../core/storage.js';
+import { getData, setData, getDB, getByIndexDB, compressImage } from '../../core/storage.js';
 import { createIcon, showToast, hideBottomSheet } from '../../core/ui.js';
 import { stopAll } from '../../core/tts.js';
 
@@ -69,7 +69,8 @@ const state = {
   reloadAndRender: null,
   renderOnly: null,
   wallpaperImage: '',
-  wallpaperOpacity: 1
+  wallpaperOpacity: 1,
+  pendingImages: []
 };
 
 // ═══════════════════════════════════════
@@ -144,6 +145,7 @@ export async function mountChatThread(containerEl, options = {}) {
   state.aiGenerating = false;
   state.stoppingAI = false;
   state.messageQueue = [];
+  state.pendingImages = [];
   state.proactiveChecking = false;
   state.keyboardOpen = false;
   state.keyboardOffset = 0;
@@ -187,6 +189,7 @@ export function unmountChatThread() {
   state.aiGenerating = false;
   state.stoppingAI = false;
   state.messageQueue = [];
+  state.pendingImages = [];
   window.__chatActiveThread = null;
 
   // 移除壁纸变更监听，避免卸载后异步回写旧 state
@@ -515,7 +518,9 @@ function createInputBar() {
   }
 
   const tools = iconButton('add', '工具');
-  tools.addEventListener('click', () => openThreadToolsPanel(state, {}));
+  tools.addEventListener('click', () => openThreadToolsPanel(state, {
+    onPickImages: () => pickPendingImages()
+  }));
 
   const input = document.createElement('textarea');
   input.className = 'chat-thread-input';
@@ -535,6 +540,7 @@ function createInputBar() {
     state.inputValue = input.value;
     persistDraft();
     autoResize(input);
+    updateSendButtonState(send, input);
   });
 
   input.addEventListener('focus', handleComposerFocus);
@@ -563,16 +569,95 @@ function createInputBar() {
     send.append(createIcon('send', 16));
     send.setAttribute('aria-label', '发送');
     send.addEventListener('click', () => handleSend(input));
+    updateSendButtonState(send, input);
   }
 
-  bar.append(tools, input, sticker, send);
+  // 待发送图片预览栏（跨整行，放在输入区上方）
+  const pendingWrap = renderPendingImages();
+  bar.append(pendingWrap, tools, input, sticker, send);
+  if (state.pendingImages.length > 0) bar.classList.add('has-pending-images');
   requestAnimationFrame(() => autoResize(input));
   return bar;
 }
 
+// 发送按钮高亮：有文字或有待发图片时高亮，否则半透明
+function updateSendButtonState(sendBtn, input) {
+  if (!sendBtn || sendBtn.classList.contains('is-ai-working')) return;
+  const hasText = String(input?.value || '').trim().length > 0;
+  const hasImages = state.pendingImages.length > 0;
+  sendBtn.classList.toggle('has-content', hasText || hasImages);
+}
+
+// 渲染待发送图片预览栏
+function renderPendingImages() {
+  const wrap = el('div', 'chat-pending-images');
+  if (state.pendingImages.length === 0) return wrap;
+
+  state.pendingImages.forEach((src, index) => {
+    const cell = el('div', 'chat-pending-image');
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = '';
+    cell.appendChild(img);
+
+    const removeBtn = el('button', 'chat-pending-image-remove');
+    removeBtn.type = 'button';
+    removeBtn.setAttribute('aria-label', '移除图片');
+    removeBtn.append(createIcon('close', 12));
+    removeBtn.addEventListener('click', () => {
+      state.pendingImages.splice(index, 1);
+      render();
+    });
+    cell.appendChild(removeBtn);
+
+    wrap.appendChild(cell);
+  });
+
+  return wrap;
+}
+
+// 选图：input type=file multiple，逐张压缩成 base64，单张压缩后 < 2MB
+async function pickPendingImages() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.multiple = true;
+  input.style.display = 'none';
+
+  return new Promise((resolve) => {
+    input.addEventListener('change', async () => {
+      const files = Array.from(input.files || []);
+      if (files.length === 0) { resolve(); return; }
+
+      for (const file of files) {
+        try {
+          const compressed = await compressImage(file, 1920, 0.85);
+          // 限制单张压缩后 < 2MB（base64 字符串长度近似 4/3 × 字节数）
+          if (compressed.length > 2 * 1024 * 1024) {
+            showToast('图片太大啦');
+            continue;
+          }
+          state.pendingImages.push(compressed);
+        } catch (err) {
+          console.warn('[chat-thread] compress image failed', err);
+          showToast('这张图处理不了');
+        }
+      }
+      render();
+      resolve();
+    });
+    document.body.appendChild(input);
+    input.click();
+    // 清理 DOM 节点
+    setTimeout(() => { input.remove(); }, 1000);
+  });
+}
+
 async function handleSend(input) {
   const text = String(input.value || '').trim();
-  if (!text) return;
+  const images = state.pendingImages.slice();
+  // 无文字且无图片：不发送
+  if (!text && images.length === 0) return;
 
   if (getRelationshipLockLevel(state)) {
     openRelationshipLockSheet(state, { onRefresh: reloadAndRender });
@@ -583,20 +668,25 @@ async function handleSend(input) {
   if (isAIWorking()) {
     state.inputValue = '';
     input.value = '';
+    state.pendingImages = [];
     autoResize(input);
     clearDraft();
 
     try {
       let saveMessageOnly = null;
+      let sendImageTextMessage = null;
       try {
         const mod = await import('./thread-actions.js');
         saveMessageOnly = mod?.saveMessageOnly;
+        sendImageTextMessage = mod?.sendImageTextMessage;
       } catch (importErr) {
         // 动态 import 失败不静默吞掉，留 warn 便于排查；UI 仍可恢复
         console.warn('[chat-thread] dynamic import thread-actions failed (queue branch):', importErr?.message || importErr);
       }
 
-      if (typeof saveMessageOnly === 'function') {
+      if (images.length > 0 && typeof sendImageTextMessage === 'function') {
+        await sendImageTextMessage(state, { text, images, quoteMessageId: state.quotedMessageId });
+      } else if (typeof saveMessageOnly === 'function') {
         await saveMessageOnly(state, text, {
           quoteMessageId: state.quotedMessageId
         });
@@ -605,15 +695,16 @@ async function handleSend(input) {
       }
 
       state.quotedMessageId = '';
-      state.messageQueue.push(text);
+      state.messageQueue.push(text || '[图片]');
       render();
       showToast('排队中，等 TA 回完就接着');
     } catch (error) {
       console.error('[chat-thread] queue message failed', error);
       showToast('发送没成功');
-      // 失败时恢复输入内容，UI 可恢复
+      // 失败时恢复输入内容与图片，UI 可恢复
       state.inputValue = text;
       input.value = text;
+      state.pendingImages = images;
       autoResize(input);
       render();
     }
@@ -623,6 +714,7 @@ async function handleSend(input) {
   // 正常发送
   state.inputValue = '';
   input.value = '';
+  state.pendingImages = [];
   autoResize(input);
   blurActiveInput();
   clearDraft();
@@ -636,15 +728,19 @@ async function handleSend(input) {
 
   try {
     let saveMessageOnly = null;
+    let sendImageTextMessage = null;
     try {
       const mod = await import('./thread-actions.js');
       saveMessageOnly = mod?.saveMessageOnly;
+      sendImageTextMessage = mod?.sendImageTextMessage;
     } catch (importErr) {
       // 动态 import 失败不静默吞掉，留 warn 便于排查；UI 仍可恢复
       console.warn('[chat-thread] dynamic import thread-actions failed (send branch):', importErr?.message || importErr);
     }
 
-    if (typeof saveMessageOnly === 'function') {
+    if (images.length > 0 && typeof sendImageTextMessage === 'function') {
+      await sendImageTextMessage(state, { text, images, quoteMessageId: state.quotedMessageId });
+    } else if (typeof saveMessageOnly === 'function') {
       await saveMessageOnly(state, text, {
         quoteMessageId: state.quotedMessageId
       });
@@ -657,10 +753,11 @@ async function handleSend(input) {
   } catch (error) {
     console.error('[chat-thread] save user message failed', error);
     showToast('发送没成功');
-    // 失败时恢复输入内容与状态，UI 可恢复
+    // 失败时恢复输入内容、图片与状态，UI 可恢复
     state.aiGenerating = false;
     state.inputValue = text;
     input.value = text;
+    state.pendingImages = images;
     autoResize(input);
     render();
     return;
@@ -1151,6 +1248,63 @@ function injectStyle() {
 
     .chat-thread-input-bar.is-relationship-locked{
       display:block;
+    }
+
+    /* 待发送图片预览栏：跨整行，放在输入框上方 */
+    .chat-pending-images{
+      grid-column:1 / -1;
+      display:flex;
+      gap:8px;
+      padding:8px 2px 4px;
+      overflow-x:auto;
+      overflow-y:hidden;
+      scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+    }
+    .chat-pending-images::-webkit-scrollbar{display:none}
+    .chat-pending-image{
+      position:relative;
+      flex:0 0 auto;
+      width:64px;
+      height:64px;
+      border-radius:12px;
+      overflow:hidden;
+      background:var(--surface-muted);
+      box-shadow:var(--shadow-sm);
+    }
+    .chat-pending-image img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+    .chat-pending-image-remove{
+      position:absolute;
+      top:2px;
+      right:2px;
+      width:20px;
+      height:20px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      border:none;
+      border-radius:50%;
+      background:rgba(0,0,0,0.5);
+      color:#fff;
+      cursor:pointer;
+      padding:0;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .chat-pending-image-remove:active{transform:scale(0.9)}
+    .chat-pending-image-remove svg{width:12px;height:12px}
+    .chat-thread-input-bar.has-pending-images{
+      grid-template-rows:auto 1fr;
+    }
+    .chat-thread-send.has-content{
+      opacity:1;
+    }
+    .chat-thread-send:not(.has-content):not(.is-ai-working){
+      opacity:0.5;
     }
 
     .chat-thread-input{
