@@ -438,12 +438,13 @@ async function callVisionWithFallback({ images, endpointMeta, model, signal, cou
     };
   }
 
-  // 部分成功：合并逐张结果，关联参考留空（逐张模式无法判断关联）
+  // 部分成功：合并逐张结果
+  // 关联参考明确标注"未做关联分析"，避免与"分析后无明显关联"混淆（诚实性）
   return {
     ok: true,
     raw: perImage.map((p, i) => `[第${i + 1}张] ${p.content}`).join('\n'),
     perImage,
-    relationSummary: '',
+    relationSummary: '本次逐张识别，未做关联分析。',
     confidence: perImage.every((p) => p.confidence === 'high') ? 'high' : 'low',
     errors
   };
@@ -503,12 +504,21 @@ export function parseVisionResponse(text, expectedCount = 0) {
   let relationSummary = '';
 
   if (parts.length >= expectedCount && expectedCount > 1) {
-    // 最后一项作为关联参考
     perImage = parts.slice(0, expectedCount).map((p) => ({
       content: p.trim(),
       confidence: judgeConfidence(p)
     }));
     relationSummary = parts.slice(expectedCount).join('\n').trim();
+
+    // 视觉模型常把"关联：..."段跟在最后一张后面（没有第N张标记），
+    // 把它从最后一张内容里抽出来，避免污染最后一张描述
+    const last = perImage[perImage.length - 1];
+    const relationMatch = last.content.match(/[\s\n]*(关联|图片间关联|关系|关联参考)[::]?/);
+    if (relationMatch) {
+      const extracted = last.content.slice(relationMatch.index).trim();
+      last.content = last.content.slice(0, relationMatch.index).trim();
+      relationSummary = (relationSummary ? relationSummary + '\n' : '') + extracted;
+    }
   } else if (expectedCount <= 1) {
     perImage = [{ content: raw, confidence: judgeConfidence(raw) }];
   } else {
