@@ -64,8 +64,11 @@ const state = {
   aiGenerating: false,
   stoppingAI: false,
   messageQueue: [],
+  proactiveStartTimer: null,
+  proactiveVisibleTimer: null,
   proactiveTimer: null,
   proactiveChecking: false,
+  mountVersion: 0,
   keyboardOpen: false,
   keyboardOffset: 0,
   keyboardViewportHandler: null,
@@ -140,6 +143,7 @@ function clearDraft() {
 }
 
 export async function mountChatThread(containerEl, options = {}) {
+  state.mountVersion += 1;
   state.rootEl = containerEl;
   state.appState = options.appState || null;
   state.mounted = true;
@@ -196,6 +200,7 @@ export async function mountChatThread(containerEl, options = {}) {
 }
 
 export function unmountChatThread() {
+  state.mountVersion += 1;
   state.mounted = false;
   state.aiGenerating = false;
   state.stoppingAI = false;
@@ -1033,7 +1038,11 @@ function startProactiveChecks() {
   stopProactiveChecks();
   if (state.mode === 'group') return;
 
-  window.setTimeout(() => runProactiveCheck(), 3000);
+  const context = getProactiveContext();
+  state.proactiveStartTimer = window.setTimeout(() => {
+    state.proactiveStartTimer = null;
+    if (isCurrentProactiveContext(context)) runProactiveCheck();
+  }, 3000);
   state.proactiveTimer = window.setInterval(runProactiveCheck, PROACTIVE_CHECK_INTERVAL);
 
   document.addEventListener('visibilitychange', handleProactiveVisible);
@@ -1041,6 +1050,14 @@ function startProactiveChecks() {
 }
 
 function stopProactiveChecks() {
+  if (state.proactiveStartTimer) {
+    window.clearTimeout(state.proactiveStartTimer);
+    state.proactiveStartTimer = null;
+  }
+  if (state.proactiveVisibleTimer) {
+    window.clearTimeout(state.proactiveVisibleTimer);
+    state.proactiveVisibleTimer = null;
+  }
   if (state.proactiveTimer) {
     window.clearInterval(state.proactiveTimer);
     state.proactiveTimer = null;
@@ -1052,9 +1069,29 @@ function stopProactiveChecks() {
 
 function handleProactiveVisible() {
   if (!state.mounted || state.mode === 'group') return;
-  window.setTimeout(() => {
-    if (state.mounted) runProactiveCheck();
+  if (state.proactiveVisibleTimer) window.clearTimeout(state.proactiveVisibleTimer);
+  const context = getProactiveContext();
+  state.proactiveVisibleTimer = window.setTimeout(() => {
+    state.proactiveVisibleTimer = null;
+    if (isCurrentProactiveContext(context)) runProactiveCheck();
   }, 3000);
+}
+
+function getProactiveContext() {
+  return {
+    mountVersion: state.mountVersion,
+    mode: state.mode,
+    characterId: state.characterId,
+    groupId: state.groupId
+  };
+}
+
+function isCurrentProactiveContext(context) {
+  return Boolean(state.mounted && context &&
+    context.mountVersion === state.mountVersion &&
+    context.mode === state.mode &&
+    context.characterId === state.characterId &&
+    context.groupId === state.groupId);
 }
 
 async function runProactiveCheck() {

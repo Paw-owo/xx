@@ -23,6 +23,8 @@ let rootEl = null;
 let mounted = false;
 let activeView = '';
 let activeStage = null; // 实际已挂载到 rootEl 的 stage 元素
+let renderRequestVersion = 0;
+let renderPromise = null;
 let unsubscribeCharsUpdated = null;
 let unsubscribeChatExternalMessage = null;
 let unsubscribeAnniversaryReminder = null;
@@ -103,6 +105,8 @@ export async function mount(containerEl, options = {}) {
 
 export function unmount() {
   mounted = false;
+  // 使尚未完成的异步路由挂载失效；完成后只清理自己的临时舞台。
+  renderRequestVersion += 1;
 
   unmountActiveView();
 
@@ -292,7 +296,30 @@ async function navigateTo(route) {
 async function renderRoute() {
   if (!rootEl || !mounted) return;
 
+  renderRequestVersion += 1;
+  if (renderPromise) return renderPromise;
+
+  renderPromise = drainRouteRenders();
+  try {
+    await renderPromise;
+  } finally {
+    renderPromise = null;
+  }
+}
+
+async function drainRouteRenders() {
+  let handledVersion = 0;
+  while (rootEl && mounted && handledVersion !== renderRequestVersion) {
+    handledVersion = renderRequestVersion;
+    await performRouteRender(handledVersion);
+  }
+}
+
+async function performRouteRender(renderVersion) {
+  if (!rootEl || !mounted) return;
+
   const route = normalizeRoute(currentRoute);
+  const targetRoot = rootEl;
   const stage = document.createElement('div');
   stage.className = 'chat-route-stage';
 
@@ -328,20 +355,22 @@ async function renderRoute() {
     // 挂载失败：清理目标视图可能已注册的资源，并清空舞台，
     // 避免留下半创建的 stage / 旧 rootEl / 错误 activeView
     try { unmountViewByName(route.name); } catch (_) {}
-    if (rootEl) rootEl.replaceChildren();
-    activeStage = null;
-    activeView = '';
+    if (renderVersion === renderRequestVersion && rootEl === targetRoot && mounted) {
+      targetRoot.replaceChildren();
+      activeStage = null;
+      activeView = '';
+    }
     throw error;
   }
 
-  // 挂载期间被 unmount：清理刚挂载的视图，不动 rootEl（unmount 已处理）
-  if (!rootEl || !mounted) {
+  // 挂载期间被卸载或被更新的路由取代：不把过期舞台提交到页面。
+  if (!rootEl || !mounted || rootEl !== targetRoot || renderVersion !== renderRequestVersion) {
     try { unmountViewByName(route.name); } catch (_) {}
-    activeView = '';
+    if (activeView === route.name) activeView = '';
     return;
   }
 
-  rootEl.replaceChildren(stage);
+  targetRoot.replaceChildren(stage);
   activeStage = stage;
 }
 
