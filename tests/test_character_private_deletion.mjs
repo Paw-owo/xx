@@ -44,6 +44,7 @@ function installStorage({ failDelete = null, failCheckpoint = false } = {}) {
     calls.push(['read', storeName]);
     return structuredClone(stores.get(storeName) || []);
   };
+  hooks.operations.getData = async (key, fallback) => localKeys.has(key) ? { cursor: 7 } : fallback;
   hooks.operations.deleteDB = async (storeName, id) => {
     calls.push(['delete', storeName, id]);
     if (failDelete === `${storeName}:${id}`) return false;
@@ -52,13 +53,21 @@ function installStorage({ failDelete = null, failCheckpoint = false } = {}) {
   };
   hooks.operations.setDB = async (storeName, record) => {
     calls.push(['set', storeName, record.id]);
-    stores.set(storeName, (stores.get(storeName) || []).map((row) => row.id === record.id ? record : row));
+    const rows = stores.get(storeName) || [];
+    stores.set(storeName, rows.some((row) => row.id === record.id)
+      ? rows.map((row) => row.id === record.id ? record : row)
+      : [...rows, record]);
     return record;
   };
   hooks.operations.removeData = async (key) => {
     calls.push(['removeData', key]);
     if (failCheckpoint) return false;
     localKeys.delete(key);
+    return true;
+  };
+  hooks.operations.setData = async (key) => {
+    calls.push(['setData', key]);
+    localKeys.add(key);
     return true;
   };
   hooks.operations.getNow = async () => '2026-07-17T12:00:00.000Z';
@@ -77,10 +86,20 @@ console.log('\n[1] 两条 UI 路径调用同一个共用入口');
   assert(characterSource.includes("from '../core/character-deletion.js'"), '角色管理导入共用清理入口');
   assert(chatListSource.includes("from '../../core/character-deletion.js'"), '聊天列表导入同一共用清理入口');
   assert(/deleteCharacterPrivateData\(characterId\)/.test(characterSource), '角色管理删除调用共用入口');
-  assert(/deleteCharacterPrivateData\(id\)/.test(chatListSource), '聊天列表删除调用共用入口');
+  assert(/deleteCharacterPrivateData\(id, \{ includeMessages: true \}\)/.test(chatListSource), '聊天列表调用共用入口并明确删除消息');
   assert(/deleteCharacterPrivateData\(characterId\)[\s\S]*?deleteDB\('characters', characterId\)/.test(characterSource), '角色管理在私有数据成功后自行删除角色主记录');
-  assert(/deleteCharacterPrivateData\(id\)[\s\S]*?deleteDB\('characters', id\)/.test(chatListSource), '聊天列表在私有数据成功后自行删除角色主记录');
+  assert(/deleteCharacterPrivateData\(id, \{ includeMessages: true \}\)[\s\S]*?deleteDB\('characters', id\)/.test(chatListSource), '聊天列表在私有数据成功后自行删除角色主记录');
   assert(!chatListSource.includes("deleteIndexedByCharacter('memories'"), '聊天列表不再保留平行 memories 清理清单');
+}
+
+console.log('\n[2b] 聊天列表删除范围包含消息');
+{
+  const env = installStorage();
+  const result = await deletion.deleteCharacterPrivateData('char-a', { includeMessages: true });
+  assert(result.success === true, '包含消息的清理成功');
+  assert(!env.stores.get('messages').some((row) => row.characterId === 'char-a'), '当前角色消息被清理');
+  assert(env.stores.get('messages').some((row) => row.id === 'message-b'), '其他角色消息保留');
+  resetStorage();
 }
 
 console.log('\n[2] 清理当前角色私有数据与 checkpoint，但保留聊天和其他角色数据');
@@ -130,6 +149,8 @@ console.log('\n[4] checkpoint 清理失败同样不伪造成功');
   const result = await deletion.deleteCharacterPrivateData('char-a');
   assert(result.success === false, 'checkpoint 删除失败返回失败');
   assert(env.localKeys.has('mem_sum_char-a'), '失败的 checkpoint 未被伪装为已清理');
+  assert(env.stores.get('memories').some((row) => row.id === 'memory-a'), 'checkpoint 失败时恢复先前删除的私有数据');
+  assert(env.stores.get('groups')[0].memberIds.includes('char-a'), 'checkpoint 失败时恢复群组成员关系');
   assert(env.stores.get('characters').some((row) => row.id === 'char-a'), 'checkpoint 失败后不删除角色主记录');
   resetStorage();
 }
