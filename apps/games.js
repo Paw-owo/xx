@@ -26,6 +26,7 @@ const HUB_HERO_IMAGE_KEY = 'app_game_hero_image';
 const HUB_PROFILE_KEY = 'app_game_hub_visual';
 const GAME_VISUALS_KEY = 'app_game_visuals';
 const CUSTOM_HTML_GAME_KEY = 'app_custom_html_game';
+const MAX_CUSTOM_HTML_GAME_SIZE = 5 * 1024 * 1024;
 const BADGE_KEY = 'games_unread_count';
 
 const GAMES = [
@@ -529,7 +530,7 @@ function renderCustomHtmlGame(host, game, record) {
     iframe.setAttribute('marginwidth', '0');
     iframe.setAttribute('marginheight', '0');
     iframe.setAttribute('scrolling', 'auto');
-    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-pointer-lock');
     iframe.srcdoc = html;
     body.appendChild(iframe);
   } else {
@@ -609,6 +610,10 @@ function openCustomHtmlSheet(host, game) {
 async function uploadCustomHtmlGame(host, game) {
   const file = await pickHtmlFile();
   if (!file) return;
+  if (file.size > MAX_CUSTOM_HTML_GAME_SIZE) {
+    showToast('这个小游戏有点太大啦，最大支持 5 MB');
+    return;
+  }
 
   try {
     const html = await readFileAsText(file);
