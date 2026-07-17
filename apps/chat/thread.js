@@ -72,6 +72,7 @@ const state = {
   keyboardOpen: false,
   keyboardOffset: 0,
   keyboardViewportHandler: null,
+  keyboardViewportTimers: new Set(),
   relationshipLock: null,
   relationshipPunishment: null,
   activeTtsMessageId: '',
@@ -188,7 +189,7 @@ export async function mountChatThread(containerEl, options = {}) {
     // 私聊会话只处理自己的角色，群聊只处理自己的群
     if (detail?.characterId && detail.characterId !== state.characterId) return;
     if (detail?.groupId && detail.groupId !== state.groupId) return;
-    loadWallpaperCache().then(() => { if (state.mounted) render(); });
+    loadWallpaperCache().then(() => { if (state.mounted) render(); }).catch(() => {});
   });
 
   if (state.mode === 'private') {
@@ -1126,6 +1127,11 @@ function setupKeyboardViewport() {
 }
 
 function cleanupKeyboardViewport() {
+  for (const timer of state.keyboardViewportTimers) {
+    window.clearTimeout(timer);
+  }
+  state.keyboardViewportTimers.clear();
+
   if (state.keyboardViewportHandler) {
     if (window.visualViewport) {
       window.visualViewport.removeEventListener('resize', state.keyboardViewportHandler);
@@ -1139,6 +1145,14 @@ function cleanupKeyboardViewport() {
   state.keyboardOpen = false;
   state.keyboardOffset = 0;
   document.documentElement.style.removeProperty('--chat-keyboard-offset');
+}
+
+function scheduleKeyboardViewportUpdate(callback, delay) {
+  const timer = window.setTimeout(() => {
+    state.keyboardViewportTimers.delete(timer);
+    callback();
+  }, delay);
+  state.keyboardViewportTimers.add(timer);
 }
 
 function updateKeyboardViewport() {
@@ -1164,12 +1178,12 @@ function updateKeyboardViewport() {
 
 function handleComposerFocus() {
   state.keyboardOpen = true;
-  window.setTimeout(updateKeyboardViewport, 40);
-  window.setTimeout(updateKeyboardViewport, 260);
+  scheduleKeyboardViewportUpdate(updateKeyboardViewport, 40);
+  scheduleKeyboardViewportUpdate(updateKeyboardViewport, 260);
 }
 
 function handleComposerBlur() {
-  window.setTimeout(() => {
+  scheduleKeyboardViewportUpdate(() => {
     state.keyboardOpen = isInputFocused();
     if (!state.keyboardOpen) state.keyboardOffset = 0;
     updateKeyboardViewport();
