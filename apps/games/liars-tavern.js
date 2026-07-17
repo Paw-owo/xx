@@ -443,7 +443,7 @@ export async function mount(container, { onBack } = {}) {
 
   if (state.settings.sfxEnabled) sfx.toggle(true);
   if (state.settings.ambienceEnabled) {
-    delay(180).then(() => sfx.play('ambience'));
+    delay(180).then(() => sfx.play('ambience')).catch(err => console.warn('sfx error', err));
   }
 }
 
@@ -686,7 +686,7 @@ function bindEvents() {
         state.phase = 'lobby';
         sfx?.stopAmbience();
         render();
-      });
+      }).catch(err => console.warn('confirm error', err));
       return;
     }
     if (typeof navBack === 'function') navBack();

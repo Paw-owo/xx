@@ -12,6 +12,7 @@ import { appendExternalChatMessage } from './chat-event-bridge.js';
 
 let initialized = false;
 let reminderTimer = null;
+let visibilityHandler = null;
 const CHECK_INTERVAL = 60 * 60 * 1000; // 每小时检查一次
 
 function getTodayString() {
@@ -44,11 +45,25 @@ export function initAnniversaryBridge() {
   }, CHECK_INTERVAL);
 
   // 页面重新可见时也检查一次（跨天场景）
-  document.addEventListener('visibilitychange', () => {
+  visibilityHandler = () => {
     if (!document.hidden) {
       checkAnniversaryReminders().catch(() => {});
     }
-  });
+  };
+  document.addEventListener('visibilitychange', visibilityHandler);
+  window.addEventListener('pagehide', destroyAnniversaryBridge, { once: true });
+}
+
+export function destroyAnniversaryBridge() {
+  if (reminderTimer !== null) {
+    window.clearInterval(reminderTimer);
+    reminderTimer = null;
+  }
+  if (visibilityHandler) {
+    document.removeEventListener('visibilitychange', visibilityHandler);
+    visibilityHandler = null;
+  }
+  initialized = false;
 }
 
 async function checkAnniversaryReminders() {

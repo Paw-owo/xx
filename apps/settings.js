@@ -1533,6 +1533,8 @@ function renderDataPage() {
   usage.append(text);
   getStorageUsage().then((info) => {
     text.textContent = `${formatBytes(info.used)} / ${formatBytes(info.quota)} · ${info.percent || 0}%`;
+  }).catch(() => {
+    text.textContent = '存储用量读取失败，请稍后重试';
   });
   wrap.append(usage);
 

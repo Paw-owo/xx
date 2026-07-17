@@ -2735,7 +2735,9 @@ function initAudioContext() {
 function handleSongEnded() {
   if (state.playMode === 'loop' && state.audioElement) {
     state.audioElement.currentTime = 0;
-    state.audioElement.play();
+    state.audioElement.play().catch(() => {
+      state.isPlaying = false;
+    });
     return;
   }
   playNext();
@@ -2788,20 +2790,24 @@ async function playSong(songId) {
       if (lyrics.length) {
         state.lyrics = lyrics;
         song.lyrics = lyrics;
-        saveSong(song);
+        return saveSong(song);
       }
-    });
+    }).catch(() => {});
   }
 }
 
-function togglePlay() {
+async function togglePlay() {
   if (!state.audioElement || !state.currentSongId) return;
 
   if (state.isPlaying) {
     state.audioElement.pause();
   } else {
-    if (state.audioContext?.state === 'suspended') state.audioContext.resume();
-    state.audioElement.play();
+    try {
+      if (state.audioContext?.state === 'suspended') await state.audioContext.resume();
+      await state.audioElement.play();
+    } catch {
+      state.isPlaying = false;
+    }
   }
 }
 

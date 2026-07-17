@@ -1281,6 +1281,7 @@
     let weatherTimer = null;
     let vinylTimer = null;
     let lockInput = '';
+    let lockCheckTimer = null;
     let renderTimer = null;
     let resizeTimer = null;
     let applyingImages = false;
@@ -2223,19 +2224,21 @@
       lockPadEl.addEventListener('click', (event) => {
         const key = event.target.closest('[data-key]')?.dataset.key;
         if (!key) return;
+        window.clearTimeout(lockCheckTimer);
+        lockCheckTimer = null;
         if (key === 'clear') { lockInput = ''; lockErrorEl.textContent = ''; renderLockDots(); return; }
         if (key === 'delete') { lockInput = lockInput.slice(0, -1); lockErrorEl.textContent = ''; renderLockDots(); return; }
         if (lockInput.length >= LOCK_PASSWORD.length) return;
         lockInput += key;
         lockErrorEl.textContent = '';
         renderLockDots();
-        if (lockInput.length === LOCK_PASSWORD.length) { window.setTimeout(checkLockPassword, 120); }
+        if (lockInput.length === LOCK_PASSWORD.length) { lockCheckTimer = window.setTimeout(checkLockPassword, 120); }
       });
     }
 
-    function updateLockState() { const unlocked = getData('app_lock_unlocked') === true; lockScreenEl.classList.toggle('hidden', unlocked); if (!unlocked) { lockInput = ''; lockErrorEl.textContent = ''; renderLockDots(); } }
+    function updateLockState() { const unlocked = getData('app_lock_unlocked') === true; lockScreenEl.classList.toggle('hidden', unlocked); if (!unlocked) { window.clearTimeout(lockCheckTimer); lockCheckTimer = null; lockInput = ''; lockErrorEl.textContent = ''; renderLockDots(); } }
     function renderLockDots() { [...lockDotsEl.querySelectorAll('.lock-dot')].forEach((dot, index) => { dot.classList.toggle('filled', index < lockInput.length); }); }
-    function checkLockPassword() { if (lockInput === LOCK_PASSWORD) { setData('app_lock_unlocked', true); lockScreenEl.classList.add('hidden'); showToast('解锁啦'); return; } lockInput = ''; lockErrorEl.textContent = '嘿嘿，不对哦'; renderLockDots(); }
+    function checkLockPassword() { lockCheckTimer = null; if (lockInput === LOCK_PASSWORD) { setData('app_lock_unlocked', true); lockScreenEl.classList.add('hidden'); showToast('解锁啦'); return; } lockInput = ''; lockErrorEl.textContent = '嘿嘿，不对哦'; renderLockDots(); }
 
     function initWidgets() { updateClock(); clearInterval(clockTimer); clockTimer = window.setInterval(updateClock, 1000); updateWeather(); clearInterval(weatherTimer); weatherTimer = window.setInterval(updateWeather, 1000 * 60 * 30); updateAnniversaryWidget(); updateFocusWidget(); clearInterval(vinylTimer); vinylTimer = window.setInterval(updateVinylWidget, 800); }
 
