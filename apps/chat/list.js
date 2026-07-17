@@ -1140,7 +1140,9 @@ async function deleteCharacterEverywhere(characterId) {
   const id = String(characterId || '').trim();
   if (!id) return { success: false };
 
-  const deletion = await deleteCharacterPrivateData(id);
+  // Deleting from the chat list promises to remove the conversation as well.
+  // The character-management screen intentionally uses the default, which keeps it.
+  const deletion = await deleteCharacterPrivateData(id, { includeMessages: true });
   if (!deletion.success) return deletion;
 
   const characterDeleted = await deleteDB('characters', id);
