@@ -9,6 +9,7 @@ import { on, emit } from './app-bus.js';
 
 let initialized = false;
 const recentEventIds = new Set();
+const pendingEventIds = new Set();
 const RECENT_ID_LIMIT = 64;
 
 // 去重：事件有 id 用 id，否则基于 type+characterId+direction+amount/itemId+timestamp 组合
@@ -26,13 +27,16 @@ function buildSourceEventId(type, data) {
 
 function isDuplicate(eventId) {
   if (!eventId) return false;
-  if (recentEventIds.has(eventId)) return true;
+  return recentEventIds.has(eventId) || pendingEventIds.has(eventId);
+}
+
+function markEventHandled(eventId) {
+  if (!eventId) return;
   recentEventIds.add(eventId);
   if (recentEventIds.size > RECENT_ID_LIMIT) {
     const first = recentEventIds.values().next().value;
     recentEventIds.delete(first);
   }
-  return false;
 }
 
 export function initChatEventBridge() {
@@ -52,13 +56,14 @@ async function handleShopGift(data) {
 
   const eventId = buildSourceEventId('shop:gift', data);
   if (isDuplicate(eventId)) return;
+  pendingEventIds.add(eventId);
 
   const itemName = data?.itemName || data?.title || '礼物';
   const name = data?.characterName || data?.characterId || 'TA';
   const dir = data?.direction;
 
   try {
-    await appendExternalChatMessage({
+    const message = await appendExternalChatMessage({
       sourceEventId: eventId,
       characterId,
       characterName: name,
@@ -80,8 +85,12 @@ async function handleShopGift(data) {
       shopItem: data?.shopItem || null,
       incrementUnread: true
     });
+    if (!message) throw new Error('消息落库失败');
+    markEventHandled(eventId);
   } catch (error) {
     console.error('[chat-event-bridge] handleShopGift 落库失败', error);
+  } finally {
+    pendingEventIds.delete(eventId);
   }
 }
 
@@ -94,13 +103,14 @@ async function handleWalletTransfer(data) {
 
   const eventId = buildSourceEventId('wallet:transfer', data);
   if (isDuplicate(eventId)) return;
+  pendingEventIds.add(eventId);
 
   const amount = Number(data?.amount || 0);
   const name = data?.characterName || data?.characterId || 'TA';
   const dir = data?.direction;
 
   try {
-    await appendExternalChatMessage({
+    const message = await appendExternalChatMessage({
       sourceEventId: eventId,
       characterId,
       characterName: name,
@@ -116,8 +126,12 @@ async function handleWalletTransfer(data) {
       title: dir === 'ai_to_user' ? `${name}转给我` : `转给${name}`,
       incrementUnread: true
     });
+    if (!message) throw new Error('消息落库失败');
+    markEventHandled(eventId);
   } catch (error) {
     console.error('[chat-event-bridge] handleWalletTransfer 落库失败', error);
+  } finally {
+    pendingEventIds.delete(eventId);
   }
 }
 
