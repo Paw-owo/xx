@@ -27,6 +27,7 @@ import {
 } from '../core/ui.js';
 
 import { addMemory, editMemory, deleteMemory } from '../core/memory.js';
+import { deleteCharacterPrivateData } from '../core/character-deletion.js';
 
 import { getApiEndpointMetas } from '../core/api.js';
 
@@ -1131,7 +1132,11 @@ async function renderMemoryList(container, characterId) {
       return;
     }
 
-    await addMemory(characterId, content, 'manual', true, { importance: 3 });
+    const saved = await addMemory(characterId, content, 'manual', true, { importance: 3 });
+    if (!saved) {
+      showToast('记忆保存失败，请稍后再试');
+      return;
+    }
 
     addInput.value = '';
     showToast('记忆已经放好啦');
@@ -1172,7 +1177,11 @@ async function renderMemoryList(container, characterId) {
       const ok = await showConfirm('确定删除这条记忆吗？');
       if (!ok) return;
 
-      await deleteMemory(characterId, memory.id);
+      const deleted = await deleteMemory(characterId, memory.id);
+      if (!deleted) {
+        showToast('记忆删除失败，请稍后再试');
+        return;
+      }
       showToast('记忆已删除');
       await renderMemoryList(container, characterId);
       emitCharacterUpdates();
@@ -1218,7 +1227,11 @@ function openMemoryEditSheet({ memory, characterId, container }) {
     }
 
     const source = ['auto', 'summary', 'manual'].includes(sourceSelect.value) ? sourceSelect.value : 'manual';
-    await editMemory(characterId, memory.id, content, { source });
+    const saved = await editMemory(characterId, memory.id, content, { source });
+    if (!saved) {
+      showToast('记忆保存失败，请稍后再试');
+      return;
+    }
 
     hideBottomSheet();
     showToast('记忆改好啦');
@@ -1440,7 +1453,17 @@ async function deleteCharacter(characterId) {
   const ok = await showConfirm(`确定删除「${character.name || '这个角色'}」吗？聊天记录不会在这里自动删除。`);
   if (!ok) return;
 
-  await deleteDB('characters', characterId);
+  const deletion = await deleteCharacterPrivateData(characterId);
+  if (!deletion.success) {
+    showToast('角色删除失败，请重试');
+    return;
+  }
+
+  const characterDeleted = await deleteDB('characters', characterId);
+  if (characterDeleted !== true) {
+    showToast('角色删除失败，请重试');
+    return;
+  }
 
   if (character.avatarKey) {
     await deleteDB('blobs', character.avatarKey).catch(() => {});

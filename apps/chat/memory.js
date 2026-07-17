@@ -278,9 +278,9 @@ function createMemoryCard(memory) {
   const remove = smallButton('删除', 'delete');
   remove.addEventListener('click', async () => {
     if (!state.mounted) return;
-    await deleteMemory(memory);
+    const deleted = await deleteMemory(memory);
     // 删除后清空 editingId，避免指向已删记忆形成过期选中
-    if (state.editingId === memory.id) {
+    if (deleted && state.editingId === memory.id) {
       state.editingId = '';
     }
   });
@@ -330,12 +330,17 @@ function createEditor(memory) {
       return;
     }
 
-    await saveMemory({
+    const saved = await saveMemory({
       ...memory,
       content,
       source: normalizeSource(memory.source),
       updatedAt: getNow()
     });
+
+    if (!saved) {
+      if (state.mounted) showToast('记忆保存失败，请稍后再试');
+      return;
+    }
 
     // 保存期间可能已卸载或切到别的记忆编辑，仅当仍编辑本条时清空
     if (state.editingId === memory.id) {
@@ -388,7 +393,11 @@ function createAddPanel() {
       updatedAt: now
     };
 
-    await saveMemory(memory);
+    const saved = await saveMemory(memory);
+    if (!saved) {
+      if (state.mounted) showToast('记忆保存失败，请稍后再试');
+      return;
+    }
     if (!state.mounted) return;
     input.value = '';
     await refresh();
@@ -413,9 +422,14 @@ async function deleteMemory(memory) {
   const ok = await showConfirm('要删掉这条记忆吗？');
   if (!ok || !state.mounted) return;
 
-  await coreDeleteMemory(state.characterId, memory.id);
+  const deleted = await coreDeleteMemory(state.characterId, memory.id);
+  if (!deleted) {
+    if (state.mounted) showToast('记忆删除失败，请稍后再试');
+    return false;
+  }
   await refresh();
   if (state.mounted) showToast('删掉啦');
+  return true;
 }
 
 async function saveMemory(memory) {
@@ -425,12 +439,11 @@ async function saveMemory(memory) {
 
   // 编辑已有记忆：memory.id 已存在于库中，走 editMemory 保留原字段
   if (memory.id && await getDB('memories', memory.id).catch(() => null)) {
-    await editMemory(characterId, memory.id, content, { source });
-    return;
+    return await editMemory(characterId, memory.id, content, { source });
   }
 
   // 新增：走 addMemory，由 core 补齐 importance/keywords/mood 等字段
-  await addMemory(characterId, content, source, true, { importance: 3 });
+  return await addMemory(characterId, content, source, true, { importance: 3 });
 }
 
 async function refresh() {

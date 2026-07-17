@@ -1,12 +1,13 @@
 // core/storage-manager.js
 // imports:
-//   from './storage.js': getData, setData, removeData, getAllDB, setDB, clearStoreDB, generateId, getNow
+//   from './storage.js': getData, setData, removeData, getAllDB, getAllDBStrict, setDB, clearStoreDB, generateId, getNow
 
 import {
   getData,
   setData,
   removeData,
   getAllDB,
+  getAllDBStrict,
   setDB,
   clearStoreDB,
   generateId,
@@ -75,6 +76,8 @@ const DYNAMIC_KEY_PREFIXES = [
   'push_msg_watermark_'   // 推送水位（按角色）
 ];
 
+const MEMORY_SUMMARY_CHECKPOINT_PREFIX = 'mem_sum_';
+
 const INDEXED_DB_STORES = [
   'characters',
   'messages',
@@ -121,6 +124,14 @@ const DEFAULT_SYNC_STATUS = {
   lastDownloadAt: '',
   lastError: '',
   updatedAt: ''
+};
+
+const restoreTestHooks = {
+  getAllDBStrict: null,
+  clearStoreDB: null,
+  setDB: null,
+  setData: null,
+  removeData: null
 };
 
 let syncLock = false;
@@ -251,7 +262,7 @@ export async function buildLocalSnapshot() {
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
       if (!k) continue;
-      if (DYNAMIC_KEY_PREFIXES.some((p) => k.startsWith(p))) {
+      if (isDynamicSnapshotLocalKey(k)) {
         collected.add(k);
       }
     }
@@ -287,46 +298,89 @@ export async function buildLocalSnapshot() {
 // ═══════════════════════════════════════
 
 export async function applyLocalSnapshot(snapshot, options = {}) {
-  if (!isValidSnapshot(snapshot)) {
-    throw new Error('云端数据格式不正确');
-  }
-
-  const overwrite = options.overwrite !== false;
   const skipCloudConfig = options.skipCloudConfig === true;
+  const localStorageData = Object.fromEntries(
+    Object.entries(snapshot?.localStorage || {}).filter(([key]) => !(skipCloudConfig && key === CLOUD_KEY))
+  );
+  const now = getNow();
+  const syncStatus = {
+    ...getSyncStatus(),
+    lastDownloadAt: now,
+    lastSyncAt: now,
+    lastError: '',
+    updatedAt: now
+  };
 
-  if (overwrite) {
-    for (const storeName of INDEXED_DB_STORES) {
-      try {
-        await clearStoreDB(storeName);
-      } catch {}
-    }
-  }
-
-  Object.entries(snapshot.localStorage || {}).forEach(([key, value]) => {
-    if (skipCloudConfig && key === CLOUD_KEY) return;
-    setData(key, value);
+  await restoreLocalSnapshot({ ...snapshot, localStorage: localStorageData }, {
+    stores: INDEXED_DB_STORES,
+    isAllowedLocalKey: isSnapshotLocalKey,
+    overwrite: options.overwrite !== false,
+    finalLocalStorage: { [SYNC_STATUS_KEY]: syncStatus }
   });
 
-  for (const storeName of INDEXED_DB_STORES) {
-    const records = Array.isArray(snapshot.indexedDB?.[storeName]) ? snapshot.indexedDB[storeName] : [];
-
-    for (const record of records) {
-      const primaryKey = getPrimaryKey(storeName, record);
-      if (!primaryKey) continue;
-
-      try {
-        await setDB(storeName, primaryKey, record);
-      } catch {}
-    }
-  }
-
-  setSyncStatus({
-    lastDownloadAt: getNow(),
-    lastSyncAt: getNow(),
-    lastError: ''
-  });
-
+  window.dispatchEvent(new CustomEvent('cloud-sync-status-changed', { detail: syncStatus }));
   emitStorageChanged();
+  return true;
+}
+
+// 全量导入和云快照恢复共用的“先校验、可回滚”写入边界；不改变任何快照字段或 store。
+export async function restoreLocalSnapshot(snapshot, options = {}) {
+  const stores = Array.isArray(options.stores) ? [...options.stores] : [];
+  const allowedStores = new Set(stores);
+  const overwrite = options.overwrite !== false;
+  const localStorageData = { ...(snapshot?.localStorage || {}), ...(options.finalLocalStorage || {}) };
+
+  validateRestoreSnapshot(snapshot, allowedStores, options.isAllowedLocalKey);
+  Object.keys(options.finalLocalStorage || {}).forEach((key) => {
+    if (typeof options.isAllowedLocalKey === 'function' && !options.isAllowedLocalKey(key, true)) {
+      throw new Error('导入数据包含不允许的本地配置');
+    }
+  });
+
+  const targetStores = stores.filter((storeName) => Array.isArray(snapshot.indexedDB?.[storeName]));
+  const originalStores = new Map();
+  const originalLocal = new Map();
+
+  // 清库前完整读取本次会覆盖的 store；严格读取失败时直接退出，现有数据不变。
+  for (const storeName of targetStores) {
+    originalStores.set(storeName, await callRestoreOperation('getAllDBStrict', storeName));
+  }
+  for (const key of Object.keys(localStorageData)) {
+    originalLocal.set(key, readLocalValue(key));
+  }
+
+  const mutatedStores = new Set();
+  const touchedLocalKeys = new Set();
+
+  try {
+    if (overwrite) {
+      for (const storeName of targetStores) {
+        const cleared = await callRestoreOperation('clearStoreDB', storeName);
+        if (cleared !== true) throw new Error(`清空 ${storeName} 失败`);
+        mutatedStores.add(storeName);
+      }
+    }
+
+    for (const storeName of targetStores) {
+      for (const record of snapshot.indexedDB[storeName]) {
+        const saved = await callRestoreOperation('setDB', storeName, getPrimaryKey(storeName, record), record);
+        if (!saved) throw new Error(`写入 ${storeName} 失败`);
+        mutatedStores.add(storeName);
+      }
+    }
+
+    for (const [key, value] of Object.entries(localStorageData)) {
+      touchedLocalKeys.add(key);
+      const saved = await callRestoreOperation('setData', key, value);
+      if (saved !== true) throw new Error('写入本地配置失败');
+    }
+  } catch (error) {
+    const recovered = await rollbackRestore(originalStores, originalLocal, mutatedStores, touchedLocalKeys);
+    const failure = new Error(recovered ? '导入失败，原数据已恢复' : '导入失败，原数据可能未完整恢复');
+    failure.cause = error;
+    failure.recoveryComplete = recovered;
+    throw failure;
+  }
 
   return true;
 }
@@ -573,9 +627,128 @@ function isValidSnapshot(snapshot) {
   return Boolean(
     snapshot &&
     typeof snapshot === 'object' &&
+    snapshot.localStorage &&
     typeof snapshot.localStorage === 'object' &&
-    typeof snapshot.indexedDB === 'object'
+    !Array.isArray(snapshot.localStorage) &&
+    snapshot.indexedDB &&
+    typeof snapshot.indexedDB === 'object' &&
+    !Array.isArray(snapshot.indexedDB)
   );
+}
+
+function validateRestoreSnapshot(snapshot, allowedStores, isAllowedLocalKey) {
+  if (!isValidSnapshot(snapshot)) {
+    throw new Error('导入数据格式不正确');
+  }
+
+  for (const key of Object.keys(snapshot.localStorage)) {
+    if (typeof isAllowedLocalKey === 'function' && !isAllowedLocalKey(key, false)) {
+      throw new Error('导入数据包含不允许的本地配置');
+    }
+    assertJsonValue(snapshot.localStorage[key]);
+  }
+
+  for (const [storeName, records] of Object.entries(snapshot.indexedDB)) {
+    if (!allowedStores.has(storeName)) throw new Error('导入数据包含不允许的数据表');
+    if (!Array.isArray(records)) throw new Error(`数据表 ${storeName} 格式不正确`);
+
+    for (const record of records) {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) {
+        throw new Error(`数据表 ${storeName} 包含无效记录`);
+      }
+      if (!getPrimaryKey(storeName, record)) {
+        throw new Error(`数据表 ${storeName} 包含缺少主键的记录`);
+      }
+      assertJsonValue(record);
+    }
+  }
+}
+
+function assertJsonValue(value) {
+  if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint') {
+    throw new Error('导入数据包含无法保存的值');
+  }
+  if (!value || typeof value !== 'object') return;
+  if (Array.isArray(value)) {
+    value.forEach(assertJsonValue);
+    return;
+  }
+  Object.values(value).forEach(assertJsonValue);
+}
+
+function isSnapshotLocalKey(key, internal = false) {
+  if (internal && key === SYNC_STATUS_KEY) return true;
+  return LOCAL_STORAGE_KEYS.includes(key) || isDynamicSnapshotLocalKey(key);
+}
+
+function isDynamicSnapshotLocalKey(key) {
+  return DYNAMIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) || isMemorySummaryCheckpointKey(key);
+}
+
+export function isMemorySummaryCheckpointKey(key) {
+  const value = String(key || '');
+  return value.startsWith(MEMORY_SUMMARY_CHECKPOINT_PREFIX) && /^mem_sum_[^\s]+$/.test(value);
+}
+
+export function getMemorySummaryCheckpointKeys(storage = globalThis.localStorage) {
+  const keys = [];
+  if (!storage) return keys;
+
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (isMemorySummaryCheckpointKey(key)) keys.push(key);
+  }
+  return keys;
+}
+
+function readLocalValue(key) {
+  const exists = typeof localStorage !== 'undefined' && localStorage.getItem(key) !== null;
+  return { exists, value: exists ? getData(key) : null };
+}
+
+async function callRestoreOperation(name, ...args) {
+  const operation = restoreTestHooks[name] || {
+    getAllDBStrict,
+    clearStoreDB,
+    setDB,
+    setData,
+    removeData
+  }[name];
+  return await operation(...args);
+}
+
+async function rollbackRestore(originalStores, originalLocal, mutatedStores, touchedLocalKeys) {
+  let recovered = true;
+
+  for (const storeName of mutatedStores) {
+    try {
+      if (await callRestoreOperation('clearStoreDB', storeName) !== true) {
+        recovered = false;
+        continue;
+      }
+      for (const record of originalStores.get(storeName) || []) {
+        if (!await callRestoreOperation('setDB', storeName, getPrimaryKey(storeName, record), record)) {
+          recovered = false;
+        }
+      }
+    } catch {
+      recovered = false;
+    }
+  }
+
+  for (const key of touchedLocalKeys) {
+    const original = originalLocal.get(key) || { exists: false, value: null };
+    try {
+      const ok = original.exists
+        ? await callRestoreOperation('setData', key, original.value)
+        : await callRestoreOperation('removeData', key);
+      if (ok !== true) recovered = false;
+    } catch {
+      recovered = false;
+    }
+  }
+
+  return recovered;
 }
 
 function getPrimaryKey(storeName, record) {
@@ -587,6 +760,8 @@ function getPrimaryKey(storeName, record) {
 
   return record.id || record.key || '';
 }
+
+export const __restoreTestHooks = restoreTestHooks;
 
 // ═══════════════════════════════════════
 // 【错误提示】把各种异常翻译成人话
@@ -635,4 +810,4 @@ function emitStorageChanged() {
   window.dispatchEvent(new CustomEvent('app-images-updated'));
 }
 
-// 依赖：./storage.js(getData,setData,removeData,getAllDB,setDB,clearStoreDB,generateId,getNow)
+// 依赖：./storage.js(getData,setData,removeData,getAllDB,getAllDBStrict,setDB,clearStoreDB,generateId,getNow)

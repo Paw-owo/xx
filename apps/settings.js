@@ -5,7 +5,7 @@
 //   from '../core/ui.js': showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 //   from '../core/api.js': fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups
 //   from '../core/mcp.js': resetSession, getMcpServers, listMcpTools
-//   from '../core/storage-manager.js': testCloudConnection
+//   from '../core/storage-manager.js': testCloudConnection, restoreLocalSnapshot
 
 import {
   getData,
@@ -37,7 +37,12 @@ import {
 import { showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon } from '../core/ui.js';
 import { fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups, fetchModelList } from '../core/api.js';
 import { resetSession, getMcpServers, listMcpTools, listMcpToolsWithDraft } from '../core/mcp.js';
-import { testCloudConnection } from '../core/storage-manager.js';
+import {
+  testCloudConnection,
+  restoreLocalSnapshot,
+  getMemorySummaryCheckpointKeys,
+  isMemorySummaryCheckpointKey
+} from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
 
 // ═══════════════════════════════════════
@@ -69,6 +74,13 @@ const DB_STORES = [
 const CHAT_LOCAL_KEYS = [
   'chat_unread_counts', 'chat_group_unread_counts', 'chat_hidden_private_threads', 'chat_last_route',
   'chat_active_thread', 'chat_draft_map', 'chat_pinned_threads', 'chat_archived_threads'
+];
+
+const BACKUP_LOCAL_STORAGE_KEYS = [
+  SETTINGS_KEY, CLOUD_KEY, ICONS_KEY, HIDDEN_ICONS_KEY, WALLPAPER_OPACITY_KEY,
+  WIDGET_BACKGROUNDS_KEY, DESKTOP_SCALE_KEY, CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY,
+  'app_theme', 'app_theme_preset', 'app_theme_mode', ...CHAT_LOCAL_KEYS, API_POOL_GROUPS_KEY,
+  'moments_unread_count', 'games_unread_count'
 ];
 
 const IMAGE_DRESS_KEYS = [
@@ -1937,12 +1949,10 @@ function toggleIconHidden(id) {
 async function exportAll() {
   const data = { localStorage: {}, indexedDB: {} };
 
-  [
-    SETTINGS_KEY, CLOUD_KEY, ICONS_KEY, HIDDEN_ICONS_KEY, WALLPAPER_OPACITY_KEY,
-    WIDGET_BACKGROUNDS_KEY, DESKTOP_SCALE_KEY, CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY,
-    'app_theme', 'app_theme_preset', 'app_theme_mode', ...CHAT_LOCAL_KEYS, API_POOL_GROUPS_KEY,
-    'moments_unread_count', 'games_unread_count'
-  ].forEach((key) => {
+  BACKUP_LOCAL_STORAGE_KEYS.forEach((key) => {
+    data.localStorage[key] = getData(key);
+  });
+  getMemorySummaryCheckpointKeys().forEach((key) => {
     data.localStorage[key] = getData(key);
   });
 
@@ -1967,24 +1977,26 @@ async function importAll() {
 
   try {
     const data = JSON.parse(await readFileAsText(file));
-    Object.entries(data.localStorage || {}).forEach(([key, value]) => setData(key, value));
-
-    for (const store of DB_STORES) {
-      if (!Array.isArray(data.indexedDB?.[store])) continue;
-      try {
-        await clearStoreDB(store);
-        for (const item of data.indexedDB[store]) {
-          const record = item.key ? item : { ...item, key: item.id };
-          await setDB(store, record);
-        }
-      } catch {}
-    }
+    const importData = {
+      ...data,
+      indexedDB: Object.fromEntries(Object.entries(data.indexedDB || {}).map(([store, records]) => [
+        store,
+        Array.isArray(records) ? records.map((item) => item?.key ? item : { ...item, key: item?.id }) : records
+      ]))
+    };
+    await restoreLocalSnapshot(importData, {
+      stores: DB_STORES,
+      isAllowedLocalKey: (key) => BACKUP_LOCAL_STORAGE_KEYS.includes(key) || isMemorySummaryCheckpointKey(key),
+      overwrite: true
+    });
 
     showToast('导入完成啦');
     emitRefresh();
     render('data');
-  } catch {
-    showToast('导入失败了');
+  } catch (error) {
+    showToast(error?.recoveryComplete === false
+      ? '导入失败，原数据可能未完整恢复'
+      : String(error?.message || '导入失败了'));
   }
 }
 
@@ -1996,7 +2008,15 @@ async function clearStoreWithConfirm(store, message, successText) {
   const ok = await showConfirm(message);
   if (!ok) return;
 
-  await clearStoreDB(store);
+  const cleared = await clearStoreDB(store);
+  if (cleared !== true) {
+    showToast('数据清理失败，请重试');
+    return;
+  }
+  if (store === 'memories' && !clearMemorySummaryCheckpoints()) {
+    showToast('数据清理失败，请重试');
+    return;
+  }
   if (store === 'messages' || store === 'group_messages') {
     removeData('chat_unread_counts');
     removeData('chat_group_unread_counts');
@@ -2011,15 +2031,27 @@ async function clearChatData() {
   const ok = await showConfirm('这会清空私聊、群聊、所有记忆（包括其他应用写入的）和聊天角标，要继续吗？');
   if (!ok) return;
 
-  await clearStoreDB('messages');
-  await clearStoreDB('group_messages');
-  await clearStoreDB('memories');
+  const messagesCleared = await clearStoreDB('messages');
+  const groupMessagesCleared = await clearStoreDB('group_messages');
+  const memoriesCleared = await clearStoreDB('memories');
+  if (messagesCleared !== true || groupMessagesCleared !== true || memoriesCleared !== true || !clearMemorySummaryCheckpoints()) {
+    showToast('数据清理失败，请重试');
+    return;
+  }
 
   CHAT_LOCAL_KEYS.forEach(removeData);
 
   showToast('聊天全部清好啦');
   emitRefresh();
   render('data');
+}
+
+function clearMemorySummaryCheckpoints() {
+  try {
+    return getMemorySummaryCheckpointKeys().every((key) => removeData(key) === true);
+  } catch (_) {
+    return false;
+  }
 }
 
 async function clearImageDressData() {
@@ -3850,5 +3882,4 @@ function injectStyle() {
   document.head.appendChild(styleEl);
 }
 
-// depends: ../core/storage.js(getData,setData,removeData,generateId,getNow,getStorageUsage,getDB,setDB,getAllDB,deleteDB,clearStoreDB)；../core/theme.js(getThemePresets,getCurrentTheme,setPreset,setThemeMode,applyTheme,saveTheme,exportTheme,importTheme)；../core/ui.js(showToast,showBottomSheet,hideBottomSheet,showConfirm,createIcon)；../core/api.js(fetchModels,smartModelsUrl,parseErrorResponse,buildHeaders,addPoolEndpoint,getPoolGroups)；../core/mcp.js(resetSession,getMcpServers,listMcpTools)；../core/storage-manager.js(testCloudConnection)；./settings/api-pool-settings.js；./settings/tts-settings.js
-
+// depends: ../core/storage.js(getData,setData,removeData,generateId,getNow,getStorageUsage,getDB,setDB,getAllDB,deleteDB,clearStoreDB)；../core/theme.js(getThemePresets,getCurrentTheme,setPreset,setThemeMode,applyTheme,saveTheme,exportTheme,importTheme)；../core/ui.js(showToast,showBottomSheet,hideBottomSheet,showConfirm,createIcon)；../core/api.js(fetchModels,smartModelsUrl,parseErrorResponse,buildHeaders,addPoolEndpoint,getPoolGroups)；../core/mcp.js(resetSession,getMcpServers,listMcpTools)；../core/storage-manager.js(testCloudConnection,restoreLocalSnapshot)；./settings/api-pool-settings.js；./settings/tts-settings.js

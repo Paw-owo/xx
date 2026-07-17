@@ -425,6 +425,13 @@ export async function getAllDB(storeName) {
   }
 }
 
+// 恢复事务在清库前必须区分“空 store”和“读取失败”，不能使用会降级为空数组的 getAllDB。
+export async function getAllDBStrict(storeName) {
+  const store = getStore(storeName);
+  const result = await runRequest(store.getAll());
+  return Array.isArray(result) ? result : [];
+}
+
 export async function getByIndexDB(storeName, indexName, value) {
   try {
     const store = getStore(storeName);

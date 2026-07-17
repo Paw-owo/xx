@@ -28,6 +28,7 @@ import { checkThreadProactiveMessages } from './thread-ai.js';
 import { addMemory } from '../../core/memory.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
 import { buildAskUserStateKey, buildAskUserStateKeyPrefix } from './ask-user-pure.js';
+import { deleteCharacterPrivateData } from '../../core/character-deletion.js';
 
 const LIST_STYLE_ID = 'chat-list-style';
 const HIDDEN_PRIVATE_KEY = 'chat_hidden_private_threads';
@@ -921,7 +922,11 @@ async function confirmDeleteCharacter(item) {
   const ok = await showConfirm(`真的要删除「${item.name}」吗？这会删掉角色和相关聊天数据，不只是清记录哦。`);
   if (!ok) return;
 
-  await deleteCharacterEverywhere(item.id);
+  const deletion = await deleteCharacterEverywhere(item.id);
+  if (!deletion.success) {
+    showToast('角色删除失败，请重试');
+    return;
+  }
   clearAskUserStateForThread(item.id);
   showToast('已经把 TA 从列表里移走了');
 
@@ -1133,46 +1138,18 @@ async function saveConversationMemory(item, messages) {
 
 async function deleteCharacterEverywhere(characterId) {
   const id = String(characterId || '').trim();
-  if (!id) return;
+  if (!id) return { success: false };
 
-  await Promise.all([
-    deleteDB('characters', id).catch(() => null),
-    deleteIndexedByCharacter('messages', 'characterId', id),
-    deleteIndexedByCharacter('memories', 'characterId', id),
-    deleteIndexedByCharacter('dreams', 'characterId', id),
-    deleteIndexedByCharacter('grudges', 'characterId', id),
-    deleteIndexedByCharacter('punishments', 'characterId', id),
-    deleteIndexedByCharacter('relationship_locks', 'characterId', id)
-  ]);
+  const deletion = await deleteCharacterPrivateData(id);
+  if (!deletion.success) return deletion;
 
-  await removeCharacterFromGroups(id);
+  const characterDeleted = await deleteDB('characters', id);
+  if (characterDeleted !== true) return { success: false };
+
   clearPrivateUnread(id);
   removeFromHiddenPrivate(id);
   clearLastRouteIfCharacter(id);
-}
-
-async function deleteIndexedByCharacter(storeName, indexName, characterId) {
-  const rows = normalizeArray(await getByIndexDB(storeName, indexName, characterId).catch(() => []));
-  await Promise.all(
-    rows
-      .filter((row) => row?.id)
-      .map((row) => deleteDB(storeName, row.id).catch(() => null))
-  );
-}
-
-async function removeCharacterFromGroups(characterId) {
-  const groups = normalizeArray(await getAllDB('groups').catch(() => []));
-
-  await Promise.all(groups.map(async (group) => {
-    const memberIds = normalizeArray(group.memberIds);
-    if (!memberIds.includes(characterId)) return;
-
-    await setDB('groups', {
-      ...group,
-      memberIds: memberIds.filter((id) => id !== characterId),
-      updatedAt: getNow()
-    }).catch(() => null);
-  }));
+  return deletion;
 }
 
 async function deleteGroupEverywhere(groupId) {

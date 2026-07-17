@@ -92,7 +92,21 @@ const DEFAULT_PROACTIVE_CONFIG = {
   proactiveNextCheckAt: null,
   readAt: null,
   memoryInjectLimit: 12,
-  memoryCandidateLimit: 80
+  memoryCandidateLimit: 80,
+  memoryAutoEnabled: true,
+  memoryWriteIntensity: 'normal',
+  memoryAllowEdit: true,
+  memoryAllowDelete: true
+};
+
+const memoryCollectionTestHooks = {
+  checkImportantInfo: null,
+  checkAndSummarize: null
+};
+
+const memoryFinalizationQueues = new Map();
+const backgroundMemoryTestHooks = {
+  finalize: null
 };
 
 const PUNISHMENT_POOL = [
@@ -994,14 +1008,9 @@ async function requestGroupReply(state, options = {}) {
         // 群聊收到非当前用户（角色 AI）的新消息：若该群聊未打开则未读 +1
         incrementGroupUnreadIfClosed(groupId, state);
 
-        // 收集记忆写入并回写，供过程链展示
+        // 消息落库后把自动记忆放到后台；当前角色和后续角色不等待记忆 AI 请求。
         const groupMemoryMessages = [...groupMessages, finalMessage];
         let groupNeedsUpdate = false;
-
-        const memoryWrites = await collectMemoryWrites(character.id, groupMemoryMessages, {
-          character, userProfile, callName: userName
-        });
-        if (memoryWrites.length) { finalMessage.memoryWrites = memoryWrites; groupNeedsUpdate = true; }
 
         const grudge = await maybeWriteGrudge({
           character,
@@ -1026,6 +1035,18 @@ async function requestGroupReply(state, options = {}) {
           finalMessage.updatedAt = getNow();
           await safeSetMessage(GROUP_STORE, finalMessage);
         }
+
+        scheduleGroupMemoryFinalization({
+          characterId: character.id,
+          character,
+          userName,
+          memoryMessages: groupMemoryMessages,
+          finalMessage,
+          userMessage,
+          state,
+          job,
+          groupId
+        });
 
         if (!parsed.thinking) {
           generateInnerMonologue({
@@ -2227,21 +2248,27 @@ function normalizeToolCalls(value) {
 async function collectMemoryWrites(characterId, messages, options = {}) {
   if (!characterId) return [];
 
+  const memoryConfig = getChatConfig(characterId);
+  if (memoryConfig.memoryAutoEnabled === false) return [];
+
   const character = options.character || await getDB('characters', characterId).catch(() => null);
   if (!character) return [];
 
   const userProfile = options.userProfile || loadUserProfileForCharacter(character);
   const callName = options.callName || getUserDisplayName(userProfile);
 
-  const records = [];
-
   // 关键信息检测：新增/编辑/删除记忆
   let importantOps = [];
   try {
-    importantOps = await checkImportantInfo(characterId, messages, {
+    const checkImportant = memoryCollectionTestHooks.checkImportantInfo || checkImportantInfo;
+    importantOps = await checkImportant(characterId, messages, {
       character,
       userProfile,
-      callName
+      callName,
+      memoryAutoEnabled: memoryConfig.memoryAutoEnabled,
+      memoryWriteIntensity: memoryConfig.memoryWriteIntensity,
+      memoryAllowEdit: memoryConfig.memoryAllowEdit,
+      memoryAllowDelete: memoryConfig.memoryAllowDelete
     });
   } catch (error) {
     console.warn('[chat-thread-ai] checkImportantInfo failed:', error);
@@ -2250,23 +2277,34 @@ async function collectMemoryWrites(characterId, messages, options = {}) {
   // 自动总结：批量压缩成长期记忆
   let summaryOps = [];
   try {
-    summaryOps = await checkAndSummarize(characterId, {
+    const summarize = memoryCollectionTestHooks.checkAndSummarize || checkAndSummarize;
+    summaryOps = await summarize(characterId, {
       character,
       userProfile,
-      callName
+      callName,
+      memoryAutoEnabled: memoryConfig.memoryAutoEnabled,
+      memoryWriteIntensity: memoryConfig.memoryWriteIntensity,
+      memoryAllowEdit: memoryConfig.memoryAllowEdit,
+      memoryAllowDelete: memoryConfig.memoryAllowDelete
     });
   } catch (error) {
     console.warn('[chat-thread-ai] checkAndSummarize failed:', error);
   }
 
-  // 映射成过程链节点：name 含动作关键词，供 resolveMemoryToolName 正确归类
+  return mapMemoryOperationRecords([importantOps, summaryOps], characterId);
+}
+
+// 映射成过程链节点：成功项展示真实落库结果；失败项只展示安全状态，不携带记忆正文。
+function mapMemoryOperationRecords(operationGroups, characterId) {
+  const records = [];
   const ACTION_LABEL = {
     add: '新增记忆',
     edit: '更新记忆',
     delete: '删除记忆'
   };
 
-  for (const op of [...(importantOps || []), ...(summaryOps || [])]) {
+  const groups = normalizeList(operationGroups);
+  for (const op of groups.flatMap((group) => normalizeList(group))) {
     const action = String(op?.action || '').toLowerCase();
     const memory = op?.memory;
     if (!action || !memory) continue;
@@ -2282,7 +2320,52 @@ async function collectMemoryWrites(characterId, messages, options = {}) {
     }));
   }
 
+  for (const failure of groups.flatMap((group) => normalizeList(group?.failures))) {
+    const action = String(failure?.action || '').toLowerCase();
+    records.push(cleanForDB({
+      name: ACTION_LABEL[action] || '记忆更新',
+      action,
+      status: 'failed',
+      summary: '记忆操作未保存',
+      result: '',
+      characterId: String(characterId || ''),
+      _source: 'memory'
+    }));
+  }
+
   return records;
+}
+
+function scheduleGroupMemoryFinalization(params) {
+  const characterId = String(params?.characterId || '').trim();
+  if (!characterId || getChatConfig(characterId).memoryAutoEnabled === false) return false;
+
+  const finalize = backgroundMemoryTestHooks.finalize || finalizeMemoryAndGrudge;
+  finalize({
+    ...params,
+    store: GROUP_STORE,
+    activeLock: null,
+    includeGrudge: false
+  }).catch((err) => {
+    console.warn('[thread-ai] 群聊后台记忆判定失败，主回复不受影响', err?.message || err);
+  });
+  return true;
+}
+
+// 同角色自动记忆串行，不同角色使用不同队列并行；finally 始终释放当前角色队列。
+function enqueueCharacterMemoryFinalization(characterId, task) {
+  const id = String(characterId || '').trim();
+  if (!id || typeof task !== 'function') return Promise.resolve([]);
+
+  const previous = memoryFinalizationQueues.get(id) || Promise.resolve();
+  const run = previous.catch(() => null).then(task);
+  const tracked = run.finally(() => {
+    if (memoryFinalizationQueues.get(id) === tracked) {
+      memoryFinalizationQueues.delete(id);
+    }
+  });
+  memoryFinalizationQueues.set(id, tracked);
+  return tracked;
 }
 
 // 修复问题 E：后台执行记忆 + 记仇判定，完成后安全回写消息
@@ -2292,7 +2375,10 @@ async function collectMemoryWrites(characterId, messages, options = {}) {
 //  - 从 DB 重新读取最新 message 再合并写入，避免覆盖后台其他写入
 //  - 失败只 warn，不抛出，主回复已落库不受影响
 async function finalizeMemoryAndGrudge(params) {
-  const { characterId, character, userName, memoryMessages, finalMessage, userMessage, activeLock, state, job } = params;
+  const {
+    characterId, character, userName, memoryMessages, finalMessage, userMessage,
+    activeLock, state, job, store = PRIVATE_STORE, groupId = '', includeGrudge = true
+  } = params;
   if (!characterId || !finalMessage?.id) return;
 
   const userProfile = loadUserProfileForCharacter(character);
@@ -2301,57 +2387,73 @@ async function finalizeMemoryAndGrudge(params) {
   const updates = {};
 
   // 记忆判定
-  try {
-    const memoryWrites = await collectMemoryWrites(characterId, memoryMessages, {
-      character, userProfile, callName: userName
-    });
-    if (memoryWrites && memoryWrites.length) {
-      updates.memoryWrites = memoryWrites;
-      needsUpdate = true;
+  if (getChatConfig(characterId).memoryAutoEnabled !== false) {
+    try {
+      const memoryWrites = await enqueueCharacterMemoryFinalization(characterId, () => (
+        collectMemoryWrites(characterId, memoryMessages, {
+          character, userProfile, callName: userName
+        })
+      ));
+      if (memoryWrites && memoryWrites.length) {
+        updates.memoryWrites = memoryWrites;
+        needsUpdate = true;
+      }
+    } catch (err) {
+      console.warn('[thread-ai] 后台 collectMemoryWrites 失败:', err?.message || err);
     }
-  } catch (err) {
-    console.warn('[thread-ai] 后台 collectMemoryWrites 失败:', err?.message || err);
   }
 
   // 记仇判定（本地关键词检测，相对快，保持同步）
-  try {
-    const grudge = await maybeWriteGrudge({
-      character,
-      sourceMessage: userMessage,
-      aiText: finalMessage.content,
-      activeLock
-    });
-    if (grudge) {
-      updates.grudgeWrites = [cleanForDB({
-        name: 'grudge',
-        status: 'active',
-        summary: summarizeText(grudge.reason, 80),
-        result: summarizeText(grudge.reason, 200),
-        mood: grudge.mood || '',
-        characterId: grudge.characterId || characterId,
-        _source: 'grudge'
-      })];
-      needsUpdate = true;
+  if (includeGrudge) {
+    try {
+      const grudge = await maybeWriteGrudge({
+        character,
+        sourceMessage: userMessage,
+        aiText: finalMessage.content,
+        activeLock
+      });
+      if (grudge) {
+        updates.grudgeWrites = [cleanForDB({
+          name: 'grudge',
+          status: 'active',
+          summary: summarizeText(grudge.reason, 80),
+          result: summarizeText(grudge.reason, 200),
+          mood: grudge.mood || '',
+          characterId: grudge.characterId || characterId,
+          _source: 'grudge'
+        })];
+        needsUpdate = true;
+      }
+    } catch (err) {
+      console.warn('[thread-ai] 后台 maybeWriteGrudge 失败:', err?.message || err);
     }
-  } catch (err) {
-    console.warn('[thread-ai] 后台 maybeWriteGrudge 失败:', err?.message || err);
   }
 
   if (!needsUpdate) return;
 
   // 从 DB 重新读取最新 message，避免覆盖 enrichToolCallsBackground 等其他后台写入
-  const latest = await getDB(PRIVATE_STORE, finalMessage.id).catch(() => null);
-  if (!latest) return;
+  const latest = await getDB(store, finalMessage.id).catch(() => null);
+  if (!isMemoryFinalizationTarget(latest, characterId, groupId)) return;
 
   // 合并更新（不覆盖其他字段）
   const merged = { ...latest, ...updates, updatedAt: getNow() };
-  await safeSetMessage(PRIVATE_STORE, merged);
+  await safeSetMessage(store, merged);
 
   // 仅当用户仍在该会话时刷新 UI，避免打扰其他会话
   if (isStateForThisJob(state, job)) {
-    await syncPrivateState(state, characterId);
+    if (store === GROUP_STORE) {
+      await syncGroupState(state, groupId);
+    } else {
+      await syncPrivateState(state, characterId);
+    }
     state.renderOnly?.();
   }
+}
+
+function isMemoryFinalizationTarget(message, characterId, groupId = '') {
+  if (!message || String(message.characterId || '') !== String(characterId || '')) return false;
+  if (groupId && String(message.groupId || '') !== String(groupId)) return false;
+  return true;
 }
 
 function buildMemoryQueryText(messages, userName) {
@@ -2868,8 +2970,18 @@ function getChatConfig(characterId) {
     proactiveMode2MaxMinutes: Number(stored.proactiveMode2MaxMinutes || DEFAULT_PROACTIVE_CONFIG.proactiveMode2MaxMinutes),
     proactiveChance: Number(stored.proactiveChance ?? DEFAULT_PROACTIVE_CONFIG.proactiveChance),
     memoryInjectLimit: Number(stored.memoryInjectLimit || DEFAULT_PROACTIVE_CONFIG.memoryInjectLimit),
-    memoryCandidateLimit: Number(stored.memoryCandidateLimit || DEFAULT_PROACTIVE_CONFIG.memoryCandidateLimit)
+    memoryCandidateLimit: Number(stored.memoryCandidateLimit || DEFAULT_PROACTIVE_CONFIG.memoryCandidateLimit),
+    memoryAutoEnabled: stored.memoryAutoEnabled !== false,
+    memoryWriteIntensity: normalizeMemoryWriteIntensity(stored.memoryWriteIntensity),
+    memoryAllowEdit: stored.memoryAllowEdit !== false,
+    memoryAllowDelete: stored.memoryAllowDelete !== false
   };
+}
+
+function normalizeMemoryWriteIntensity(value) {
+  const intensity = String(value || '').trim().toLowerCase();
+  if (['weak', 'low', 'strong', 'high'].includes(intensity)) return intensity;
+  return 'normal';
 }
 
 function saveChatConfig(characterId, config) {
@@ -3118,5 +3230,14 @@ export const __testHooks = {
   // 记仇判断
   detectGrudgeSignal,
   // MCP 工具调用解析（供 BUG1/BUG2 测试）
-  parseMcpToolCall
+  parseMcpToolCall,
+  mapMemoryOperationRecords,
+  collectMemoryWrites,
+  getChatConfig,
+  memoryCollection: memoryCollectionTestHooks,
+  scheduleGroupMemoryFinalization,
+  enqueueCharacterMemoryFinalization,
+  isMemoryFinalizationTarget,
+  memoryFinalizationQueues,
+  backgroundMemory: backgroundMemoryTestHooks
 };
