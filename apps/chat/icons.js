@@ -55,7 +55,7 @@ export function createChatIcon(name, size = 18) {
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'var(--chat-icon-line)');
-  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-width', '1.8');
   svg.setAttribute('stroke-linecap', 'round');
   svg.setAttribute('stroke-linejoin', 'round');
   svg.classList.add('chat-kawaii-icon');
