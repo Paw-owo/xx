@@ -368,7 +368,7 @@ console.log('\n[13] collectMemoryWrites 后台化（流程断言）');
   const fnEnd = src.indexOf('\n}', fnDef);
   const fnBody = src.slice(fnDef, fnEnd);
   assert(fnBody.includes('isStateForThisJob'), '后台回写校验 isStateForThisJob（防串会话）');
-  assert(fnBody.includes('getDB(PRIVATE_STORE, finalMessage.id)'), '后台回写前重新读取 DB（避免覆盖其他写入）');
+  assert(fnBody.includes('getDB(store, finalMessage.id)'), '后台回写前按目标消息 store 重新读取 DB（避免覆盖其他写入）');
 
   // finishAIJob 释放 aiGenerating/isSending
   assert(src.includes('state.aiGenerating = false'), 'finishAIJob 释放 aiGenerating');
