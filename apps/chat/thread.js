@@ -1,7 +1,7 @@
 // apps/chat/thread.js
 // imports:
 //   from '../../core/storage.js': getData, setData, getDB, getByIndexDB
-//   from '../../core/ui.js': createIcon, showToast, hideBottomSheet
+//   from '../../core/ui.js': showToast, hideBottomSheet
 //   from '../../core/tts.js': stopAll
 //   from './thread-render.js': renderThreadMessages
 //   from './thread-actions.js': sendThreadMessage, stopThreadAIReply
@@ -12,7 +12,8 @@
 //   from './thread-settings.js': mountThreadSettings, unmountThreadSettings
 
 import { getData, setData, getDB, getByIndexDB, compressImage } from '../../core/storage.js';
-import { createIcon, showToast, hideBottomSheet } from '../../core/ui.js';
+import { showToast, hideBottomSheet } from '../../core/ui.js';
+import { createChatIcon } from './icons.js';
 import { stopAll } from '../../core/tts.js';
 
 import { renderThreadMessages, resetVoicePlayer } from './thread-render.js';
@@ -585,7 +586,7 @@ function createInputBar() {
   const mic = el('button', 'chat-thread-mic');
   mic.type = 'button';
   mic.setAttribute('aria-label', '语音输入');
-  mic.append(createIcon('mic', 20));
+  mic.append(createChatIcon('mic', 20));
   mic.addEventListener('click', () => handleMicClick(input, mic, send));
   updateMicButtonState(mic);
 
@@ -594,12 +595,12 @@ function createInputBar() {
 
   if (isAIWorking()) {
     send.classList.add('is-ai-working');
-    send.append(createIcon('stop', 16));
+    send.append(createChatIcon('stop', 16));
     send.setAttribute('aria-label', '停止回复');
     send.disabled = state.stoppingAI;
     send.addEventListener('click', () => handleStopAI());
   } else {
-    send.append(createIcon('send', 16));
+    send.append(createChatIcon('send', 16));
     send.setAttribute('aria-label', '发送');
     send.addEventListener('click', () => handleSend(input));
     updateSendButtonState(send, input);
@@ -661,7 +662,7 @@ function renderRecordingBar(input, micBtn, sendBtn) {
     const cancelBtn = el('button', 'chat-recording-cancel');
     cancelBtn.type = 'button';
     cancelBtn.setAttribute('aria-label', '取消录音');
-    cancelBtn.append(createIcon('close', 14));
+    cancelBtn.append(createChatIcon('close', 14));
     cancelBtn.addEventListener('click', () => handleCancelRecording(input, micBtn, sendBtn));
     wrap.append(dot, timer, cancelBtn);
   } else if (state.earState === 'transcribing') {
@@ -819,7 +820,7 @@ function renderPendingImages() {
     const removeBtn = el('button', 'chat-pending-image-remove');
     removeBtn.type = 'button';
     removeBtn.setAttribute('aria-label', '移除图片');
-    removeBtn.append(createIcon('close', 12));
+    removeBtn.append(createChatIcon('close', 12));
     removeBtn.addEventListener('click', () => {
       state.pendingImages.splice(index, 1);
       render();
@@ -1313,7 +1314,7 @@ function iconButton(iconName, label) {
   const button = el('button', 'chat-icon-btn');
   button.type = 'button';
   button.setAttribute('aria-label', label || iconName);
-  button.append(createIcon(iconName, 18));
+  button.append(createChatIcon(iconName, 18));
   return button;
 }
 

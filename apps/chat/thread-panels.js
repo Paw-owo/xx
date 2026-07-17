@@ -9,9 +9,9 @@
 import {
   showBottomSheet,
   hideBottomSheet,
-  showToast,
-  createIcon
+  showToast
 } from '../../core/ui.js';
+import { createChatIcon } from './icons.js';
 
 import { createThreadToolsGrid } from './thread-tools.js';
 import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
@@ -254,7 +254,7 @@ function buttonIcon(iconName, label) {
   button.type = 'button';
   button.className = 'chat-panel-icon-btn';
   button.setAttribute('aria-label', label || iconName);
-  button.appendChild(createIcon(iconName, 18));
+  button.appendChild(createChatIcon(iconName, 18));
   return button;
 }
 

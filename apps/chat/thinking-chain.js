@@ -6,6 +6,7 @@
 // imports:
 //   from './thinking-pure.js': sanitizeThinkingText (展示层 sanitizer，与生产层同源)
 
+import { createChatIcon } from './icons.js';
 import { sanitizeThinkingText } from './thinking-pure.js';
 
 // 兼容旧版 class 名（thread-render.js 可能引用容器 class）
@@ -86,8 +87,7 @@ function createThinkingPill(stepCount, isRunning, message, ctx) {
   pill.setAttribute('aria-label', `查看思考过程，共${stepCount}步`);
 
   // sparkle 图标
-  const iconSvg = createSvgBase(14, 14);
-  addPath(iconSvg, 'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z');
+  const iconSvg = createChatIcon('sparkle', 14);
   iconSvg.classList.add('tc-pill-icon');
 
   // 文本：思考过程 · N步 / 还在想想 · N步
@@ -95,8 +95,7 @@ function createThinkingPill(stepCount, isRunning, message, ctx) {
   const textNode = el('span', 'tc-pill-text', label);
 
   // 右侧 › 箭头
-  const chevronSvg = createSvgBase(12, 12);
-  addPath(chevronSvg, 'M9 6l6 6-6 6');
+  const chevronSvg = createChatIcon('chevron-right', 12);
   chevronSvg.classList.add('tc-pill-chevron');
 
   pill.append(iconSvg, textNode, chevronSvg);
@@ -300,8 +299,7 @@ function createStepRow(step, index, onClick) {
   row.appendChild(content);
 
   // 右侧 › 箭头
-  const arrowSvg = createSvgBase(14, 14);
-  addPath(arrowSvg, 'M9 6l6 6-6 6');
+  const arrowSvg = createChatIcon('chevron-right', 14);
   arrowSvg.classList.add('tc-step-arrow');
   row.appendChild(arrowSvg);
 
@@ -675,9 +673,7 @@ function normalizeText(value) {
 function createStepIcon(name) {
   // sparkle 用于 thinking
   if (name === 'sparkle') {
-    const svg = createSvgBase(14, 14);
-    addPath(svg, 'M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5z');
-    return svg;
+    return createChatIcon('sparkle', 14);
   }
   return createToolKindIcon(name);
 }
@@ -687,14 +683,7 @@ function createIconButton(kind, label) {
   btn.type = 'button';
   btn.className = 'tc-icon-btn';
   btn.setAttribute('aria-label', label);
-  const svg = createSvgBase(16, 16);
-  if (kind === 'close') {
-    addPath(svg, 'M6 6l12 12');
-    addPath(svg, 'M18 6L6 18');
-  } else if (kind === 'back') {
-    addPath(svg, 'M15 6l-6 6 6 6');
-  }
-  btn.appendChild(svg);
+  btn.appendChild(createChatIcon(kind, 16));
   return btn;
 }
 

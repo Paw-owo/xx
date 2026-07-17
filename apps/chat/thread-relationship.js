@@ -1,7 +1,7 @@
 // apps/chat/thread-relationship.js
 // imports:
 //   from '../../core/storage.js': getDB, setDB, getByIndexDB, getNow
-//   from '../../core/ui.js': createIcon, showBottomSheet, hideBottomSheet
+//   from '../../core/ui.js': showBottomSheet, hideBottomSheet
 
 import {
   getDB,
@@ -10,7 +10,8 @@ import {
   getNow
 } from '../../core/storage.js';
 
-import { createIcon, showBottomSheet, hideBottomSheet } from '../../core/ui.js';
+import { showBottomSheet, hideBottomSheet } from '../../core/ui.js';
+import { createChatIcon } from './icons.js';
 
 const RELATIONSHIP_STYLE_ID = 'chat-thread-relationship-style';
 
@@ -158,7 +159,7 @@ export function createRelationshipLockBar(state, options = {}) {
   const wrap = el('section', 'chat-relationship-lock-bar');
 
   const icon = el('span', 'chat-relationship-lock-icon');
-  icon.appendChild(createIcon(lock.type === 'soft_block' ? 'ban' : 'lock', 18));
+  icon.appendChild(createChatIcon(lock.type === 'soft_block' ? 'ban' : 'lock', 18));
 
   const text = el('span', 'chat-relationship-lock-text');
   text.append(

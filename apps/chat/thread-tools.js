@@ -12,6 +12,7 @@ import { openTransferSheet, openClearContextSheet, openMcpSheet } from './thread
 import { openRelationshipLockSheet } from './thread-relationship.js';
 import { sendDiceMessage, sendRpsMessage } from './thread-actions.js';
 import { openGithubToolSheet } from './github-tool.js';
+import { createChatIcon } from './icons.js';
 
 const STYLE_ID = 'thread-tools-style-v2';
 
@@ -57,29 +58,29 @@ const TOOL_GROUPS = [
 
 const TOOL_ICONS = {
   // 图片：圆润相册 + 小山
-  image: '<rect x="2.4" y="3" width="11.2" height="10" rx="2.4" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.2" r="1.1" fill="currentColor"/><path d="M3 10.5L5.8 7.8C6.2 7.4 6.8 7.4 7.2 7.8L10 10.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 10.5L10.3 8.8C10.7 8.4 11.3 8.4 11.7 8.8L13 10.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  image: '<rect x="2.4" y="3" width="11.2" height="10" rx="2.4" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.2" r="1.1" fill="var(--chat-icon-fill)"/><path d="M3 10.5L5.8 7.8C6.2 7.4 6.8 7.4 7.2 7.8L10 10.5" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 10.5L10.3 8.8C10.7 8.4 11.3 8.4 11.7 8.8L13 10.1" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   // 快捷回复：圆润小气泡，尾巴朝下
-  chat: '<path d="M2.5 4.5C2.5 3.4 3.4 2.5 4.5 2.5H11.5C12.6 2.5 13.5 3.4 13.5 4.5V8.5C13.5 9.6 12.6 10.5 11.5 10.5H7L4.2 13C3.8 13.3 3.3 13 3.3 12.5V10.5C2.8 10.4 2.5 9.9 2.5 9.5V4.5Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.5" r="0.9" fill="currentColor"/><circle cx="8" cy="6.5" r="0.9" fill="currentColor"/><circle cx="10" cy="6.5" r="0.9" fill="currentColor"/>',
+  chat: '<path d="M2.5 4.5C2.5 3.4 3.4 2.5 4.5 2.5H11.5C12.6 2.5 13.5 3.4 13.5 4.5V8.5C13.5 9.6 12.6 10.5 11.5 10.5H7L4.2 13C3.8 13.3 3.3 13 3.3 12.5V10.5C2.8 10.4 2.5 9.9 2.5 9.5V4.5Z" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.5" r="0.9" fill="var(--chat-icon-fill)"/><circle cx="8" cy="6.5" r="0.9" fill="var(--chat-icon-fill)"/><circle cx="10" cy="6.5" r="0.9" fill="var(--chat-icon-fill)"/>',
   // 小任务：剪贴板 + 勾选
-  task: '<rect x="3" y="2.8" width="10" height="11.2" rx="2.6" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="5.5" y="1.8" width="5" height="2.4" rx="1.2" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8.2L7 9.7L10.3 6.3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  task: '<rect x="3" y="2.8" width="10" height="11.2" rx="2.6" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="5.5" y="1.8" width="5" height="2.4" rx="1.2" fill="var(--chat-icon-fill)" opacity="0.3" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8.2L7 9.7L10.3 6.3" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
   // 默契问答：两个小气泡叠在一起 + 问号
-  quiz: '<path d="M2.2 7.5C2.2 6.7 2.9 6 3.7 6H7C7.8 6 8.5 6.7 8.5 7.5V10C8.5 10.8 7.8 11.5 7 11.5H4.8L2.8 13V11.3C2.4 11.1 2.2 10.7 2.2 10.3V7.5Z" fill="currentColor" opacity="0.14" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 4.2C8 3.3 8.8 2.5 9.8 2.5H12.5C13.4 2.5 14.2 3.3 14.2 4.2V6.5C14.2 7.4 13.4 8.2 12.5 8.2H11L9.2 9.5V8.1C8.5 7.8 8 7.2 8 6.5V4.2Z" fill="currentColor" opacity="0.22" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 4.3C10.2 4.3 9.9 4.6 9.9 5C9.9 5.4 10.2 5.7 10.6 5.7" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="10.8" cy="6.7" r="0.5" fill="currentColor"/>',
+  quiz: '<path d="M2.2 7.5C2.2 6.7 2.9 6 3.7 6H7C7.8 6 8.5 6.7 8.5 7.5V10C8.5 10.8 7.8 11.5 7 11.5H4.8L2.8 13V11.3C2.4 11.1 2.2 10.7 2.2 10.3V7.5Z" fill="var(--chat-icon-fill)" opacity="0.14" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 4.2C8 3.3 8.8 2.5 9.8 2.5H12.5C13.4 2.5 14.2 3.3 14.2 4.2V6.5C14.2 7.4 13.4 8.2 12.5 8.2H11L9.2 9.5V8.1C8.5 7.8 8 7.2 8 6.5V4.2Z" fill="var(--chat-icon-fill)" opacity="0.22" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.6 4.3C10.2 4.3 9.9 4.6 9.9 5C9.9 5.4 10.2 5.7 10.6 5.7" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.3" stroke-linecap="round"/><circle cx="10.8" cy="6.7" r="0.5" fill="var(--chat-icon-fill)"/>',
   // 转账：圆润钱币 + ¥
-  transfer: '<circle cx="8" cy="8" r="6" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.6 5.8L8 8.2L10.4 5.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8.2V11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M6.2 6.6H9.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M6.2 9.4H9.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  transfer: '<circle cx="8" cy="8" r="6" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.6 5.8L8 8.2L10.4 5.8" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 8.2V11" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round"/><path d="M6.2 6.6H9.8" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round"/><path d="M6.2 9.4H9.8" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round"/>',
   // 电话：圆润听筒
-  phone: '<path d="M3 2.8C3 2.2 3.4 1.8 4 1.8H5.8C6.3 1.8 6.7 2.1 6.8 2.6L7.5 5.2C7.6 5.6 7.4 6 7.1 6.3L5.9 7.3C6.7 9.2 8.2 10.7 10.1 11.5L11.1 10.3C11.4 10 11.8 9.8 12.2 9.9L14.8 10.6C15.3 10.7 15.6 11.1 15.6 11.6V13.4C15.6 14 15.2 14.4 14.6 14.4C8 14.4 3 9.4 3 2.8Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  phone: '<path d="M3 2.8C3 2.2 3.4 1.8 4 1.8H5.8C6.3 1.8 6.7 2.1 6.8 2.6L7.5 5.2C7.6 5.6 7.4 6 7.1 6.3L5.9 7.3C6.7 9.2 8.2 10.7 10.1 11.5L11.1 10.3C11.4 10 11.8 9.8 12.2 9.9L14.8 10.6C15.3 10.7 15.6 11.1 15.6 11.6V13.4C15.6 14 15.2 14.4 14.6 14.4C8 14.4 3 9.4 3 2.8Z" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   // 骰子：圆润方块 + 五点
-  dice: '<rect x="2.2" y="2.2" width="11.6" height="11.6" rx="3.4" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="5.2" r="1.15" fill="currentColor"/><circle cx="10.8" cy="5.2" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="5.2" cy="10.8" r="1.15" fill="currentColor"/><circle cx="10.8" cy="10.8" r="1.15" fill="currentColor"/>',
+  dice: '<rect x="2.2" y="2.2" width="11.6" height="11.6" rx="3.4" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="5.2" cy="5.2" r="1.15" fill="var(--chat-icon-fill)"/><circle cx="10.8" cy="5.2" r="1.15" fill="var(--chat-icon-fill)"/><circle cx="8" cy="8" r="1.15" fill="var(--chat-icon-fill)"/><circle cx="5.2" cy="10.8" r="1.15" fill="var(--chat-icon-fill)"/><circle cx="10.8" cy="10.8" r="1.15" fill="var(--chat-icon-fill)"/>',
   // 猜拳：圆润石头拳头
-  rps: '<path d="M4.5 7.5C4.5 6 5.7 4.8 7.2 4.8H9.5C11 4.8 12.2 6 12.2 7.5V10C12.2 12.2 10.4 14 8.2 14C6 14 4.2 12.2 4.2 10V7.5Z" fill="currentColor" opacity="0.18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.3 7.2V6.2C6.3 5.7 6.7 5.3 7.2 5.3C7.7 5.3 8.1 5.7 8.1 6.2V7.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 7.2V5.8C8.5 5.3 8.9 4.9 9.4 4.9C9.9 4.9 10.3 5.3 10.3 5.8V7.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  rps: '<path d="M4.5 7.5C4.5 6 5.7 4.8 7.2 4.8H9.5C11 4.8 12.2 6 12.2 7.5V10C12.2 12.2 10.4 14 8.2 14C6 14 4.2 12.2 4.2 10V7.5Z" fill="var(--chat-icon-fill)" opacity="0.18" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.3 7.2V6.2C6.3 5.7 6.7 5.3 7.2 5.3C7.7 5.3 8.1 5.7 8.1 6.2V7.2" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 7.2V5.8C8.5 5.3 8.9 4.9 9.4 4.9C9.9 4.9 10.3 5.3 10.3 5.8V7.2" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
   // 清上下文：软橡皮擦
-  clean: '<path d="M3 9.5L6.5 6L11.5 11L9.5 13H5.5L3 10.5Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6L9 3L13 7L11 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 10.5L5.5 13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 8.5L8.5 10.5" fill="none" stroke="currentColor" opacity="0.5" stroke-width="1.4" stroke-linecap="round"/>',
+  clean: '<path d="M3 9.5L6.5 6L11.5 11L9.5 13H5.5L3 10.5Z" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6L9 3L13 7L11 9" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 10.5L5.5 13" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 8.5L8.5 10.5" fill="none" stroke="var(--chat-icon-line)" opacity="0.5" stroke-width="1.4" stroke-linecap="round"/>',
   // 关系锁：爱心锁
-  lock: '<path d="M8 12.8L4.6 9.4C3.2 8 3.2 5.8 4.6 4.4C6 3 8.2 3 9.6 4.4L8 6L6.4 4.4C5.6 3.6 4.4 3.6 3.6 4.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/><path d="M8 12.8L11.4 9.4C12.8 8 12.8 5.8 11.4 4.4C10 3 7.8 3 6.4 4.4L8 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 8.5H11.5V13.5C11.5 14 11.1 14.4 10.6 14.4H5.4C4.9 14.4 4.5 14 4.5 13.5V8.5Z" fill="currentColor" opacity="0.18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="10.8" r="1.1" fill="currentColor"/><path d="M8 11.9V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  lock: '<path d="M8 12.8L4.6 9.4C3.2 8 3.2 5.8 4.6 4.4C6 3 8.2 3 9.6 4.4L8 6L6.4 4.4C5.6 3.6 4.4 3.6 3.6 4.4" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"/><path d="M8 12.8L11.4 9.4C12.8 8 12.8 5.8 11.4 4.4C10 3 7.8 3 6.4 4.4L8 6" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4.5 8.5H11.5V13.5C11.5 14 11.1 14.4 10.6 14.4H5.4C4.9 14.4 4.5 14 4.5 13.5V8.5Z" fill="var(--chat-icon-fill)" opacity="0.18" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="10.8" r="1.1" fill="var(--chat-icon-fill)"/><path d="M8 11.9V13" stroke="var(--chat-icon-line)" stroke-width="1.5" stroke-linecap="round"/>',
   // MCP：连接节点 + 小插头
-  mcp: '<circle cx="4" cy="4" r="2" fill="currentColor" opacity="0.18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4" r="2" fill="currentColor" opacity="0.18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="12" r="2.2" fill="currentColor" opacity="0.22" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6V8.5C4 9.3 4.7 10 5.5 10H6.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6V8.5C12 9.3 11.3 10 10.5 10H9.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  mcp: '<circle cx="4" cy="4" r="2" fill="var(--chat-icon-fill)" opacity="0.18" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="4" r="2" fill="var(--chat-icon-fill)" opacity="0.18" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="12" r="2.2" fill="var(--chat-icon-fill)" opacity="0.22" stroke="var(--chat-icon-line)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 6V8.5C4 9.3 4.7 10 5.5 10H6.5" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 6V8.5C12 9.3 11.3 10 10.5 10H9.5" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   // GitHub：代码猫头（猫耳 + 圆脸 + 代码括号）
-  github: '<path d="M3 7C3 4.2 5.2 2 8 2C10.8 2 13 4.2 13 7V10C13 11.1 12.1 12 11 12H8.5L6.5 13.5V12H5C3.9 12 3 11.1 3 10V7Z" fill="currentColor" opacity="0.16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 2.5L4 1.2L5.2 3.2" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 2.5L12 1.2L10.8 3.2" fill="currentColor" opacity="0.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.3 7.5L5 9L6.3 10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.7 7.5L11 9L9.7 10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  github: '<path d="M3 7C3 4.2 5.2 2 8 2C10.8 2 13 4.2 13 7V10C13 11.1 12.1 12 11 12H8.5L6.5 13.5V12H5C3.9 12 3 11.1 3 10V7Z" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 2.5L4 1.2L5.2 3.2" fill="var(--chat-icon-fill)" opacity="0.3" stroke="var(--chat-icon-line)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M10.5 2.5L12 1.2L10.8 3.2" fill="var(--chat-icon-fill)" opacity="0.3" stroke="var(--chat-icon-line)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.3 7.5L5 9L6.3 10.5" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.7 7.5L11 9L9.7 10.5" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 
 // ═══════════════════════════════════════
@@ -162,17 +163,7 @@ function createToolIcon(type) {
 }
 
 function createBackIcon() {
-  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '1.5');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
-  var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', 'M15 18l-6-6 6-6');
-  svg.appendChild(path);
-  return svg;
+  return createChatIcon('back', 18);
 }
 
 // ═══════════════════════════════════════
@@ -467,7 +458,7 @@ function buildDiceDetail(state, options) {
 
     var icon = document.createElement('div');
     icon.className = 'tools-option-icon';
-    icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="8" cy="8" r="1.5" fill="currentColor"/></svg>';
+    icon.innerHTML = '<svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="3" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"/><circle cx="8" cy="8" r="1.5" fill="var(--chat-icon-fill)"/></svg>';
 
     var label = document.createElement('div');
     label.className = 'tools-option-label';
@@ -548,9 +539,9 @@ function buildRpsDetail(state, options) {
   grid.className = 'tools-option-grid';
 
   var choices = [
-    { choice: 'rock', label: '石头', svg: '<path d="M7 11c0-2 1.3-3.5 3-3.5h3.5c2 0 3.5 1.5 3.5 3.5v2.5c0 2.8-2.2 5-5 5s-5-2.2-5-5V11Z" fill="none" stroke="currentColor" stroke-width="2.5"/>' },
-    { choice: 'paper', label: '布', svg: '<path d="M6 12V7.5a1.5 1.5 0 0 1 3 0V12M9 12V5.5a1.5 1.5 0 0 1 3 0V12M12 12V6.5a1.5 1.5 0 0 1 3 0V12M15 12V8.5a1.5 1.5 0 0 1 3 0v5c0 3-2.3 5.5-6 5.5-3.2 0-6-2.2-6-5.5V12" fill="none" stroke="currentColor" stroke-width="2.5"/>' },
-    { choice: 'scissors', label: '剪刀', svg: '<path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="6" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="6" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="2.5"/>' },
+    { choice: 'rock', label: '石头', svg: '<path d="M7 11c0-2 1.3-3.5 3-3.5h3.5c2 0 3.5 1.5 3.5 3.5v2.5c0 2.8-2.2 5-5 5s-5-2.2-5-5V11Z" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"/>' },
+    { choice: 'paper', label: '布', svg: '<path d="M6 12V7.5a1.5 1.5 0 0 1 3 0V12M9 12V5.5a1.5 1.5 0 0 1 3 0V12M12 12V6.5a1.5 1.5 0 0 1 3 0V12M15 12V8.5a1.5 1.5 0 0 1 3 0v5c0 3-2.3 5.5-6 5.5-3.2 0-6-2.2-6-5.5V12" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"/>' },
+    { choice: 'scissors', label: '剪刀', svg: '<path d="M6 6l12 12M18 6 6 18" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"/><circle cx="6" cy="6" r="2" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"/><circle cx="6" cy="18" r="2" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"/>' },
   ];
 
   choices.forEach(function(c) {
@@ -560,7 +551,7 @@ function buildRpsDetail(state, options) {
 
     var icon = document.createElement('div');
     icon.className = 'tools-option-icon';
-    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' + c.svg + '</svg>';
+    icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">' + c.svg + '</svg>';
 
     var label = document.createElement('div');
     label.className = 'tools-option-label';
@@ -636,7 +627,7 @@ function buildQuickReplyDetail(state, options) {
       del.type = 'button';
       del.className = 'tools-chip-del';
       del.setAttribute('aria-label', '删除');
-      del.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+      del.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--chat-icon-line)" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>';
       del.addEventListener('click', function(e) {
         e.stopPropagation();
         var updated = getQuickReplies(state).filter(function(_, i) { return i !== index; });
@@ -727,7 +718,7 @@ function buildTaskDetail(state, options) {
       doneBtn.type = 'button';
       doneBtn.className = 'tools-chip-del';
       doneBtn.setAttribute('aria-label', '标记完成');
-      doneBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12l4 4L19 6"/></svg>';
+      doneBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--chat-icon-line)" stroke-width="2.5"><path d="M5 12l4 4L19 6"/></svg>';
       doneBtn.addEventListener('click', function(e) {
         e.stopPropagation();
         var all = getTaskList(state);
