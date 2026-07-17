@@ -2,9 +2,11 @@
 
 import {
   deleteDB,
+  getData,
   getAllDBStrict,
   getNow,
   removeData,
+  setData,
   setDB
 } from './storage.js';
 
@@ -18,28 +20,47 @@ const CHARACTER_PRIVATE_STORES = Object.freeze([
 
 const deletionTestOperations = {
   deleteDB: null,
+  getData: null,
   getAllDBStrict: null,
   getNow: null,
   removeData: null,
+  setData: null,
   setDB: null
 };
 
-export async function deleteCharacterPrivateData(characterId) {
+export async function deleteCharacterPrivateData(characterId, { includeMessages = false } = {}) {
   const id = String(characterId || '').trim();
   if (!id) return { success: false };
 
+  const rollback = [];
   try {
-    for (const storeName of CHARACTER_PRIVATE_STORES) {
+    const stores = includeMessages
+      ? [...CHARACTER_PRIVATE_STORES, 'messages']
+      : CHARACTER_PRIVATE_STORES;
+
+    // Read everything before making the first change. Besides detecting read errors
+    // up front, these records are the undo log if a later operation fails.
+    const recordsByStore = new Map();
+    for (const storeName of stores) {
       const rows = await callDeletionOperation('getAllDBStrict', storeName);
-      for (const row of normalizeList(rows)) {
-        if (String(row?.characterId || '') !== id || !row?.id) continue;
+      recordsByStore.set(storeName, normalizeList(rows).filter((row) => (
+        String(row?.characterId || '') === id && row?.id
+      )));
+    }
+    const groups = normalizeList(await callDeletionOperation('getAllDBStrict', 'groups'));
+    const checkpointMissing = Symbol('checkpoint-missing');
+    const checkpointKey = `mem_sum_${id}`;
+    const checkpoint = await callDeletionOperation('getData', checkpointKey, checkpointMissing);
+
+    for (const [storeName, records] of recordsByStore) {
+      for (const row of records) {
         const deleted = await callDeletionOperation('deleteDB', storeName, row.id);
         if (deleted !== true) throw new Error('private-data-delete-failed');
+        rollback.push(() => callDeletionOperation('setDB', storeName, row));
       }
     }
 
-    const groups = await callDeletionOperation('getAllDBStrict', 'groups');
-    for (const group of normalizeList(groups)) {
+    for (const group of groups) {
       const memberIds = normalizeList(group?.memberIds);
       if (!memberIds.includes(id)) continue;
 
@@ -50,13 +71,25 @@ export async function deleteCharacterPrivateData(characterId) {
         updatedAt: now
       });
       if (!saved) throw new Error('group-update-failed');
+      rollback.push(() => callDeletionOperation('setDB', 'groups', group));
     }
 
-    const checkpointRemoved = await callDeletionOperation('removeData', `mem_sum_${id}`);
+    const checkpointRemoved = await callDeletionOperation('removeData', checkpointKey);
     if (checkpointRemoved !== true) throw new Error('checkpoint-delete-failed');
+    if (checkpoint !== checkpointMissing) {
+      rollback.push(() => callDeletionOperation('setData', checkpointKey, checkpoint));
+    }
 
     return { success: true };
   } catch (_) {
+    for (const undo of rollback.reverse()) {
+      try {
+        const restored = await undo();
+        if (!restored) console.warn('Character cleanup rollback operation failed');
+      } catch (error) {
+        console.warn('Character cleanup rollback operation failed', error);
+      }
+    }
     return { success: false };
   }
 }
@@ -68,9 +101,11 @@ function normalizeList(value) {
 async function callDeletionOperation(name, ...args) {
   const operation = deletionTestOperations[name] || {
     deleteDB,
+    getData,
     getAllDBStrict,
     getNow,
     removeData,
+    setData,
     setDB
   }[name];
   return await operation(...args);
