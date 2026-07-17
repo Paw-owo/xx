@@ -530,6 +530,13 @@ function injectChatAppStyle() {
   style.id = CHAT_APP_STYLE_ID;
   style.textContent = `
     .chat-route-stage {
+      --chat-kawaii-surface: color-mix(in srgb, var(--bg-card) 92%, var(--accent-light));
+      --chat-kawaii-surface-soft: color-mix(in srgb, var(--bg-card) 76%, var(--accent-light));
+      --chat-kawaii-accent: color-mix(in srgb, var(--accent) 78%, var(--bg-card));
+      --chat-kawaii-line: color-mix(in srgb, var(--text-primary) 48%, var(--accent-dark));
+      --chat-kawaii-line-soft: color-mix(in srgb, var(--chat-kawaii-line) 36%, transparent);
+      --chat-kawaii-text: color-mix(in srgb, var(--text-primary) 88%, var(--accent-dark));
+      --chat-kawaii-shadow: 0 3px 0 var(--chat-kawaii-line-soft);
       position: absolute;
       inset: 0;
       overflow: hidden;
@@ -644,6 +651,107 @@ function injectChatAppStyle() {
       color: var(--text-secondary);
       font-size: var(--font-size-small);
       line-height: 1.6;
+    }
+
+    .chat-page .chat-icon-btn,
+    .chat-page .chat-thread-send,
+    .chat-page .chat-primary-btn,
+    .chat-page .chat-ghost-btn,
+    .chat-page .chat-mini-btn,
+    .chat-page .chat-load-more-btn,
+    .chat-page .chat-thread-tool-page-btn {
+      border: 1.5px solid var(--chat-kawaii-line-soft);
+      box-shadow: var(--chat-kawaii-shadow);
+    }
+
+    .chat-page .chat-icon-btn,
+    .chat-page .chat-ghost-btn,
+    .chat-page .chat-mini-btn,
+    .chat-page .chat-load-more-btn,
+    .chat-page .chat-thread-tool-page-btn {
+      background: var(--chat-kawaii-surface);
+      color: var(--chat-kawaii-text);
+    }
+
+    .chat-page .chat-primary-btn,
+    .chat-page .chat-mini-btn.primary,
+    .chat-page .chat-thread-send,
+    .chat-page .chat-list-tab.active {
+      background: var(--chat-kawaii-accent);
+      color: var(--chat-kawaii-text);
+    }
+
+    .chat-page .chat-input-card,
+    .chat-page .chat-thread-input,
+    .chat-page .chat-thread-search-input,
+    .chat-page .chat-list-search-input {
+      border: 1.5px solid var(--chat-kawaii-line-soft);
+      background: var(--chat-kawaii-surface);
+      color: var(--chat-kawaii-text);
+      box-shadow: inset 0 1px 0 var(--chat-kawaii-surface-soft), var(--chat-kawaii-shadow);
+    }
+
+    .chat-page .chat-thread-tool-card,
+    .chat-page .chat-list-action,
+    .chat-page .chat-list-picker-row,
+    .chat-page .chat-thread-row,
+    .chat-page .chat-empty,
+    .chat-page .chat-pending-image {
+      border: 1.5px solid var(--chat-kawaii-line-soft);
+      background: var(--chat-kawaii-surface);
+      box-shadow: var(--chat-kawaii-shadow);
+    }
+
+    .chat-page .chat-thread-tool-icon,
+    .chat-page .chat-list-action-icon,
+    .chat-page .chat-token-pill,
+    .chat-page .chat-thread-lock-badge {
+      border: 1px solid var(--chat-kawaii-line-soft);
+      background: var(--chat-kawaii-surface-soft);
+      color: var(--chat-kawaii-text);
+      box-shadow: none;
+    }
+
+    .chat-page .chat-empty::before {
+      content: '';
+      width: 54px;
+      height: 44px;
+      border: 2px solid var(--chat-kawaii-line);
+      border-radius: 48% 48% 44% 44%;
+      background:
+        radial-gradient(circle at 35% 54%, var(--chat-kawaii-line) 0 2px, transparent 2.5px),
+        radial-gradient(circle at 65% 54%, var(--chat-kawaii-line) 0 2px, transparent 2.5px),
+        linear-gradient(135deg, transparent 48%, var(--chat-kawaii-accent) 49% 66%, transparent 67%) top left / 18px 18px no-repeat,
+        linear-gradient(225deg, transparent 48%, var(--chat-kawaii-accent) 49% 66%, transparent 67%) top right / 18px 18px no-repeat,
+        var(--chat-kawaii-surface-soft);
+      box-shadow: var(--chat-kawaii-shadow);
+    }
+
+    body:has(.chat-route-stage) .bottom-sheet {
+      --chat-kawaii-surface: color-mix(in srgb, var(--bg-card) 92%, var(--accent-light));
+      --chat-kawaii-line: color-mix(in srgb, var(--text-primary) 48%, var(--accent-dark));
+      --chat-kawaii-line-soft: color-mix(in srgb, var(--chat-kawaii-line) 36%, transparent);
+      --chat-kawaii-text: color-mix(in srgb, var(--text-primary) 88%, var(--accent-dark));
+      border: 1.5px solid var(--chat-kawaii-line-soft);
+      background: var(--chat-kawaii-surface);
+      color: var(--chat-kawaii-text);
+      box-shadow: var(--shadow-lg);
+    }
+
+    body:has(.chat-route-stage) .sheet-handle {
+      background: var(--chat-kawaii-line-soft);
+    }
+
+    @media (max-width: 430px) {
+      .chat-page .chat-icon-btn,
+      .chat-page .chat-thread-send {
+        min-width: 42px;
+        min-height: 42px;
+      }
+
+      .chat-page .chat-thread-tool-grid {
+        gap: 7px;
+      }
     }
   `;
 
