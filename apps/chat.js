@@ -537,6 +537,9 @@ function injectChatAppStyle() {
       --chat-kawaii-line-soft: color-mix(in srgb, var(--chat-kawaii-line) 36%, transparent);
       --chat-kawaii-text: color-mix(in srgb, var(--text-primary) 88%, var(--accent-dark));
       --chat-kawaii-shadow: 0 3px 0 var(--chat-kawaii-line-soft);
+      --chat-icon-line: var(--chat-kawaii-line);
+      --chat-icon-fill: color-mix(in srgb, var(--accent-light) 72%, var(--bg-card));
+      --chat-icon-paper: color-mix(in srgb, var(--bg-card) 74%, var(--accent-light));
       position: absolute;
       inset: 0;
       overflow: hidden;
@@ -712,18 +715,32 @@ function injectChatAppStyle() {
       box-shadow: none;
     }
 
-    .chat-page .chat-empty::before {
-      content: '';
-      width: 54px;
-      height: 44px;
-      border: 2px solid var(--chat-kawaii-line);
-      border-radius: 48% 48% 44% 44%;
-      background:
-        radial-gradient(circle at 35% 54%, var(--chat-kawaii-line) 0 2px, transparent 2.5px),
-        radial-gradient(circle at 65% 54%, var(--chat-kawaii-line) 0 2px, transparent 2.5px),
-        linear-gradient(135deg, transparent 48%, var(--chat-kawaii-accent) 49% 66%, transparent 67%) top left / 18px 18px no-repeat,
-        linear-gradient(225deg, transparent 48%, var(--chat-kawaii-accent) 49% 66%, transparent 67%) top right / 18px 18px no-repeat,
-        var(--chat-kawaii-surface-soft);
+    .chat-kawaii-icon .fill {
+      fill: var(--chat-icon-fill);
+      stroke: var(--chat-icon-line);
+    }
+
+    .chat-kawaii-icon .paper {
+      fill: var(--chat-icon-paper);
+      stroke: var(--chat-icon-line);
+    }
+
+    .chat-kawaii-icon .dot {
+      fill: var(--chat-icon-line);
+      stroke: none;
+    }
+
+    .chat-empty-icon {
+      width: 58px;
+      height: 50px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2px;
+      border: 1.5px solid var(--chat-kawaii-line-soft);
+      border-radius: 46% 54% 48% 52%;
+      background: var(--chat-kawaii-surface-soft);
+      color: var(--chat-kawaii-text);
       box-shadow: var(--chat-kawaii-shadow);
     }
 
@@ -732,6 +749,9 @@ function injectChatAppStyle() {
       --chat-kawaii-line: color-mix(in srgb, var(--text-primary) 48%, var(--accent-dark));
       --chat-kawaii-line-soft: color-mix(in srgb, var(--chat-kawaii-line) 36%, transparent);
       --chat-kawaii-text: color-mix(in srgb, var(--text-primary) 88%, var(--accent-dark));
+      --chat-icon-line: var(--chat-kawaii-line);
+      --chat-icon-fill: color-mix(in srgb, var(--accent-light) 72%, var(--bg-card));
+      --chat-icon-paper: color-mix(in srgb, var(--bg-card) 74%, var(--accent-light));
       border: 1.5px solid var(--chat-kawaii-line-soft);
       background: var(--chat-kawaii-surface);
       color: var(--chat-kawaii-text);

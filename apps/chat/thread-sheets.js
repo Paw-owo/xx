@@ -2,13 +2,14 @@
 // 【模块】工具详情页 - 快捷回复/心情/接龙可编辑 + 转账/语音文字/清上下文/MCP
 // ═══════════════════════════════════════
 // imports from storage.js: getData, setData, getNow
-// imports from ui.js: createIcon, showBottomSheet, hideBottomSheet, showToast
+// imports from ui.js: showBottomSheet, hideBottomSheet, showToast
 // imports from thread-actions.js: sendThreadMessage, sendTransferMessage
 // imports from thread-relationship.js: openRelationshipLockSheet
 // ═══════════════════════════════════════
 
 import { getData, setData, getNow } from '../../core/storage.js';
-import { createIcon, showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
+import { showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
+import { createChatIcon } from './icons.js';
 import { sendThreadMessage, sendTransferMessage } from './thread-actions.js';
 import { openRelationshipLockSheet } from './thread-relationship.js';
 import { getMcpDrawerItems, getMcpServerGroups, setMcpServerEnabled } from '../../core/mcp.js';
@@ -547,7 +548,7 @@ function createMcpServerRow(server, state, options) {
 
   const left = el('div', 'mcp-server-left');
   const iconWrap = el('span', 'mcp-server-icon');
-  iconWrap.appendChild(createIcon('web', 20));
+  iconWrap.appendChild(createChatIcon('web', 20));
   const text = el('div', 'mcp-server-text');
   text.append(
     el('span', 'mcp-server-name', server.name || '未命名服务器'),
@@ -733,7 +734,7 @@ function createChipGrid(items, onPick, emptyText) {
     const button = el('button', 'thread-chip-card');
     button.type = 'button';
     const icon = el('span', 'thread-chip-icon');
-    icon.appendChild(createIcon(item.icon || 'message', 18));
+    icon.appendChild(createChatIcon(item.icon || 'message', 18));
     const text = el('span', 'thread-chip-text');
     text.append(
       el('span', 'thread-chip-title', item.title || ''),

@@ -17,12 +17,12 @@ import {
 } from '../../core/storage.js';
 
 import {
-  createIcon,
   showToast,
   showConfirm,
   showBottomSheet,
   hideBottomSheet
 } from '../../core/ui.js';
+import { createChatIcon } from './icons.js';
 
 import { checkThreadProactiveMessages } from './thread-ai.js';
 import { addMemory } from '../../core/memory.js';
@@ -361,7 +361,7 @@ function createSheetAction(iconName, title, desc, onClick, danger = false) {
   button.type = 'button';
 
   const icon = el('span', 'chat-list-action-icon');
-  icon.appendChild(createIcon(iconName, 18));
+  icon.appendChild(createChatIcon(iconName, 18));
 
   const text = el('span', 'chat-list-action-text');
   text.append(
@@ -814,6 +814,9 @@ async function openGroupThread(groupId) {
 
 function createEmpty() {
   const empty = el('section', 'chat-empty');
+  const emptyIcon = el('div', 'chat-empty-icon');
+  emptyIcon.appendChild(createChatIcon(state.search ? 'search' : 'message', 42));
+  empty.appendChild(emptyIcon);
 
   if (state.search) {
     empty.append(
@@ -1306,7 +1309,7 @@ function iconButton(iconName, label) {
   const button = el('button', 'chat-icon-btn');
   button.type = 'button';
   button.setAttribute('aria-label', label || iconName);
-  button.appendChild(createIcon(iconName, 18));
+  button.appendChild(createChatIcon(iconName, 18));
   return button;
 }
 

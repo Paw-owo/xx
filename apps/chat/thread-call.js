@@ -1,7 +1,7 @@
 // apps/chat/thread-call.js
 // imports:
 //   from '../../core/storage.js': generateId, getNow, setDB, getByIndexDB
-//   from '../../core/ui.js': createIcon, showToast
+//   from '../../core/ui.js': showToast
 //   from '../../core/api.js': silentRequest
 //   from '../../core/tts.js': playTTS, stopAll
 
@@ -12,7 +12,8 @@ import {
   getByIndexDB
 } from '../../core/storage.js';
 
-import { createIcon, showToast } from '../../core/ui.js';
+import { showToast } from '../../core/ui.js';
+import { createChatIcon } from './icons.js';
 import { silentRequest } from '../../core/api.js';
 import { playTTS, stopAll, buildCharacterTtsOverride } from '../../core/tts.js';
 import { addMemory } from '../../core/memory.js';
@@ -229,7 +230,7 @@ function createCallInput() {
   const send = el('button', 'chat-call-send');
   send.type = 'submit';
   send.disabled = callState.isSending || callState.isEnding;
-  send.append(createIcon('send', 16), el('span', '', callState.isSending ? '等待' : '发送'));
+  send.append(createChatIcon('send', 16), el('span', '', callState.isSending ? '等待' : '发送'));
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -277,7 +278,7 @@ function createCallControls() {
 function controlButton(iconName, text) {
   const button = el('button', 'chat-call-control');
   button.type = 'button';
-  button.append(createIcon(iconName, 18), el('span', '', text));
+  button.append(createChatIcon(iconName, 18), el('span', '', text));
   return button;
 }
 
