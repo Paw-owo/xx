@@ -295,6 +295,8 @@ export async function applyLocalSnapshot(snapshot, options = {}) {
   const skipCloudConfig = options.skipCloudConfig === true;
 
   if (overwrite) {
+    clearManagedLocalStorage({ skipCloudConfig });
+
     for (const storeName of INDEXED_DB_STORES) {
       try {
         await clearStoreDB(storeName);
@@ -329,6 +331,28 @@ export async function applyLocalSnapshot(snapshot, options = {}) {
   emitStorageChanged();
 
   return true;
+}
+
+// “覆盖”恢复也必须移除备份中不存在的受管配置。否则，从较旧备份恢复时，
+// 当前设备新增的会话草稿、角色配置等会残留，并与快照数据混在一起。
+function clearManagedLocalStorage({ skipCloudConfig = false } = {}) {
+  const keys = new Set(LOCAL_STORAGE_KEYS);
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && DYNAMIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+        keys.add(key);
+      }
+    }
+  } catch (_) {
+    // localStorage 不可枚举时，仍尝试清理静态白名单键。
+  }
+
+  keys.forEach((key) => {
+    if (skipCloudConfig && key === CLOUD_KEY) return;
+    removeData(key);
+  });
 }
 
 // ═══════════════════════════════════════
@@ -634,5 +658,9 @@ function emitStorageChanged() {
   window.dispatchEvent(new CustomEvent('app-settings-updated'));
   window.dispatchEvent(new CustomEvent('app-images-updated'));
 }
+
+export const __testHooks = {
+  clearManagedLocalStorage
+};
 
 // 依赖：./storage.js(getData,setData,removeData,getAllDB,setDB,clearStoreDB,generateId,getNow)
