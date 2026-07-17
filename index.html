@@ -337,6 +337,22 @@
       -webkit-backdrop-filter: none;
     }
 
+    .desktop-icon[data-app-id="chat"] .desktop-icon-art:not(.has-custom-image) {
+      --chat-icon-line: color-mix(in srgb, var(--text-primary) 52%, var(--accent-dark));
+      --chat-icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
+      --chat-icon-accent: color-mix(in srgb, var(--accent) 76%, var(--bg-card));
+      --chat-icon-blush: color-mix(in srgb, var(--accent) 58%, var(--accent-light));
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .desktop-icon[data-app-id="chat"] .chat-cat-icon {
+      width: calc(56px * var(--desktop-icon-scale));
+      height: calc(56px * var(--desktop-icon-scale));
+    }
+
     .desktop-icon-art svg {
       width: calc(27px * var(--desktop-icon-scale));
       height: calc(27px * var(--desktop-icon-scale));
@@ -1584,9 +1600,9 @@
           const image = document.createElement('img');
           image.className = 'desktop-icon-image'; image.alt = ''; image.src = customImage; image.draggable = false;
           image.style.opacity = String(getOpacityFromRecord(custom));
-          image.addEventListener('error', () => { artEl.innerHTML = ''; artEl.classList.remove('has-custom-image'); artEl.appendChild(createIcon(app.icon, 28)); });
+          image.addEventListener('error', () => { artEl.innerHTML = ''; artEl.classList.remove('has-custom-image'); artEl.appendChild(createDefaultAppIcon(app, 28)); });
           artEl.appendChild(image);
-        } else { artEl.appendChild(createIcon(app.icon, 28)); }
+        } else { artEl.appendChild(createDefaultAppIcon(app, 28)); }
       }));
     }
 
@@ -1888,7 +1904,7 @@
       iconEl.setAttribute('aria-label', app.name);
 
       artEl.className = 'desktop-icon-art';
-      artEl.appendChild(createIcon(app.icon, 28));
+      artEl.appendChild(createDefaultAppIcon(app, 28));
 
       nameEl.className = 'desktop-icon-name';
       nameEl.textContent = app.name;
@@ -1922,6 +1938,46 @@
       else { iconEl.addEventListener('pointerdown', (event) => handleDesktopItemPointerDown(event, iconEl)); }
 
       return iconEl;
+    }
+
+    function createDefaultAppIcon(app, size = 28) {
+      if (app?.id !== 'chat') return createIcon(app?.icon, size);
+
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.classList.add('chat-cat-icon');
+      svg.setAttribute('viewBox', '0 0 96 96');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('focusable', 'false');
+
+      const group = document.createElementNS(ns, 'g');
+      group.setAttribute('fill', 'none');
+      group.setAttribute('stroke', 'var(--chat-icon-line)');
+      group.setAttribute('stroke-width', '4');
+      group.setAttribute('stroke-linecap', 'round');
+      group.setAttribute('stroke-linejoin', 'round');
+
+      const addShape = (tag, attributes) => {
+        const shape = document.createElementNS(ns, tag);
+        Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
+        group.appendChild(shape);
+      };
+
+      addShape('path', { fill: 'var(--chat-icon-fur)', d: 'M21 46V28l10 7c5-3 11-5 17-5s12 2 17 5l10-7v20c0 16-12 27-27 27S21 63 21 46Z' });
+      addShape('path', { fill: 'var(--chat-icon-accent)', d: 'M57 27c-3-7 2-13 9-9l5 4 5-4c7-4 12 2 9 9-2 5-7 8-14 4-7 4-12 1-14-4Z' });
+      addShape('circle', { cx: '64', cy: '23', r: '1.6', fill: 'var(--chat-icon-fur)', stroke: 'none' });
+      addShape('circle', { cx: '78', cy: '24', r: '1.6', fill: 'var(--chat-icon-fur)', stroke: 'none' });
+      addShape('circle', { cx: '38', cy: '47', r: '2.5', fill: 'var(--chat-icon-line)', stroke: 'none' });
+      addShape('circle', { cx: '58', cy: '47', r: '2.5', fill: 'var(--chat-icon-line)', stroke: 'none' });
+      addShape('path', { d: 'M44 54c2 3 6 3 8 0' });
+      addShape('path', { stroke: 'var(--chat-icon-blush)', d: 'M29 55h6m26 0h6' });
+      addShape('path', { fill: 'var(--chat-icon-accent)', d: 'M18 61c0-7 6-12 13-12h34c7 0 13 5 13 12v7c0 7-6 12-13 12H39L27 87l2-7c-6-1-11-6-11-12v-7Z' });
+      addShape('path', { fill: 'var(--chat-icon-fur)', d: 'M20 65c-5 1-7 7-4 11 3 5 9 4 13 0m47-11c5 1 7 7 4 11-3 5-9 4-13 0' });
+      ['39', '48', '57'].forEach((cx) => addShape('circle', { cx, cy: '65', r: '3', fill: 'var(--chat-icon-line)', stroke: 'none' }));
+
+      svg.appendChild(group);
+      return svg;
     }
 
     function getLayer(page) { return document.querySelector(`.desktop-free-layer[data-layer="${Number(page) === 1 ? 1 : 0}"]`); }
