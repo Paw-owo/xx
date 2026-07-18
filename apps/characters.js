@@ -2014,7 +2014,8 @@ function normalizeColorInputValue(value) {
     return `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`;
   }
 
-  return cssColorToHex(raw) || '#f7f4ef';
+  const themedFallback = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim();
+  return cssColorToHex(raw) || cssColorToHex(themedFallback);
 }
 
 function cssColorToHex(value) {

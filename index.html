@@ -12,7 +12,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="theme-color" content="#FAF8F5">
+  <meta name="theme-color" content="">
   <meta name="format-detection" content="telephone=no">
   <title>小手机</title>
   <link rel="stylesheet" href="./style.css">
@@ -1148,6 +1148,111 @@
     @keyframes vinyl-spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
+    }
+    /* 奶油手账桌面：与应用内的全局视觉语言保持一致。 */
+    .status-cute-pill {
+      border: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent);
+      background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+      color: var(--icon-color);
+      box-shadow: var(--shadow-sm);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .desktop-soft-layer {
+      background:
+        radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--accent-light) 58%, transparent), transparent 28%),
+        radial-gradient(circle at 88% 72%, color-mix(in srgb, var(--decor-blue) 36%, transparent), transparent 26%),
+        var(--bg-primary);
+      opacity: .9;
+    }
+
+    .desktop-grid {
+      column-gap: 22px;
+      row-gap: 24px;
+    }
+
+    .desktop-icon-art {
+      width: calc(68px * var(--desktop-icon-scale));
+      height: calc(68px * var(--desktop-icon-scale));
+      border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
+      border-radius: 34% 42% 36% 44%;
+      background: var(--bg-card);
+      color: var(--icon-color);
+      box-shadow: var(--shadow-card);
+    }
+
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
+      background: var(--bg-card);
+      box-shadow: var(--shadow-card);
+    }
+
+    .desktop-icon:nth-child(3n + 2) .desktop-icon-art {
+      background: color-mix(in srgb, var(--decor-blue) 38%, var(--bg-card));
+    }
+
+    .desktop-icon:nth-child(3n) .desktop-icon-art {
+      background: color-mix(in srgb, var(--decor-yellow) 36%, var(--bg-card));
+    }
+
+    .desktop-icon-name {
+      color: var(--text-primary);
+      font-weight: 650;
+      text-shadow: none;
+    }
+
+    .dock {
+      border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
+      border-radius: var(--radius-xl);
+      background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+      box-shadow: var(--shadow-card);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .dock::before,
+    .dock::after {
+      content: '';
+      position: absolute;
+      top: -7px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50% 50% 44% 48%;
+      background: var(--accent-light);
+      border: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent);
+      transform: rotate(45deg);
+    }
+
+    .dock::before { left: 20px; }
+    .dock::after { right: 20px; }
+
+    .dock .desktop-icon-art {
+      border-radius: 38% 44% 40% 46%;
+      box-shadow: none;
+    }
+
+    .app-topbar {
+      background: color-mix(in srgb, var(--bg-primary) 94%, var(--bg-card));
+      border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 58%, transparent);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+
+    .app-back,
+    .lock-key {
+      border: 0;
+      border-radius: var(--radius-full);
+      background: var(--accent-light);
+      color: var(--icon-color);
+      box-shadow: none;
+    }
+
+    .placeholder-card,
+    .lock-panel {
+      border: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+      border-radius: var(--radius-xl);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-card);
     }
   </style>
 </head>

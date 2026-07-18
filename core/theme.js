@@ -17,30 +17,42 @@ const FONT_FALLBACK = "'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMac
 // ═══════════════════════════════════════
 
 const BASE_VARIABLES = {
-  'bg-main': '#F8F2E8',
-  'bg-light': '#FFF5E6',
-  'bg-card': '#FFFCF5',
-  'color-accent': '#C8A87A',
-  'color-text': '#6B5B4E',
-  'color-success': '#78947A',
-  'color-danger': '#B97872',
-  'bg-primary': '#F8F2E8',
-  'bg-secondary': '#FFF5E6',
-  'bg-overlay': 'rgba(0, 0, 0, 0.28)',
-  'surface': '#FFFCF5',
+  'bg-main': '#FBF4F1',
+  'bg-light': '#F7E8E8',
+  'bg-card': '#FFF9F5',
+  'color-accent': '#C98F9C',
+  'color-text': '#665052',
+  'color-success': '#91AA96',
+  'color-danger': '#C68181',
+  'bg-primary': '#FBF4F1',
+  'bg-secondary': '#F7E8E8',
+  'bg-overlay': 'color-mix(in srgb, var(--text-primary) 24%, transparent)',
+  'surface': '#FFF9F5',
   'surface-muted': 'color-mix(in srgb, var(--bg-card) 90%, var(--text-hint) 10%)',
-  'accent': '#C8A87A',
-  'accent-light': '#E8D8C0',
-  'accent-dark': '#A88A5A',
-  'text-primary': '#6B5B4E',
-  'text-secondary': '#8A7A6C',
-  'text-hint': '#B0A498',
-  'bubble-user-bg': '#C8A87A',
-  'bubble-user-text': '#FFFCF5',
-  'bubble-ai-bg': '#EDE5D8',
-  'bubble-ai-text': '#6B5B4E',
-  'bubble-radius': '18px',
-  'bubble-radius-tail': '4px',
+  'accent': '#C98F9C',
+  'accent-light': '#F2DADD',
+  'accent-dark': '#A86F7B',
+  'text-primary': '#665052',
+  'text-secondary': '#907779',
+  'text-hint': '#B9A4A3',
+  'border-soft': '#EBD9D6',
+  'icon-color': '#9C747A',
+  'decor-blue': '#C7DCE0',
+  'decor-yellow': '#EAD9A9',
+  'decor-pink': 'var(--accent-light)',
+  'decor-cream': 'var(--bg-card)',
+  'media-ink': 'color-mix(in srgb, var(--text-primary) 76%, var(--bg-primary))',
+  'media-ink-deep': 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))',
+  'media-on-dark': 'var(--bg-card)',
+  'media-highlight': 'color-mix(in srgb, var(--decor-yellow) 72%, var(--bg-card))',
+  'media-overlay-soft': 'color-mix(in srgb, var(--text-primary) 18%, transparent)',
+  'media-overlay': 'color-mix(in srgb, var(--text-primary) 36%, transparent)',
+  'bubble-user-bg': '#E9C4CA',
+  'bubble-user-text': '#665052',
+  'bubble-ai-bg': '#FFF9F5',
+  'bubble-ai-text': '#665052',
+  'bubble-radius': '23px',
+  'bubble-radius-tail': '9px',
   'font-main': FONT_FALLBACK,
   'font-size-base': '15px',
   'font-size-small': '13px',
@@ -49,19 +61,19 @@ const BASE_VARIABLES = {
   'spacing-sm': '8px',
   'spacing-md': '16px',
   'spacing-lg': '24px',
-  'radius-sm': '8px',
-  'radius-md': '16px',
-  'radius-lg': '24px',
-  'shadow-sm': '0 1px 4px rgba(0, 0, 0, 0.05)',
-  'shadow-md': '0 2px 12px rgba(0, 0, 0, 0.08)',
-  'shadow-lg': '0 8px 32px rgba(0, 0, 0, 0.12)',
-  'shadow-card': '0 2px 12px rgba(0, 0, 0, 0.06)',
-  'shadow-float': '0 8px 32px rgba(0, 0, 0, 0.10)',
-  'shadow-neu-out': '2px 2px 6px rgba(0,0,0,0.06), -2px -2px 6px rgba(255,255,255,0.8)',
-  'shadow-neu-in': 'inset 2px 2px 6px rgba(0,0,0,0.06), inset -2px -2px 6px rgba(255,255,255,0.8)',
-  'motion': 'all 200ms ease',
-  'press-scale': '0.96',
-  'radius-xl': '28px',
+  'radius-sm': '14px',
+  'radius-md': '21px',
+  'radius-lg': '29px',
+  'shadow-sm': '0 3px 10px color-mix(in srgb, var(--text-primary) 6%, transparent)',
+  'shadow-md': '0 7px 22px color-mix(in srgb, var(--text-primary) 7%, transparent)',
+  'shadow-lg': '0 12px 34px color-mix(in srgb, var(--text-primary) 9%, transparent)',
+  'shadow-card': '0 5px 18px color-mix(in srgb, var(--text-primary) 6%, transparent)',
+  'shadow-float': '0 10px 30px color-mix(in srgb, var(--text-primary) 9%, transparent)',
+  'shadow-neu-out': 'var(--shadow-sm)',
+  'shadow-neu-in': 'inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent)',
+  'motion': 'all 240ms cubic-bezier(.2,.8,.2,1)',
+  'press-scale': '0.97',
+  'radius-xl': '36px',
   'radius-full': '999px'
 };
 
@@ -69,231 +81,89 @@ const BASE_VARIABLES = {
 // 【阴影常量】日间 / 夜间
 // ═══════════════════════════════════════
 
-const LIGHT_SHADOWS = {
-  'shadow-sm': '0 1px 4px rgba(0, 0, 0, 0.05)',
-  'shadow-md': '0 2px 12px rgba(0, 0, 0, 0.08)',
-  'shadow-lg': '0 8px 32px rgba(0, 0, 0, 0.12)',
-  'shadow-card': '0 2px 12px rgba(0, 0, 0, 0.06)',
-  'shadow-float': '0 8px 32px rgba(0, 0, 0, 0.10)'
-};
+const LIGHT_SHADOWS = {};
 
-const DARK_SHADOWS = {
-  'shadow-sm': '0 1px 4px rgba(0, 0, 0, 0.18)',
-  'shadow-md': '0 2px 12px rgba(0, 0, 0, 0.24)',
-  'shadow-lg': '0 8px 32px rgba(0, 0, 0, 0.36)',
-  'shadow-card': '0 2px 12px rgba(0, 0, 0, 0.20)',
-  'shadow-float': '0 8px 32px rgba(0, 0, 0, 0.28)'
-};
+const DARK_SHADOWS = {};
 
 // ═══════════════════════════════════════
 // 【主题预设】3 浅色 + 3 夜间
 // ═══════════════════════════════════════
 
 const PRESETS = {
-  // ────────────────────────────────────────────
-  // 椰乳四季春 — 米黄暖色系
-  // ────────────────────────────────────────────
-  'coconut-spring': {
-    id: 'coconut-spring',
-    name: '椰乳四季春',
-    mode: 'light',
-    variables: {
-      'bg-main': '#F8F2E8',
-      'bg-light': '#FFF5E6',
-      'bg-card': '#FFFCF5',
-      'color-accent': '#C8A87A',
-      'color-text': '#6B5B4E',
-      'color-success': '#78947A',
-      'color-danger': '#B97872',
-      'bg-primary': '#F8F2E8',
-      'bg-secondary': '#FFF5E6',
-      'bg-overlay': 'rgba(0, 0, 0, 0.28)',
-      'surface': '#FFFCF5',
-      'surface-muted': 'color-mix(in srgb, #FFFCF5 90%, #B0A498 10%)',
-      'accent': '#C8A87A',
-      'accent-light': '#E8D8C0',
-      'accent-dark': '#A88A5A',
-      'text-primary': '#6B5B4E',
-      'text-secondary': '#8A7A6C',
-      'text-hint': '#B0A498',
-      'bubble-user-bg': '#C8A87A',
-      'bubble-user-text': '#FFFCF5',
-      'bubble-ai-bg': '#EDE5D8',
-      'bubble-ai-text': '#6B5B4E',
-      ...LIGHT_SHADOWS
-    }
-  },
-
-  // ────────────────────────────────────────────
-  // 椰青冰美式 — 蓝灰底 + 棕色气泡
-  // ────────────────────────────────────────────
-  'coconut-iced': {
-    id: 'coconut-iced',
-    name: '椰青冰美式',
-    mode: 'light',
-    variables: {
-      'bg-main': '#E1EFF4',
-      'bg-light': '#EDDFD4',
-      'bg-card': '#F5EDE6',
-      'color-accent': '#9D7C6D',
-      'color-text': '#512128',
-      'color-success': '#6F8F88',
-      'color-danger': '#B17472',
-      'bg-primary': '#E1EFF4',
-      'bg-secondary': '#EDDFD4',
-      'bg-overlay': 'rgba(0, 0, 0, 0.28)',
-      'surface': '#F5EDE6',
-      'surface-muted': 'color-mix(in srgb, #F5EDE6 90%, #A89890 10%)',
-      'accent': '#9D7C6D',
-      'accent-light': '#C8B8A8',
-      'accent-dark': '#7A5C4D',
-      'text-primary': '#512128',
-      'text-secondary': '#7A6058',
-      'text-hint': '#A89890',
-      'bubble-user-bg': '#9D7C6D',
-      'bubble-user-text': '#FFF8F0',
-      'bubble-ai-bg': '#E8DDD4',
-      'bubble-ai-text': '#512128',
-      ...LIGHT_SHADOWS
-    }
-  },
-
-  // ────────────────────────────────────────────
-  // 葡萄气泡 — 紫色系撞色
-  // ────────────────────────────────────────────
-  'strawberry-milk': {
-    id: 'strawberry-milk',
-    name: '葡萄气泡',
-    mode: 'light',
-    variables: {
-      'bg-main': '#F4F0F8',
-      'bg-light': '#EDE6F5',
-      'bg-card': '#FCFAFF',
-      'color-accent': '#9B7EC8',
-      'color-text': '#4A3A5C',
-      'color-success': '#718F82',
-      'color-danger': '#B27682',
-      'bg-primary': '#F4F0F8',
-      'bg-secondary': '#EDE6F5',
-      'bg-overlay': 'rgba(0, 0, 0, 0.28)',
-      'surface': '#FCFAFF',
-      'surface-muted': 'color-mix(in srgb, #FCFAFF 90%, #A898B8 10%)',
-      'accent': '#9B7EC8',
-      'accent-light': '#D4C8E8',
-      'accent-dark': '#7A5CAE',
-      'text-primary': '#4A3A5C',
-      'text-secondary': '#7A6890',
-      'text-hint': '#B0A4C0',
-      'bubble-user-bg': '#9B7EC8',
-      'bubble-user-text': '#FCFAFF',
-      'bubble-ai-bg': '#E8E0F0',
-      'bubble-ai-text': '#4A3A5C',
-      ...LIGHT_SHADOWS
-    }
-  },
-
-  // ────────────────────────────────────────────
-  // 黑巧夜语 — 深巧底 + 金强调
-  // ────────────────────────────────────────────
-  'dark-chocolate': {
-    id: 'dark-chocolate',
-    name: '黑巧夜语',
-    mode: 'dark',
-    variables: {
-      'bg-main': '#1E1410',
-      'bg-light': '#2A1C15',
-      'bg-card': '#2F1F18',
-      'color-accent': '#D4A853',
-      'color-text': '#E8D5C0',
-      'color-success': '#9AAF7C',
-      'color-danger': '#C98778',
-      'bg-primary': '#1E1410',
-      'bg-secondary': '#2A1C15',
-      'bg-overlay': 'rgba(0, 0, 0, 0.52)',
-      'surface': '#2F1F18',
-      'surface-muted': 'color-mix(in srgb, #2F1F18 90%, #786858 10%)',
-      'accent': '#D4A853',
-      'accent-light': '#4A3C28',
-      'accent-dark': '#E8C070',
-      'text-primary': '#E8D5C0',
-      'text-secondary': '#B8A090',
-      'text-hint': '#786858',
-      'bubble-user-bg': '#D4A853',
-      'bubble-user-text': '#2A1C15',
-      'bubble-ai-bg': '#3A2C22',
-      'bubble-ai-text': '#E8D5C0',
-      ...DARK_SHADOWS
-    }
-  },
-
-  // ────────────────────────────────────────────
-  // 泰迪暖窝 — 暖棕底 + 奶茶气泡
-  // ────────────────────────────────────────────
-  'teddy-nest': {
-    id: 'teddy-nest',
-    name: '泰迪暖窝',
-    mode: 'dark',
-    variables: {
-      'bg-main': '#2A1F1A',
-      'bg-light': '#332520',
-      'bg-card': '#3A2820',
-      'color-accent': '#E8C4A0',
-      'color-text': '#F5E6D3',
-      'color-success': '#93AE8A',
-      'color-danger': '#D09182',
-      'bg-primary': '#2A1F1A',
-      'bg-secondary': '#332520',
-      'bg-overlay': 'rgba(0, 0, 0, 0.52)',
-      'surface': '#3A2820',
-      'surface-muted': 'color-mix(in srgb, #3A2820 90%, #807060 10%)',
-      'accent': '#E8C4A0',
-      'accent-light': '#4A3830',
-      'accent-dark': '#F0D8B8',
-      'text-primary': '#F5E6D3',
-      'text-secondary': '#C0A890',
-      'text-hint': '#807060',
-      'bubble-user-bg': '#E8C4A0',
-      'bubble-user-text': '#3A2820',
-      'bubble-ai-bg': '#443428',
-      'bubble-ai-text': '#F5E6D3',
-      ...DARK_SHADOWS
-    }
-  },
-
-  // ────────────────────────────────────────────
-  // 香草米布丁 — 深米底 + 灰粉气泡
-  // ────────────────────────────────────────────
-  'vanilla-pudding': {
-    id: 'vanilla-pudding',
-    name: '香草米布丁',
-    mode: 'dark',
-    variables: {
-      'bg-main': '#2A1F18',
-      'bg-light': '#2F231A',
-      'bg-card': '#352820',
-      'color-accent': '#C3AB99',
-      'color-text': '#F3EEE9',
-      'color-success': '#8FA99A',
-      'color-danger': '#C68B86',
-      'bg-primary': '#2A1F18',
-      'bg-secondary': '#2F231A',
-      'bg-overlay': 'rgba(0, 0, 0, 0.52)',
-      'surface': '#352820',
-      'surface-muted': 'color-mix(in srgb, #352820 90%, #786858 10%)',
-      'accent': '#C3AB99',
-      'accent-light': '#4A3C32',
-      'accent-dark': '#D8C0B0',
-      'text-primary': '#F3EEE9',
-      'text-secondary': '#B8A898',
-      'text-hint': '#786858',
-      'bubble-user-bg': '#C3AB99',
-      'bubble-user-text': '#2A1F18',
-      'bubble-ai-bg': '#3E3028',
-      'bubble-ai-text': '#F3EEE9',
-      ...DARK_SHADOWS
-    }
-  }
+  'coconut-spring': createPreset('coconut-spring', '草莓奶霜', 'light', {
+    background: '#FBF4F1', secondary: '#F7E8E8', card: '#FFF9F5',
+    accent: '#C98F9C', accentSoft: '#F2DADD', accentDeep: '#A86F7B',
+    text: '#665052', textSoft: '#907779', hint: '#B9A4A3', border: '#EBD9D6',
+    success: '#91AA96', danger: '#C68181', blue: '#C7DCE0', yellow: '#EAD9A9'
+  }),
+  'coconut-iced': createPreset('coconut-iced', '云朵苏打', 'light', {
+    background: '#F2F6F3', secondary: '#E2EEE9', card: '#FCFAF5',
+    accent: '#89AAA9', accentSoft: '#D7E8E5', accentDeep: '#668B8A',
+    text: '#536360', textSoft: '#7B918C', hint: '#A8B7B1', border: '#D6E4DF',
+    success: '#86A58E', danger: '#C58B88', blue: '#BDD7DE', yellow: '#E8D9A9'
+  }),
+  'strawberry-milk': createPreset('strawberry-milk', '蜜桃布丁', 'light', {
+    background: '#FFF5ED', secondary: '#F8E4D8', card: '#FFFBF5',
+    accent: '#D59A86', accentSoft: '#F4D9CF', accentDeep: '#AD7465',
+    text: '#69534C', textSoft: '#92786E', hint: '#BCA69C', border: '#EDDDD4',
+    success: '#91A78D', danger: '#C98282', blue: '#C8DADE', yellow: '#EED8A4'
+  }),
+  'dark-chocolate': createPreset('dark-chocolate', '可可晚安', 'dark', {
+    background: '#28201F', secondary: '#352928', card: '#3D302E',
+    accent: '#D8A7AD', accentSoft: '#533D40', accentDeep: '#E7BDC1',
+    text: '#F3E7E2', textSoft: '#C5AAA4', hint: '#917873', border: '#584440',
+    success: '#9DB39D', danger: '#D18F8B', blue: '#90ADB3', yellow: '#CEB879'
+  }),
+  'teddy-nest': createPreset('teddy-nest', '泰迪暖窝', 'dark', {
+    background: '#302521', secondary: '#3B2D28', card: '#44342E',
+    accent: '#DAB497', accentSoft: '#594538', accentDeep: '#F0CCAE',
+    text: '#F4E8DC', textSoft: '#CAB3A3', hint: '#968075', border: '#604B41',
+    success: '#A2B49A', danger: '#D29387', blue: '#91AAB0', yellow: '#D1B77D'
+  }),
+  'vanilla-pudding': createPreset('vanilla-pudding', '蓝莓月光', 'dark', {
+    background: '#25242D', secondary: '#302F3A', card: '#393744',
+    accent: '#B3A5C9', accentSoft: '#4C465B', accentDeep: '#D0C3E3',
+    text: '#EEEAF2', textSoft: '#BCB4C6', hint: '#858092', border: '#514E5E',
+    success: '#96AD9D', danger: '#CA8D91', blue: '#91AFBD', yellow: '#CAB77F'
+  })
 };
+
+function createPreset(id, name, mode, palette) {
+  return {
+    id,
+    name,
+    mode,
+    variables: {
+      'bg-main': palette.background,
+      'bg-light': palette.secondary,
+      'bg-card': palette.card,
+      'color-accent': palette.accent,
+      'color-text': palette.text,
+      'color-success': palette.success,
+      'color-danger': palette.danger,
+      'bg-primary': palette.background,
+      'bg-secondary': palette.secondary,
+      'bg-overlay': 'color-mix(in srgb, var(--text-primary) 30%, transparent)',
+      'surface': palette.card,
+      'surface-muted': 'color-mix(in srgb, var(--bg-card) 84%, var(--bg-secondary))',
+      'accent': palette.accent,
+      'accent-light': palette.accentSoft,
+      'accent-dark': palette.accentDeep,
+      'text-primary': palette.text,
+      'text-secondary': palette.textSoft,
+      'text-hint': palette.hint,
+      'border-soft': palette.border,
+      'icon-color': palette.accentDeep,
+      'decor-blue': palette.blue,
+      'decor-yellow': palette.yellow,
+      'bubble-user-bg': 'color-mix(in srgb, var(--accent) 72%, var(--bg-card))',
+      'bubble-user-text': palette.text,
+      'bubble-ai-bg': palette.card,
+      'bubble-ai-text': palette.text,
+      ...(mode === 'dark' ? DARK_SHADOWS : LIGHT_SHADOWS)
+    }
+  };
+}
 
 // ═══════════════════════════════════════
 // 【旧版兼容】老主题 ID 映射到新 ID
@@ -478,7 +348,6 @@ export function loadTheme() {
   const presetTheme = getPresetById(preset);
   const mode = normalizeMode(getData(MODE_KEY) || saved?.mode || presetTheme.mode || DEFAULT_MODE);
 
-  const savedVars = normalizeVariables(saved?.variables || {});
   const savedCustom = normalizeVariables(saved?.customVariables || {});
 
   document.documentElement.setAttribute('data-theme', preset);
@@ -489,7 +358,6 @@ export function loadTheme() {
     variables: {
       ...BASE_VARIABLES,
       ...presetTheme.variables,
-      ...savedVars,
       ...savedCustom
     },
     customVariables: { ...savedCustom }
@@ -536,7 +404,6 @@ function readCurrentTheme() {
     variables: {
       ...BASE_VARIABLES,
       ...presetTheme.variables,
-      ...normalizeVariables(saved?.variables || {}),
       ...normalizeVariables(saved?.customVariables || {})
     },
     customVariables: normalizeVariables(saved?.customVariables || {})

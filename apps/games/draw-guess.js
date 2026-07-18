@@ -1282,7 +1282,7 @@ function injectStyles() {
       transition: all 200ms ease; cursor: pointer;
     }
     .dg-btn-primary:active, .dg-btn-soft:active, .dg-upload-btn:active { transform: scale(0.96); }
-    .dg-btn-primary { min-height: 44px; padding: 0 18px; border-radius: 18px; background: var(--accent); color: var(--bubble-user-text, #fff); font-weight: 600; box-shadow: var(--shadow-sm); }
+    .dg-btn-primary { min-height: 44px; padding: 0 18px; border-radius: 18px; background: var(--accent); color: var(--bubble-user-text, var(--bg-card)); font-weight: 600; box-shadow: var(--shadow-sm); }
     .dg-btn-soft { min-height: 42px; padding: 0 14px; border-radius: 18px; background: color-mix(in srgb, var(--bg-card) 86%, transparent); box-shadow: var(--shadow-sm); font-size: 13px; font-weight: 500; }
     .dg-btn-soft:disabled, .dg-btn-primary:disabled { opacity: 0.45; transform: none; }
 

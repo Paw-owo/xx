@@ -31,10 +31,10 @@ const MUSIC_SETTINGS_KEY = 'music_app_settings';
 const MUSIC_CURRENT_KEY = 'music_current_song';
 
 const PRESET_FILM_WALLPAPERS = [
-  { id: 'film_1', name: '经典胶片', gradient: 'linear-gradient(135deg, #3D2E28 0%, #4A3630 50%, #2E201C 100%)' },
-  { id: 'film_2', name: '暖光胶片', gradient: 'linear-gradient(135deg, #4A3A2E 0%, #3E3028 50%, #342820 100%)' },
-  { id: 'film_3', name: '冷调胶片', gradient: 'linear-gradient(135deg, #2E3438 0%, #343E44 50%, #282E34 100%)' },
-  { id: 'film_4', name: '暮色胶片', gradient: 'linear-gradient(135deg, #3E2830 0%, #4A3038 50%, #342028 100%)' }
+  { id: 'film_1', name: '经典胶片', gradient: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 50%, var(--accent) 100%)' },
+  { id: 'film_2', name: '暖光胶片', gradient: 'linear-gradient(135deg, var(--decor-yellow) 0%, var(--decor-yellow) 50%, var(--decor-yellow) 100%)' },
+  { id: 'film_3', name: '冷调胶片', gradient: 'linear-gradient(135deg, var(--media-ink-deep) 0%, var(--media-ink-deep) 50%, var(--media-ink-deep) 100%)' },
+  { id: 'film_4', name: '暮色胶片', gradient: 'linear-gradient(135deg, var(--accent) 0%, var(--accent) 50%, var(--accent) 100%)' }
 ];
 
 /* ═══════════════════════════════════════
@@ -246,7 +246,7 @@ function injectStyle() {
 
     .music-tab.active {
       background: var(--accent);
-      color: #fff;
+      color: var(--bg-card);
     }
 
     .music-tab:active {
@@ -318,10 +318,10 @@ function injectStyle() {
       width: 48px;
       height: 48px;
       border-radius: 50%;
-      background: color-mix(in srgb, #fff 12%, transparent);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      background: color-mix(in srgb, var(--bg-card) 12%, transparent);
+      box-shadow: 0 2px 8px color-mix(in srgb, var(--media-ink-deep) 20%, transparent);
       overflow: hidden;
-      border: 3px solid rgba(0,0,0,0.3);
+      border: 3px solid color-mix(in srgb, var(--media-ink-deep) 30%, transparent);
     }
 
     .dual-avatar:nth-child(2) {
@@ -340,7 +340,7 @@ function injectStyle() {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(255,255,255,0.6);
+      color: color-mix(in srgb, var(--bg-card) 60%, transparent);
     }
 
     .vinyl-stage {
@@ -359,28 +359,28 @@ function injectStyle() {
       height: 100%;
       border-radius: 50%;
       background: radial-gradient(circle at 50% 50%,
-        #1a1412 0%, #1a1412 38%,
-        #2a2420 39%, #252018 42%,
-        #2e2822 44%, #201c18 46%,
-        #2e2822 48%, #1e1a16 50%,
-        #2a2420 52%, #221e1a 54%,
-        #2a2420 56%, #1e1a18 58%,
-        #262220 60%, #201c18 62%,
-        #282422 64%, #1e1a16 66%,
-        #242018 68%, #201c18 70%,
-        #282420 72%, #1e1a16 74%,
-        #262220 76%, #1c1814 78%,
-        #242018 80%, #1e1a18 82%,
-        #282422 84%, #201c18 86%,
-        #262220 88%, #1c1814 90%,
-        #221e1a 92%, #1e1a16 94%,
-        #282422 96%, #1e1a16 98%,
-        #141210 100%
+        var(--media-ink-deep) 0%, var(--media-ink-deep) 38%,
+        var(--media-ink-deep) 39%, var(--media-ink-deep) 42%,
+        var(--media-ink-deep) 44%, var(--media-ink-deep) 46%,
+        var(--media-ink-deep) 48%, var(--media-ink-deep) 50%,
+        var(--media-ink-deep) 52%, var(--media-ink-deep) 54%,
+        var(--media-ink-deep) 56%, var(--media-ink-deep) 58%,
+        var(--media-ink-deep) 60%, var(--media-ink-deep) 62%,
+        var(--media-ink-deep) 64%, var(--media-ink-deep) 66%,
+        var(--media-ink-deep) 68%, var(--media-ink-deep) 70%,
+        var(--media-ink-deep) 72%, var(--media-ink-deep) 74%,
+        var(--media-ink-deep) 76%, var(--media-ink-deep) 78%,
+        var(--media-ink-deep) 80%, var(--media-ink-deep) 82%,
+        var(--media-ink-deep) 84%, var(--media-ink-deep) 86%,
+        var(--media-ink-deep) 88%, var(--media-ink-deep) 90%,
+        var(--media-ink-deep) 92%, var(--media-ink-deep) 94%,
+        var(--media-ink-deep) 96%, var(--media-ink-deep) 98%,
+        var(--media-ink-deep) 100%
       );
       box-shadow:
-        0 6px 30px rgba(0,0,0,0.5),
-        0 2px 10px rgba(0,0,0,0.3),
-        inset 0 0 40px rgba(0,0,0,0.4);
+        0 6px 30px color-mix(in srgb, var(--media-ink-deep) 50%, transparent),
+        0 2px 10px color-mix(in srgb, var(--media-ink-deep) 30%, transparent),
+        inset 0 0 40px color-mix(in srgb, var(--media-ink-deep) 40%, transparent);
       transition: transform 80ms linear;
       will-change: transform;
     }
@@ -394,7 +394,7 @@ function injectStyle() {
       height: 36%;
       transform: translate(-50%, -50%);
       border-radius: 50%;
-      box-shadow: 0 0 0 4px rgba(255,255,255,0.08);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--bg-card) 8%, transparent);
     }
 
     .vinyl-cover {
@@ -406,7 +406,7 @@ function injectStyle() {
       transform: translate(-50%, -50%);
       border-radius: 50%;
       overflow: hidden;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+      box-shadow: 0 2px 12px color-mix(in srgb, var(--media-ink-deep) 40%, transparent);
       z-index: 1;
     }
 
@@ -422,8 +422,8 @@ function injectStyle() {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(135deg, #4a3a30, #3a2a20);
-      color: rgba(255,255,255,0.4);
+      background: linear-gradient(135deg, var(--decor-yellow), var(--decor-yellow));
+      color: color-mix(in srgb, var(--bg-card) 40%, transparent);
     }
 
     .vinyl-center-dot {
@@ -434,8 +434,8 @@ function injectStyle() {
       height: 14px;
       margin: -7px 0 0 -7px;
       border-radius: 50%;
-      background: #1a1412;
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.1);
+      background: var(--media-ink-deep);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--bg-card) 10%, transparent);
       z-index: 2;
     }
 
@@ -448,7 +448,7 @@ function injectStyle() {
       transform-origin: 85% 8%;
       transform: rotate(28deg);
       transition: transform 600ms cubic-bezier(0.34, 1.56, 0.64, 1);
-      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4));
+      filter: drop-shadow(0 3px 6px color-mix(in srgb, var(--media-ink-deep) 40%, transparent));
       pointer-events: none;
     }
 
@@ -468,17 +468,17 @@ function injectStyle() {
     .player-song-title {
       font-size: 19px;
       font-weight: 600;
-      color: #fff;
+      color: var(--bg-card);
       margin-bottom: 4px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      text-shadow: 0 1px 4px color-mix(in srgb, var(--media-ink-deep) 30%, transparent);
     }
 
     .player-song-artist {
       font-size: 14px;
-      color: rgba(255,255,255,0.6);
+      color: color-mix(in srgb, var(--bg-card) 60%, transparent);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -495,7 +495,7 @@ function injectStyle() {
       width: 100%;
       height: 3px;
       border-radius: 2px;
-      background: rgba(255,255,255,0.15);
+      background: color-mix(in srgb, var(--bg-card) 15%, transparent);
       cursor: pointer;
       position: relative;
     }
@@ -503,7 +503,7 @@ function injectStyle() {
     .progress-fill {
       height: 100%;
       border-radius: 2px;
-      background: #E8C9A0;
+      background: var(--decor-yellow);
       transition: width 100ms linear;
     }
 
@@ -514,8 +514,8 @@ function injectStyle() {
       width: 14px;
       height: 14px;
       border-radius: 50%;
-      background: #E8C9A0;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+      background: var(--decor-yellow);
+      box-shadow: 0 1px 4px color-mix(in srgb, var(--media-ink-deep) 30%, transparent);
       cursor: grab;
       transition: left 100ms linear;
     }
@@ -525,7 +525,7 @@ function injectStyle() {
       justify-content: space-between;
       padding-top: 8px;
       font-size: 11px;
-      color: rgba(255,255,255,0.4);
+      color: color-mix(in srgb, var(--bg-card) 40%, transparent);
       font-variant-numeric: tabular-nums;
     }
 
@@ -549,7 +549,7 @@ function injectStyle() {
       background: transparent;
       border: none;
       outline: none;
-      color: rgba(255,255,255,0.7);
+      color: color-mix(in srgb, var(--bg-card) 70%, transparent);
       transition: all 200ms ease;
     }
 
@@ -560,14 +560,14 @@ function injectStyle() {
     .ctrl-btn.main-play {
       width: 64px;
       height: 64px;
-      background: rgba(255,255,255,0.12);
-      color: #fff;
+      background: color-mix(in srgb, var(--bg-card) 12%, transparent);
+      color: var(--bg-card);
       backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
     }
 
     .ctrl-btn.main-play:active {
-      background: rgba(255,255,255,0.2);
+      background: color-mix(in srgb, var(--bg-card) 20%, transparent);
     }
 
     .player-extra {
@@ -586,7 +586,7 @@ function injectStyle() {
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(255,255,255,0.4);
+      color: color-mix(in srgb, var(--bg-card) 40%, transparent);
       border: none;
       outline: none;
       background: transparent;
@@ -598,7 +598,7 @@ function injectStyle() {
     }
 
     .extra-btn.active {
-      color: #E8C9A0;
+      color: var(--decor-yellow);
     }
 
     /* ═══════════════════════════════════
@@ -672,7 +672,7 @@ function injectStyle() {
       height: 22px;
       border-radius: 50%;
       background: var(--accent);
-      color: #fff;
+      color: var(--bg-card);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -725,7 +725,7 @@ function injectStyle() {
 
     .list-pl-chip.active {
       background: var(--accent);
-      color: #fff;
+      color: var(--bg-card);
     }
 
     .list-pl-chip:active { transform: scale(0.96); }
@@ -758,7 +758,7 @@ function injectStyle() {
 
     .list-act-btn.primary {
       background: var(--accent);
-      color: #fff;
+      color: var(--bg-card);
     }
 
     .list-act-btn:active { transform: scale(0.96); }
@@ -1034,7 +1034,7 @@ function injectStyle() {
       position: fixed;
       inset: 0;
       z-index: 2000;
-      background: linear-gradient(180deg, rgba(30,24,20,0.96), rgba(20,16,14,0.98));
+      background: linear-gradient(180deg, color-mix(in srgb, var(--media-ink-deep) 96%, transparent), color-mix(in srgb, var(--media-ink-deep) 98%, transparent));
       backdrop-filter: blur(40px);
       -webkit-backdrop-filter: blur(40px);
       transform: translateY(100%);
@@ -1062,8 +1062,8 @@ function injectStyle() {
       align-items: center;
       justify-content: center;
       border-radius: 16px;
-      background: rgba(255,255,255,0.08);
-      color: #fff;
+      background: color-mix(in srgb, var(--bg-card) 8%, transparent);
+      color: var(--bg-card);
       border: none;
       outline: none;
     }
@@ -1071,7 +1071,7 @@ function injectStyle() {
     .music-lyrics-song {
       font-size: 15px;
       font-weight: 500;
-      color: rgba(255,255,255,0.8);
+      color: color-mix(in srgb, var(--bg-card) 80%, transparent);
       max-width: 60%;
       white-space: nowrap;
       overflow: hidden;
@@ -1088,15 +1088,15 @@ function injectStyle() {
       overflow-y: auto;
       padding: 20px 32px 60px;
       -webkit-overflow-scrolling: touch;
-      mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 80%, transparent 100%);
-      -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 12%, #000 80%, transparent 100%);
+      mask-image: linear-gradient(180deg, transparent 0%, var(--media-ink-deep) 12%, var(--media-ink-deep) 80%, transparent 100%);
+      -webkit-mask-image: linear-gradient(180deg, transparent 0%, var(--media-ink-deep) 12%, var(--media-ink-deep) 80%, transparent 100%);
     }
 
     .lyric-line {
       padding: 14px 0;
       font-size: 16px;
       line-height: 1.8;
-      color: rgba(255,255,255,0.25);
+      color: color-mix(in srgb, var(--bg-card) 25%, transparent);
       text-align: center;
       transition: all 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
       cursor: pointer;
@@ -1107,8 +1107,8 @@ function injectStyle() {
     .lyric-line.active {
       font-size: 20px;
       font-weight: 600;
-      color: #fff;
-      text-shadow: 0 0 20px rgba(232,201,160,0.3);
+      color: var(--bg-card);
+      text-shadow: 0 0 20px color-mix(in srgb, var(--decor-yellow) 30%, transparent);
       transform: scale(1.04);
     }
 
@@ -1126,24 +1126,24 @@ function injectStyle() {
       width: 72px;
       height: 72px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.06);
+      background: color-mix(in srgb, var(--bg-card) 6%, transparent);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: rgba(255,255,255,0.3);
+      color: color-mix(in srgb, var(--bg-card) 30%, transparent);
       margin-bottom: 20px;
     }
 
     .lyrics-empty-title {
       font-size: 17px;
       font-weight: 500;
-      color: rgba(255,255,255,0.7);
+      color: color-mix(in srgb, var(--bg-card) 70%, transparent);
       margin-bottom: 8px;
     }
 
     .lyrics-empty-desc {
       font-size: 13px;
-      color: rgba(255,255,255,0.35);
+      color: color-mix(in srgb, var(--bg-card) 35%, transparent);
       margin-bottom: 24px;
     }
 
@@ -1171,13 +1171,13 @@ function injectStyle() {
     .lyrics-empty-btn:active { transform: scale(0.96); }
 
     .lyrics-empty-btn.primary {
-      background: #E8C9A0;
-      color: #1a1412;
+      background: var(--decor-yellow);
+      color: var(--media-ink-deep);
     }
 
     .lyrics-empty-btn.secondary {
-      background: rgba(255,255,255,0.08);
-      color: rgba(255,255,255,0.7);
+      background: color-mix(in srgb, var(--bg-card) 8%, transparent);
+      color: color-mix(in srgb, var(--bg-card) 70%, transparent);
     }
 
     /* ═══════════════════════════════════
@@ -1187,7 +1187,7 @@ function injectStyle() {
     .music-drawer-bg {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.35);
+      background: color-mix(in srgb, var(--media-ink-deep) 35%, transparent);
       z-index: 50;
       opacity: 0;
       transition: opacity 250ms ease;
@@ -1207,7 +1207,7 @@ function injectStyle() {
       z-index: 51;
       background: var(--bg-primary);
       border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-      box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+      box-shadow: 0 -4px 24px color-mix(in srgb, var(--media-ink-deep) 12%, transparent);
       transform: translateY(100%);
       transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
       max-height: 80vh;
@@ -1307,7 +1307,7 @@ function injectStyle() {
       width: 24px;
       height: 24px;
       border-radius: 50%;
-      background: #fff;
+      background: var(--bg-card);
       box-shadow: var(--shadow-sm);
       transition: transform 200ms ease;
     }
@@ -1621,7 +1621,7 @@ function createPlayerPage() {
 
   const overlay = document.createElement('div');
   overlay.className = 'player-bg-overlay';
-  overlay.style.background = 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.4) 100%)';
+  overlay.style.background = 'linear-gradient(180deg, color-mix(in srgb, var(--media-ink-deep) 15%, transparent) 0%, color-mix(in srgb, var(--media-ink-deep) 40%, transparent) 100%)';
   page.appendChild(overlay);
 
   const spectrum = document.createElement('canvas');
@@ -1707,16 +1707,16 @@ function buildVinylStage() {
   tonearm.className = `vinyl-tonearm${state.isPlaying ? ' playing' : ''}`;
   tonearm.id = 'vinyl-tonearm';
   tonearm.innerHTML = `<svg viewBox="0 0 120 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="102" cy="16" r="14" fill="#666" stroke="#888" stroke-width="2"/>
-    <circle cx="102" cy="16" r="5" fill="#444"/>
-    <rect x="96" y="28" width="12" height="60" rx="4" fill="#888"/>
-    <rect x="98" y="84" width="8" height="4" rx="2" fill="#666"/>
-    <rect x="88" y="86" width="28" height="8" rx="3" fill="#999"/>
-    <rect x="95" y="94" width="16" height="70" rx="5" fill="#777"/>
-    <rect x="97" y="94" width="12" height="70" rx="4" fill="#888"/>
-    <rect x="99" y="162" width="8" height="18" rx="3" fill="#666"/>
-    <rect x="94" y="178" width="18" height="6" rx="2" fill="#aaa"/>
-    <rect x="100" y="184" width="6" height="10" rx="1" fill="#999"/>
+    <circle cx="102" cy="16" r="14" fill="var(--media-ink-deep)" stroke="var(--text-secondary)" stroke-width="2"/>
+    <circle cx="102" cy="16" r="5" fill="var(--media-ink-deep)"/>
+    <rect x="96" y="28" width="12" height="60" rx="4" fill="var(--text-secondary)"/>
+    <rect x="98" y="84" width="8" height="4" rx="2" fill="var(--media-ink-deep)"/>
+    <rect x="88" y="86" width="28" height="8" rx="3" fill="var(--text-secondary)"/>
+    <rect x="95" y="94" width="16" height="70" rx="5" fill="var(--text-secondary)"/>
+    <rect x="97" y="94" width="12" height="70" rx="4" fill="var(--text-secondary)"/>
+    <rect x="99" y="162" width="8" height="18" rx="3" fill="var(--media-ink-deep)"/>
+    <rect x="94" y="178" width="18" height="6" rx="2" fill="var(--text-secondary)"/>
+    <rect x="100" y="184" width="6" height="10" rx="1" fill="var(--text-secondary)"/>
   </svg>`;
 
   stage.append(disc, tonearm);
@@ -3120,7 +3120,7 @@ function drawSpectrum() {
 
   for (let i = 0; i < len; i++) {
     const h = (data[i] / 255) * canvas.height;
-    ctx.fillStyle = '#E8C9A0';
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--decor-yellow').trim();
     ctx.globalAlpha = 0.5;
     ctx.fillRect(x, canvas.height - h, barW, h);
     x += barW + 1;
