@@ -10,6 +10,7 @@ import {
 import {
   showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 } from '../core/ui.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 const STYLE_ID = 'worldbook-styles';
 const BG_KEY = 'app_bg_worldbook';
@@ -1184,6 +1185,7 @@ function createCustomSection(titleText, subText) {
 }
 
 function createUploadButton(label, key, afterSave) {
+  const actions = document.createDocumentFragment();
   const button = document.createElement('button');
   button.className = 'wb-mini-btn primary';
   button.type = 'button';
@@ -1193,7 +1195,9 @@ function createUploadButton(label, key, afterSave) {
     await setDB('blobs', key, {
       key,
       value,
-      source: value,
+      source: file.name,
+      sourceType: 'local',
+      url: '',
       opacity: 1,
       updatedAt: getNow()
     });
@@ -1201,7 +1205,20 @@ function createUploadButton(label, key, afterSave) {
     hideBottomSheet();
     showToast('已保存');
   }));
-  return button;
+  const urlButton = document.createElement('button');
+  urlButton.className = 'wb-mini-btn';
+  urlButton.type = 'button';
+  urlButton.append(createIcon('image', 15), document.createTextNode('图片 URL'));
+  urlButton.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await setDB('blobs', key, { key, value: result.url, url: result.url, source: result.url, sourceType: 'url', opacity: 1, updatedAt: getNow() });
+    await afterSave?.(result.url);
+    hideBottomSheet(); showToast('已保存');
+  });
+  actions.append(button, urlButton);
+  return actions;
 }
 
 function createClearBlobButton(label, key, afterClear) {

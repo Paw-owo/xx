@@ -25,6 +25,7 @@ import {
 } from '../../core/ui.js';
 import { silentRequest } from '../../core/api.js';
 import { recordExternalInteraction } from '../../core/app-bus.js';
+import { promptForRemoteImage } from '../../core/image-url.js';
 
 const SETTINGS_KEY = 'app_liars_tavern_settings';
 const WALLPAPER_KEY = 'app_bg_liars_tavern';
@@ -1303,6 +1304,10 @@ async function openCustomSheet() {
         </div>
       </button>
 
+      <button class="lt-sheet-row" data-sheet-action="url-wallpaper">
+        <span>${iconSvg('image')}</span><div><strong>图片 URL</strong><em>粘贴一张可访问的图片直链</em></div>
+      </button>
+
       <label class="lt-range-label">
         <span>壁纸透明度</span>
         <input type="range" min="0" max="0.85" step="0.01" value="${Number(state.settings.wallpaperOpacity || 0.36)}" data-sheet-action="wallpaper-opacity">
@@ -1351,7 +1356,7 @@ async function openCustomSheet() {
     const record = {
       key: WALLPAPER_KEY,
       value,
-      source: value,
+      source: file.name || '', sourceType: 'local', url: '',
       opacity: state.settings.wallpaperOpacity,
       updatedAt: getNow()
     };
@@ -1360,6 +1365,12 @@ async function openCustomSheet() {
     render();
     hideBottomSheet();
     showToast('壁纸换好了');
+  });
+
+  sheet.querySelector('[data-sheet-action="url-wallpaper"]')?.addEventListener('click', async () => {
+    const result = await promptForRemoteImage(); if (result.error) { showToast(result.error); return; } if (!result.url) return;
+    const record = { key: WALLPAPER_KEY, value: result.url, url: result.url, source: result.url, sourceType: 'url', opacity: state.settings.wallpaperOpacity, updatedAt: getNow() };
+    await setDB('blobs', WALLPAPER_KEY, record); state.wallpaper = record; render(); hideBottomSheet(); showToast('壁纸换好了');
   });
 
   sheet.querySelector('[data-sheet-action="clear-wallpaper"]')?.addEventListener('click', async () => {

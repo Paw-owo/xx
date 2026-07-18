@@ -20,6 +20,7 @@ import {
   showConfirm,
   createIcon
 } from '../core/ui.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 import {
   getBalance,
@@ -1275,7 +1276,9 @@ async function createEditorCard(item) {
     await setDB('blobs', getItemImageKey(item.id), {
       key: getItemImageKey(item.id),
       value,
-      source: value,
+      source: selected.name || '',
+      sourceType: 'local',
+      url: '',
       name: selected.name || '',
       type: selected.type || '',
       opacity: 100,
@@ -1286,7 +1289,19 @@ async function createEditorCard(item) {
     await renderShop();
   });
 
-  headMain.append(title, help, upload, file);
+  const urlButton = document.createElement('button');
+  urlButton.className = 'shop-upload-btn';
+  urlButton.type = 'button';
+  urlButton.append(createIcon('image', 15), document.createTextNode('图片 URL'));
+  urlButton.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await setDB('blobs', getItemImageKey(item.id), { key: getItemImageKey(item.id), value: result.url, url: result.url, source: result.url, sourceType: 'url', opacity: 100, updatedAt: getNow() });
+    showToast('图片换好啦 >֊<'); await renderShop();
+  });
+
+  headMain.append(title, help, upload, urlButton, file);
   head.append(imageBox, headMain);
 
   const fields = document.createElement('div');

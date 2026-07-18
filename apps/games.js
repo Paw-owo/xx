@@ -19,6 +19,7 @@ import {
   showConfirm,
   createIcon
 } from '../core/ui.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 const STYLE_ID = 'game-hub-styles';
 const HUB_BG_KEY = 'app_bg_games';
@@ -684,11 +685,13 @@ function openCustomizeSheet() {
 
     <div class="hub-sheet-actions">
       <button class="btn-ghost" data-action="upload-bg"></button>
+      <button class="btn-ghost" data-action="url-bg"></button>
       <button class="btn-ghost" data-action="clear-bg"></button>
     </div>
 
     <div class="hub-sheet-actions">
       <button class="btn-ghost" data-action="upload-hero"></button>
+      <button class="btn-ghost" data-action="url-hero"></button>
       <button class="btn-ghost" data-action="clear-hero"></button>
     </div>
 
@@ -704,12 +707,16 @@ function openCustomizeSheet() {
 
   const uploadBgBtn = sheet.querySelector('[data-action="upload-bg"]');
   uploadBgBtn.append(createIcon('upload', 17), document.createTextNode('上传大厅背景'));
+  const urlBgBtn = sheet.querySelector('[data-action="url-bg"]');
+  urlBgBtn.append(createIcon('image', 17), document.createTextNode('图片 URL'));
 
   const clearBgBtn = sheet.querySelector('[data-action="clear-bg"]');
   clearBgBtn.append(createIcon('clear', 17), document.createTextNode('清除大厅背景'));
 
   const uploadHeroBtn = sheet.querySelector('[data-action="upload-hero"]');
   uploadHeroBtn.append(createIcon('upload', 17), document.createTextNode('上传大卡片图'));
+  const urlHeroBtn = sheet.querySelector('[data-action="url-hero"]');
+  urlHeroBtn.append(createIcon('image', 17), document.createTextNode('图片 URL'));
 
   const clearHeroBtn = sheet.querySelector('[data-action="clear-hero"]');
   clearHeroBtn.append(createIcon('clear', 17), document.createTextNode('清除大卡片图'));
@@ -730,7 +737,7 @@ function openCustomizeSheet() {
       await setDB('blobs', HUB_BG_KEY, {
         key: HUB_BG_KEY,
         value,
-        source: value,
+        source: file.name || '', sourceType: 'local', url: '',
         name: file.name || '',
         updatedAt: getNow()
       });
@@ -739,6 +746,14 @@ function openCustomizeSheet() {
     } catch (_) {
       showToast('图片没有处理好');
     }
+  });
+
+  urlBgBtn.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await setDB('blobs', HUB_BG_KEY, { key: HUB_BG_KEY, value: result.url, url: result.url, source: result.url, sourceType: 'url', updatedAt: getNow() });
+    await applyHubBackground(); showToast('大厅背景换好了');
   });
 
   clearBgBtn.addEventListener('click', async () => {
@@ -759,7 +774,7 @@ function openCustomizeSheet() {
       await setDB('blobs', HUB_HERO_IMAGE_KEY, {
         key: HUB_HERO_IMAGE_KEY,
         value,
-        source: value,
+        source: file.name || '', sourceType: 'local', url: '',
         name: file.name || '',
         updatedAt: getNow()
       });
@@ -768,6 +783,14 @@ function openCustomizeSheet() {
     } catch (_) {
       showToast('图片没有处理好');
     }
+  });
+
+  urlHeroBtn.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await setDB('blobs', HUB_HERO_IMAGE_KEY, { key: HUB_HERO_IMAGE_KEY, value: result.url, url: result.url, source: result.url, sourceType: 'url', updatedAt: getNow() });
+    heroImage = result.url; showToast('大卡片图片换好了');
   });
 
   clearHeroBtn.addEventListener('click', async () => {
@@ -810,6 +833,7 @@ function createVisualEditorRow(game) {
       <input class="input-card" data-field="opacity" type="number" min="20" max="100" />
       <div class="hub-visual-actions">
         <button class="btn-ghost" data-action="icon"></button>
+        <button class="btn-ghost" data-action="url"></button>
         <button class="btn-ghost" data-action="clear"></button>
       </div>
     </div>
@@ -841,6 +865,8 @@ function createVisualEditorRow(game) {
 
   const iconBtn = row.querySelector('[data-action="icon"]');
   iconBtn.append(createIcon('upload', 16), document.createTextNode('图标'));
+  const urlBtn = row.querySelector('[data-action="url"]');
+  urlBtn.append(createIcon('image', 16), document.createTextNode('图片 URL'));
 
   const clearBtn = row.querySelector('[data-action="clear"]');
   clearBtn.append(createIcon('clear', 16), document.createTextNode('清除'));
@@ -867,7 +893,7 @@ function createVisualEditorRow(game) {
       await setDB('blobs', `app_game_icon_${game.id}`, {
         key: `app_game_icon_${game.id}`,
         value,
-        source: value,
+        source: file.name || '', sourceType: 'local', url: '',
         name: file.name || '',
         updatedAt: getNow()
       });
@@ -887,6 +913,16 @@ function createVisualEditorRow(game) {
     }
   });
 
+  urlBtn.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await setDB('blobs', `app_game_icon_${game.id}`, { key: `app_game_icon_${game.id}`, value: result.url, url: result.url, source: result.url, sourceType: 'url', updatedAt: getNow() });
+    iconCache[game.id] = result.url;
+    preview.innerHTML = ''; const img = document.createElement('img'); img.src = result.url; img.alt = ''; preview.appendChild(img);
+    syncVisual(); showToast('图标换好了');
+  });
+
   clearBtn.addEventListener('click', async () => {
     await deleteDB('blobs', `app_game_icon_${game.id}`);
     iconCache[game.id] = '';
@@ -894,18 +930,7 @@ function createVisualEditorRow(game) {
     preview.innerHTML = '';
     preview.appendChild(createGameGlyph(game.id));
 
-    nameInput.value = '';
-    subtitleInput.value = '';
-    opacityInput.value = 100;
-
-    gameVisuals[game.id] = {
-      name: '',
-      subtitle: '',
-      opacity: 100,
-      updatedAt: getNow()
-    };
-
-    showToast('这一项已恢复');
+    showToast('图标已清除');
   });
 
   return row;

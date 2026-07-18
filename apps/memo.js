@@ -10,6 +10,7 @@ import {
 import {
   showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 } from '../core/ui.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 const MEMO_KEY = 'memos';
 const VISUALS_KEY = 'app_memo_visuals';
@@ -513,6 +514,7 @@ async function openEditor(memo) {
   const current = memo ? normalizeMemo(memo) : null;
   let selectedCategory = current?.category || 'life';
   let pendingCover = '';
+  let pendingCoverSource = '';
   let syncEnabled = false;
   let syncCharacterId = '';
 
@@ -535,8 +537,21 @@ async function openEditor(memo) {
   imageButton.append(createIcon('image', 15), document.createTextNode(isEdit ? '更换封面图' : '选择封面图'));
   imageButton.addEventListener('click', () => chooseImage(async (file) => {
     pendingCover = await compressImage(file, 1400, 0.86);
+    pendingCoverSource = 'local';
     showToast('图片选好啦，保存后生效');
   }));
+  const imageUrlButton = createImageUrlButton(async (url) => { pendingCover = url; pendingCoverSource = 'url'; showToast('图片选好啦，保存后生效'); });
+  const clearCoverButton = document.createElement('button');
+  clearCoverButton.className = 'memo-mini-btn'; clearCoverButton.type = 'button';
+  clearCoverButton.append(createIcon('clear', 15), document.createTextNode('清除图片'));
+  clearCoverButton.addEventListener('click', async () => {
+    pendingCover = ''; pendingCoverSource = '';
+    if (current?.id) {
+      await deleteDB('blobs', getCoverKey(current.id)); coverCache.delete(current.id);
+      saveMemos(readMemos().map((item) => item.id === current.id ? { ...item, coverMode: 'none', updatedAt: getNow() } : item));
+    }
+    showToast('封面已清除');
+  });
 
   // "让 TA 也记得这件事" 同步角色记忆
   const characters = await getAllDB('characters').catch(() => []);
@@ -617,7 +632,7 @@ async function openEditor(memo) {
     }
 
     if (pendingCover) {
-      await saveMemoCover(memoId, pendingCover, nextTitle || '未命名');
+      await saveMemoCover(memoId, pendingCover, nextTitle || '未命名', pendingCoverSource || 'local');
     }
 
     // 同步到角色记忆
@@ -640,7 +655,7 @@ async function openEditor(memo) {
   });
 
   actions.append(cancelButton, saveButton);
-  sheet.append(title, titleField, categoryField, pinRow, imageButton, contentField, syncRow, syncSelect, actions);
+  sheet.append(title, titleField, categoryField, pinRow, imageButton, imageUrlButton, clearCoverButton, contentField, syncRow, syncSelect, actions);
 
   if (isEdit) {
     const deleteButton = document.createElement('button');
@@ -799,13 +814,18 @@ function openMemoImageSheet(memo) {
     renderMemo();
   }));
 
+  const urlButton = createImageUrlButton(async (url) => {
+    await saveMemoCover(memo.id, url, memo.title, 'url');
+    saveMemos(readMemos().map((item) => item.id === memo.id ? { ...item, coverMode: 'image', updatedAt: getNow() } : item));
+    hideBottomSheet(); showToast('封面换好啦'); renderMemo();
+  });
+
   const clear = document.createElement('button');
   clear.className = 'memo-mini-btn';
   clear.type = 'button';
   clear.append(createIcon('clear', 15), document.createTextNode('清除封面'));
   clear.addEventListener('click', async () => {
     await deleteDB('blobs', getCoverKey(memo.id));
-    removeVisualMeta(memo.id);
     coverCache.delete(memo.id);
     saveMemos(readMemos().map((item) => item.id === memo.id ? { ...item, coverMode: 'none', updatedAt: getNow() } : item));
     hideBottomSheet();
@@ -813,16 +833,18 @@ function openMemoImageSheet(memo) {
     renderMemo();
   });
 
-  section.querySelector('.memo-custom-actions').append(upload, clear);
+  section.querySelector('.memo-custom-actions').append(upload, urlButton, clear);
   sheet.append(title, section);
   showBottomSheet(sheet);
 }
 
-async function saveMemoCover(id, value, name) {
+async function saveMemoCover(id, value, name, sourceType = 'local') {
   await setDB('blobs', getCoverKey(id), {
     key: getCoverKey(id),
     value,
-    source: 'upload',
+    source: sourceType === 'url' ? value : 'upload',
+    sourceType,
+    url: sourceType === 'url' ? value : '',
     opacity: 1,
     updatedAt: getNow()
   });
@@ -852,7 +874,9 @@ function openCustomizeSheet() {
     await setDB('blobs', BG_KEY, {
       key: BG_KEY,
       value,
-      source: 'upload',
+      source: file.name,
+      sourceType: 'local',
+      url: '',
       opacity: 1,
       updatedAt: getNow()
     });
@@ -861,6 +885,13 @@ function openCustomizeSheet() {
     hideBottomSheet();
     showToast('背景换好啦');
   }));
+
+  const urlBg = createImageUrlButton(async (url) => {
+    await setDB('blobs', BG_KEY, { key: BG_KEY, value: url, url, source: url, sourceType: 'url', opacity: 1, updatedAt: getNow() });
+    const screen = container?.querySelector('.memo-screen');
+    if (screen) await applyMemoBackground(screen);
+    hideBottomSheet(); showToast('背景换好啦');
+  });
 
   const clearBg = document.createElement('button');
   clearBg.className = 'memo-mini-btn';
@@ -874,7 +905,7 @@ function openCustomizeSheet() {
     showToast('背景已清除');
   });
 
-  bgSection.querySelector('.memo-custom-actions').append(uploadBg, clearBg);
+  bgSection.querySelector('.memo-custom-actions').append(uploadBg, urlBg, clearBg);
 
   const dataSection = createCustomSection('数据备份', '导出文字数据，图片仍安全放在本机。');
 
@@ -930,6 +961,20 @@ function chooseImage(onPicked) {
     }
   });
   input.click();
+}
+
+function createImageUrlButton(onPicked) {
+  const button = document.createElement('button');
+  button.className = 'memo-mini-btn';
+  button.type = 'button';
+  button.append(createIcon('image', 15), document.createTextNode('图片 URL'));
+  button.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await onPicked(result.url);
+  });
+  return button;
 }
 
 function exportMemos() {
