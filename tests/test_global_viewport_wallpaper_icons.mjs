@@ -16,8 +16,11 @@ assert.doesNotMatch(thread, /chat-keyboard-offset|keyboardViewportHandler/, 'cha
 assert.doesNotMatch(styles, /\.bottom-sheet\s*\{[^}]*--app-keyboard-inset/s, 'bottom sheets sized by the visual viewport must not also move by the full keyboard inset');
 assert.doesNotMatch(readFileSync(new URL('../core/ui.js', import.meta.url), 'utf8'), /\.bottom-sheet\s*\{[^}]*--app-keyboard-inset/s, 'shared bottom sheets must consume the visual viewport only once');
 assert.match(styles, /\.phone-desktop\.has-image \.desktop-soft-layer\s*\{\s*display: none;/);
-assert.match(settings, /backgroundCleared/);
-assert.match(index, /classList\.toggle\('background-cleared', custom\?\.backgroundCleared === true\)/);
 assert.ok(settings.includes('window.AppImages.removeImageRecord(key)'), 'wallpaper clear must remove legacy aliases through the existing image source');
+assert.ok(settings.includes('window.AppImages.removeAppIconImage(id)'), 'icon clear must use the unified image source');
+assert.match(index, /function getAppIconImageKeys\(app\)[\s\S]*app_icon_\$\{app\.id\}[\s\S]*app_\$\{app\.id\}_icon[\s\S]*icon_\$\{app\.id\}/, 'icon reads and clears must share all compatibility aliases');
+assert.match(index, /const image = blobImage \|\| localImage;/, 'the current canonical icon record must win over stale local cache fields');
+assert.match(index, /collectObjectUrls[\s\S]*revokeObjectUrls/, 'image deletion must release obsolete Blob URLs');
+assert.match(index, /const preserved = Object\.fromEntries/, 'icon clearing must preserve non-image custom properties');
 
 console.log('global viewport, icon background, and wallpaper checks passed');

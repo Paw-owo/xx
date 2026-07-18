@@ -1497,7 +1497,7 @@
       getEventLog: () => { try { return JSON.parse(JSON.stringify(getData('app_bus_event_log') || [])); } catch (_) { return []; } }
     };
 
-    window.AppImages = { getImageKeys, buildImageKey, readImageRecord, readImageValue, writeImageRecord, removeImageRecord, applyImageToElement, applyAllImages, getImageFromRecord, getOpacityFromRecord, normalizeImageRecord };
+    window.AppImages = { getImageKeys, buildImageKey, readImageRecord, readImageValue, writeImageRecord, removeImageRecord, removeAppIconImage, applyImageToElement, applyAllImages, getImageFromRecord, getOpacityFromRecord, normalizeImageRecord };
 
     window.closeCurrentApp = closeCurrentApp;
     window.openApp = openApp;
@@ -1595,18 +1595,77 @@
     }
 
     async function removeImageRecord(key) {
+      const objectUrls = new Set();
       for (const itemKey of getImageKeys(key)) {
+        const records = [await getDB('blobs', itemKey), getData(itemKey)];
+        records.forEach((record) => collectObjectUrls(record, objectUrls));
         await deleteDB('blobs', itemKey);
         removeData(itemKey);
         removeData(`${itemKey}_meta`);
         const backgrounds = getData(WIDGET_BACKGROUNDS_KEY);
         if (backgrounds && typeof backgrounds === 'object' && backgrounds[itemKey]) {
+          collectObjectUrls(backgrounds[itemKey], objectUrls);
           delete backgrounds[itemKey];
           setData(WIDGET_BACKGROUNDS_KEY, backgrounds);
         }
       }
+      revokeObjectUrls(objectUrls);
       window.AppEvents.emit('app-images-updated', { key });
       return true;
+    }
+
+    function getAppIconImageKeys(app) {
+      const aliasMap = { chat: ['聊天','消息','message','messages'], moments: ['朋友圈','moments'], settings: ['设置','settings'], gallery: ['记仇本','相册','gallery','grudge','grudges','photo','photos'], characters: ['角色','character','characters'], worldbook: ['世界书','worldbook','world_book'], wallet: ['钱包','wallet'], shop: ['商店','shop'], memo: ['备忘录','memo','memos','note','notes'], anniversary: ['纪念日','anniversary','anniversaries','calendar','date'], games: ['游戏','games','game','play'], music: ['音乐','music','player','播放器'], dream: ['梦境','dream','dreams','做梦'] };
+      return [...new Set([`app_icon_${app.id}`, `app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name, ...(aliasMap[app.id] || [])])];
+    }
+
+    async function removeAppIconImage(appId) {
+      const app = APPS.find((item) => item.id === appId);
+      if (!app) return false;
+      const keys = getAppIconImageKeys(app);
+      const objectUrls = new Set();
+      const imageFields = new Set(IMAGE_VALUE_FIELDS.concat(['imageBase64', 'blobKey', 'backgroundCleared']));
+      for (const key of keys) {
+        collectObjectUrls(await getDB('blobs', key), objectUrls);
+        await deleteDB('blobs', key);
+        const localRecord = getData(key);
+        collectObjectUrls(localRecord, objectUrls);
+        if (getImageFromRecord(localRecord)) {
+          if (localRecord && typeof localRecord === 'object') {
+            const preserved = Object.fromEntries(Object.entries(localRecord).filter(([field]) => !imageFields.has(field)));
+            if (Object.keys(preserved).length) setData(key, preserved);
+            else removeData(key);
+          } else removeData(key);
+        }
+        removeData(`${key}_meta`);
+      }
+      const icons = getCustomIcons();
+      for (const [key, current] of Object.entries(icons)) {
+        if (!current || typeof current !== 'object') continue;
+        const itemName = String(current.name || '').trim();
+        const itemAppId = String(current.appId || current.id || '').trim();
+        if (!keys.includes(key) && itemAppId !== app.id && !keys.includes(itemName)) continue;
+        collectObjectUrls(current, objectUrls);
+        const preserved = Object.fromEntries(Object.entries(current).filter(([field]) => !imageFields.has(field)));
+        if (Object.keys(preserved).length) icons[key] = preserved;
+        else delete icons[key];
+      }
+      setData('app_icons', icons);
+      revokeObjectUrls(objectUrls);
+      window.AppEvents.emit('app-images-updated', { key: `app_icon_${app.id}` });
+      return true;
+    }
+
+    function collectObjectUrls(record, urls) {
+      if (!record) return;
+      if (typeof record === 'string') { if (record.trim().startsWith('blob:')) urls.add(record.trim()); return; }
+      if (typeof record !== 'object') return;
+      for (const value of Object.values(record)) collectObjectUrls(value, urls);
+    }
+
+    function revokeObjectUrls(urls) {
+      if (typeof URL?.revokeObjectURL !== 'function') return;
+      urls.forEach((url) => { try { URL.revokeObjectURL(url); } catch (_) {} });
     }
 
     function normalizeImageRecord(value, key = '') {
@@ -1762,18 +1821,16 @@
     async function readIconRecord(app) {
       const icons = getCustomIcons();
       const localCustom = icons[app.id] || icons[app.name] || null;
-      const candidateKeys = [`app_icon_${app.id}`, `app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name];
-      const aliasMap = { chat: ['聊天','消息','message','messages'], moments: ['朋友圈','moments'], settings: ['设置','settings'], gallery: ['记仇本','相册','gallery','grudge','grudges','photo','photos'], characters: ['角色','character','characters'], worldbook: ['世界书','worldbook','world_book'], wallet: ['钱包','wallet'], shop: ['商店','shop'], memo: ['备忘录','memo','memos','note','notes'], anniversary: ['纪念日','anniversary','anniversaries','calendar','date'], games: ['游戏','games','game','play'], music: ['音乐','music','player','播放器'], dream: ['梦境','dream','dreams','做梦'] };
-      candidateKeys.push(...(aliasMap[app.id] || []));
+      const candidateKeys = getAppIconImageKeys(app);
       let blobRecord = null;
       for (const key of candidateKeys) { const record = await readImageRecord(key); if (getImageFromRecord(record) || record?.name) { blobRecord = record; break; } }
       let matchedLocal = localCustom;
       if (!matchedLocal) { for (const key of candidateKeys) { if (icons[key]) { matchedLocal = icons[key]; break; } } }
-      if (!matchedLocal) { matchedLocal = Object.values(icons).find((item) => { if (!item || typeof item !== 'object') return false; const itemName = String(item.name || '').trim(); const itemAppId = String(item.appId || item.id || '').trim(); return itemAppId === app.id || itemName === app.name || itemName === app.id || (aliasMap[app.id] || []).includes(itemName); }) || null; }
+      if (!matchedLocal) { matchedLocal = Object.values(icons).find((item) => { if (!item || typeof item !== 'object') return false; const itemName = String(item.name || '').trim(); const itemAppId = String(item.appId || item.id || '').trim(); return itemAppId === app.id || itemName === app.name || itemName === app.id || candidateKeys.includes(itemName); }) || null; }
       if (blobRecord || matchedLocal) {
         const blobImage = getImageFromRecord(blobRecord);
         const localImage = getImageFromRecord(matchedLocal);
-        const image = localImage || blobImage;
+        const image = blobImage || localImage;
         const opacitySource = matchedLocal?.opacity ?? blobRecord?.opacity ?? 100;
         return normalizeImageRecord({ ...(blobRecord || {}), ...(matchedLocal || {}), value: image, image, iconImage: image, backgroundImage: image, imageBase64: image, name: matchedLocal?.name || blobRecord?.name || app.name, opacity: opacitySource }, `app_icon_${app.id}`);
       }
