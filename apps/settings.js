@@ -44,6 +44,7 @@ import {
   isMemorySummaryCheckpointKey
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
+import { APPS } from '../core/app-registry.js';
 
 // ═══════════════════════════════════════
 // 【常量】存储 key 和默认配置
@@ -126,12 +127,6 @@ const THEME_COLOR_FIELDS = [
   ['text-primary', '主要文字'], ['text-secondary', '次要文字'], ['text-hint', '提示文字'],
   ['bubble-user-bg', '用户气泡'], ['bubble-user-text', '用户气泡字'],
   ['bubble-ai-bg', 'AI 气泡'], ['bubble-ai-text', 'AI 气泡字']
-];
-
-const APP_LIST = [
-  ['chat', '消息'], ['moments', '朋友圈'], ['settings', '设置'], ['gallery', '相册'],
-  ['characters', '角色'], ['worldbook', '世界书'], ['wallet', '钱包'], ['shop', '商店'],
-  ['memo', '备忘录'], ['anniversary', '纪念日'], ['games', '游戏'], ['music', '音乐'], ['dream', '梦境']
 ];
 
 const WIDGET_BG_LIST = [
@@ -1509,7 +1504,7 @@ async function renderIconsPage() {
   const hidden = new Set(getData(HIDDEN_ICONS_KEY) || []);
 
   const list = card('应用图标', '改名、换图、隐藏，都能用');
-  for (const [id, name] of APP_LIST) {
+  for (const { id, name } of APPS) {
     const custom = icons[id] || {};
     const dbRecord = await getDB('blobs', `app_icon_${id}`);
     const image = dbRecord?.value || dbRecord?.image || custom.image || custom.iconImage || custom.backgroundImage || '';
