@@ -53,19 +53,25 @@ const LOCAL_STORAGE_KEYS = [
   'chat_archived_threads',
   'moments_unread_count',
   'games_unread_count',
-  'app_lock_unlocked',
   'app_first_open_seed',
   'anniversaries',
   'app_anniversaries',
   'anniversary_list',
   'app_dream_last_gen',
   'app_dream_config',
+  'app_api_pool_groups',
   'app_anniversary_visuals',
   'app_anniversary_profile',
   'app_game_hub_visual',
   'app_game_visuals',
   'app_anniversary_greeted'
 ];
+
+const BACKUP_EXCLUDED_LOCAL_KEYS = new Set([
+  'app_lock_unlocked',
+  'app_weather_cache',
+  'weather_cache'
+]);
 
 // 动态前缀键：按角色/群聊/会话隔离的配置，无法静态列举，需在 buildLocalSnapshot 时前缀扫描收集。
 // 漏掉会导致换设备/导入后角色配置（主动消息、TTS、可见条数、壁纸透明度）丢失，
@@ -683,6 +689,22 @@ function isSnapshotLocalKey(key, internal = false) {
 
 function isDynamicSnapshotLocalKey(key) {
   return DYNAMIC_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)) || isMemorySummaryCheckpointKey(key);
+}
+
+export function isBackupLocalKey(key) {
+  const value = String(key || '');
+  return !BACKUP_EXCLUDED_LOCAL_KEYS.has(value)
+    && (LOCAL_STORAGE_KEYS.includes(value) || isDynamicSnapshotLocalKey(value));
+}
+
+export function getBackupLocalKeys(storage = globalThis.localStorage) {
+  const keys = new Set(LOCAL_STORAGE_KEYS.filter(isBackupLocalKey));
+  if (!storage) return [...keys];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (isBackupLocalKey(key)) keys.add(key);
+  }
+  return [...keys];
 }
 
 export function isMemorySummaryCheckpointKey(key) {

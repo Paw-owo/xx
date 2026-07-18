@@ -821,6 +821,7 @@
     .lock-screen.hidden {
       opacity: 0;
       pointer-events: none;
+      visibility: hidden;
       transform: scale(1.02);
     }
 
@@ -1308,6 +1309,8 @@
     let renderTimer = null;
     let resizeTimer = null;
     let applyingImages = false;
+    let imagesRefreshPending = false;
+    let appOpenQueue = Promise.resolve();
     let lastViewportWidth = window.innerWidth;
     let lastViewportHeight = window.innerHeight;
 
@@ -1550,14 +1553,20 @@
     function cssUrl(value) { return String(value || '').replace(/"/g, '\\"'); }
 
     async function applyAllImages() {
-      if (applyingImages) return;
+      if (applyingImages) {
+        imagesRefreshPending = true;
+        return;
+      }
       applyingImages = true;
       try {
-        await applyWallpaperImage();
-        await applyLockImages();
-        await applyWidgetImages();
-        await applyAppIconImages();
-        await applyCurrentAppImage();
+        do {
+          imagesRefreshPending = false;
+          await applyWallpaperImage();
+          await applyLockImages();
+          await applyWidgetImages();
+          await applyAppIconImages();
+          await applyCurrentAppImage();
+        } while (imagesRefreshPending);
       } finally { applyingImages = false; }
     }
 
@@ -2259,9 +2268,24 @@
       });
     }
 
-    function updateLockState() { const unlocked = getData('app_lock_unlocked') === true; lockScreenEl.classList.toggle('hidden', unlocked); if (!unlocked) { window.clearTimeout(lockCheckTimer); lockCheckTimer = null; lockInput = ''; lockErrorEl.textContent = ''; renderLockDots(); } }
+    function updateLockState() {
+      const unlocked = getData('app_lock_unlocked') === true;
+      lockScreenEl.classList.toggle('hidden', unlocked);
+      lockScreenEl.setAttribute('aria-hidden', String(unlocked));
+      lockScreenEl.inert = unlocked;
+      desktopEl.inert = !unlocked;
+      appLayerEl.inert = !unlocked;
+      if (!unlocked) {
+        window.clearTimeout(lockCheckTimer);
+        lockCheckTimer = null;
+        lockInput = '';
+        lockErrorEl.textContent = '';
+        renderLockDots();
+        lockPadEl.querySelector('button')?.focus({ preventScroll: true });
+      }
+    }
     function renderLockDots() { [...lockDotsEl.querySelectorAll('.lock-dot')].forEach((dot, index) => { dot.classList.toggle('filled', index < lockInput.length); }); }
-    function checkLockPassword() { lockCheckTimer = null; if (lockInput === LOCK_PASSWORD) { setData('app_lock_unlocked', true); lockScreenEl.classList.add('hidden'); showToast('解锁啦'); return; } lockInput = ''; lockErrorEl.textContent = '嘿嘿，不对哦'; renderLockDots(); }
+    function checkLockPassword() { lockCheckTimer = null; if (lockInput === LOCK_PASSWORD) { setData('app_lock_unlocked', true); updateLockState(); showToast('解锁啦'); return; } lockInput = ''; lockErrorEl.textContent = '嘿嘿，不对哦'; renderLockDots(); }
 
     function initWidgets() { updateClock(); clearInterval(clockTimer); clockTimer = window.setInterval(updateClock, 1000); updateWeather(); clearInterval(weatherTimer); weatherTimer = window.setInterval(updateWeather, 1000 * 60 * 30); updateAnniversaryWidget(); updateFocusWidget(); clearInterval(vinylTimer); vinylTimer = window.setInterval(updateVinylWidget, 800); }
 
@@ -2281,8 +2305,10 @@
       const cached = getData('app_weather_cache') || getData('weather_cache');
       const now = Date.now();
       if (cached && cached.text && now - Number(cached.updatedAt || 0) < 1000 * 60 * 30) { weatherValueEl.textContent = cached.text; return; }
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000);
       try {
-        const response = await fetch('https://wttr.in/?format=j1', { cache: 'no-store' });
+        const response = await fetch('https://wttr.in/?format=j1', { cache: 'no-store', signal: controller.signal });
         const data = await response.json();
         const current = data?.current_condition?.[0] || {};
         const area = data?.nearest_area?.[0]?.areaName?.[0]?.value || '';
@@ -2292,7 +2318,11 @@
         weatherValueEl.textContent = text;
         setData('app_weather_cache', { text, updatedAt: now });
         setData('weather_cache', { text, updatedAt: now });
-      } catch (_) { weatherValueEl.textContent = cached?.text || '天气躲起来了'; }
+      } catch (_) {
+        weatherValueEl.textContent = cached?.text || '天气躲起来了';
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
     }
 
     function updateAnniversaryWidget() {
@@ -2360,7 +2390,13 @@
       }
     }
 
-    async function openApp(appId, options = {}) {
+    function openApp(appId, options = {}) {
+      const operation = appOpenQueue.then(() => openAppNow(appId, options));
+      appOpenQueue = operation.catch(() => {});
+      return operation;
+    }
+
+    async function openAppNow(appId, options = {}) {
       const app = APPS.find((item) => item.id === appId);
       if (!app) return;
       editing = false;

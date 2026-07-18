@@ -41,6 +41,7 @@ const callState = {
   isSending: false,
   isEnding: false,
   callEnded: false,
+  replyController: null,
   activeLock: null,
   worldbookItems: []
 };
@@ -79,6 +80,8 @@ export async function mountThreadCall(containerEl, options = {}) {
 
 export function unmountThreadCall() {
   callState.mounted = false;
+  callState.replyController?.abort();
+  callState.replyController = null;
   stopTimer();
   stopAll();
 
@@ -376,6 +379,10 @@ async function requestCallReply() {
   const useCharApi = apiConfig && apiConfig.useGlobal === false;
 
   let content = '';
+  callState.replyController?.abort();
+  const controller = new AbortController();
+  callState.replyController = controller;
+  const timeoutId = window.setTimeout(() => controller.abort('timeout'), 60000);
 
   try {
     content = await silentRequest({
@@ -384,11 +391,16 @@ async function requestCallReply() {
       model: useCharApi ? (apiConfig.model || '') : '',
       temperature: apiConfig?.temperature ?? 0.85,
       maxTokens: apiConfig?.maxTokens,
-      signal: AbortSignal.timeout(15000)
+      signal: controller.signal
     });
   } catch (error) {
-    console.error('[thread-call] reply failed', error);
+    if (!controller.signal.aborted || controller.signal.reason === 'timeout') {
+      console.error('[thread-call] reply failed', error);
+    }
     return '';
+  } finally {
+    window.clearTimeout(timeoutId);
+    if (callState.replyController === controller) callState.replyController = null;
   }
 
   const text = String(content || '').trim();
@@ -486,6 +498,8 @@ async function endCall() {
   if (callState.isEnding) return;
 
   callState.isEnding = true;
+  callState.replyController?.abort();
+  callState.replyController = null;
   renderCall();
   stopAll();
 
@@ -624,7 +638,7 @@ function speakText(text) {
   const content = String(text || '').trim();
   if (!content) return;
 
-  // 挂断/卸载后晚到的回复不再朗读（requestCallReply 未绑定 abort signal，请求仍可能返回）
+  // 挂断/卸载后不再朗读；abort 之外保留状态守卫，避免极端竞态下的晚到结果播放
   if (!callState.mounted || callState.callEnded) return;
 
   // 角色 TTS 配置：enabled:false 时跳过播放，否则作为 override 传入
@@ -633,6 +647,7 @@ function speakText(text) {
     return;
   }
 
+  stopAll();
   playTTS(content, ttsOverride || undefined).catch(() => {
     // TTS 失败不影响通话文字
   });

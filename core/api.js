@@ -820,9 +820,35 @@ export function buildHeaders(apiKey, provider = 'openai') {
 function normalizeMessage(message) {
   if (!message || typeof message !== 'object') return null;
   const role = ['system', 'user', 'assistant'].includes(message.role) ? message.role : 'user';
-  const content = typeof message.content === 'string' ? message.content : '';
-  if (!content.trim()) return null;
+  const content = normalizeMessageContent(message.content);
+  if (typeof content === 'string' ? !content.trim() : !content.length) return null;
   return { role, content };
+}
+
+function normalizeMessageContent(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content.map((item) => {
+    if (typeof item === 'string') return item.trim() ? { type: 'text', text: item } : null;
+    if (!item || typeof item !== 'object') return null;
+    const type = String(item.type || '');
+    if ((type === 'text' || !type) && typeof item.text === 'string' && item.text.trim()) {
+      return { type: 'text', text: item.text };
+    }
+    const imageUrl = typeof item.image_url === 'string' ? item.image_url : item.image_url?.url;
+    if ((type === 'image_url' || imageUrl) && imageUrl) {
+      return { type: 'image_url', image_url: { url: String(imageUrl), ...(item.image_url?.detail ? { detail: item.image_url.detail } : {}) } };
+    }
+    if (type === 'image' && item.source?.type === 'base64' && item.source?.data) {
+      return { type: 'image', source: { type: 'base64', media_type: String(item.source.media_type || 'image/jpeg'), data: String(item.source.data) } };
+    }
+    return null;
+  }).filter(Boolean);
+}
+
+function contentText(content) {
+  if (typeof content === 'string') return content;
+  return content.filter((item) => item.type === 'text').map((item) => item.text).join('\n');
 }
 
 function buildMessages(messages = [], systemPrompt = '') {
@@ -844,8 +870,19 @@ function buildAnthropicMessages(messages = [], systemPrompt = '') {
     system: String(systemPrompt || '').trim(),
     messages: normalized
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => ({ role: m.role, content: [{ type: 'text', text: m.content }] }))
+      .map((m) => ({ role: m.role, content: toAnthropicContent(m.content) }))
+      .filter((m) => m.content.length)
   };
+}
+
+function toAnthropicContent(content) {
+  if (typeof content === 'string') return [{ type: 'text', text: content }];
+  return content.map((item) => {
+    if (item.type === 'text') return item;
+    if (item.type === 'image') return item;
+    const match = item.image_url?.url?.match(/^data:([^;,]+);base64,(.+)$/);
+    return match ? { type: 'image', source: { type: 'base64', media_type: match[1], data: match[2] } } : null;
+  }).filter(Boolean);
 }
 
 function buildAnthropicRequestBody({ messages, systemPrompt, model, stream, temperature, maxTokens }) {
@@ -863,7 +900,13 @@ function toGeminiParts(content) {
     return content.map((item) => {
       if (typeof item === 'string') return { text: item };
       if (!item || typeof item !== 'object') return null;
-      return item.text ? { text: item.text } : null;
+      if (item.text) return { text: item.text };
+      const source = item.source;
+      if (item.type === 'image' && source?.type === 'base64') {
+        return { inline_data: { mime_type: source.media_type, data: source.data } };
+      }
+      const match = item.image_url?.url?.match(/^data:([^;,]+);base64,(.+)$/);
+      return match ? { inline_data: { mime_type: match[1], data: match[2] } } : null;
     }).filter(Boolean);
   }
   if (content && typeof content === 'object' && content.text) return [{ text: content.text }];
@@ -892,7 +935,7 @@ function buildGeminiRequestBody({ messages, systemPrompt, temperature, maxTokens
 }
 
 function buildOllamaRequestBody({ messages, systemPrompt, model, stream, temperature, maxTokens }) {
-  const body = { model, messages: buildMessages(messages, systemPrompt), stream };
+  const body = { model, messages: buildMessages(messages, systemPrompt).map((message) => ({ ...message, content: contentText(message.content) })).filter((message) => message.content.trim()), stream };
   if (typeof temperature === 'number' && Number.isFinite(temperature)) {
     body.options = { ...(body.options || {}), temperature };
   }
@@ -921,6 +964,14 @@ function buildRequestContext({ endpointConfig, model, systemPrompt, messages, st
   }
   return { provider: 'openai', url: smartChatUrl(base, 'openai'), headers: buildHeaders(endpointConfig.apiKey, 'openai'), body: buildOpenAIRequestBody({ messages, systemPrompt, model: requestModel, stream, temperature, maxTokens }) };
 }
+
+export const __requestBodyTestHooks = Object.freeze({
+  normalizeMessage,
+  buildOpenAIRequestBody,
+  buildAnthropicRequestBody,
+  buildGeminiRequestBody,
+  buildOllamaRequestBody
+});
 
 // ═══════════════════════════════════════
 // 【错误处理】
@@ -1673,4 +1724,3 @@ export async function testAllPoolEndpoints() {
 }
 
 // 依赖：./storage.js(getData,setData,getAllDB,setDB,deleteDB,getNow,generateId)
-

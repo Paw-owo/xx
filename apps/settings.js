@@ -40,8 +40,8 @@ import { resetSession, getMcpServers, listMcpTools, listMcpToolsWithDraft } from
 import {
   testCloudConnection,
   restoreLocalSnapshot,
-  getMemorySummaryCheckpointKeys,
-  isMemorySummaryCheckpointKey
+  getBackupLocalKeys,
+  isBackupLocalKey
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
 import { APPS } from '../core/app-registry.js';
@@ -70,18 +70,6 @@ const DB_STORES = [
   'songs', 'playlists',
   'ai_phone_diaries', 'ai_phone_visits', 'ai_phone_chat_archives', 'ai_phone_memos',
   'ai_phone_mailbox', 'ai_phone_app_locks', 'ai_phone_action_logs'
-];
-
-const CHAT_LOCAL_KEYS = [
-  'chat_unread_counts', 'chat_group_unread_counts', 'chat_hidden_private_threads', 'chat_last_route',
-  'chat_active_thread', 'chat_draft_map', 'chat_pinned_threads', 'chat_archived_threads'
-];
-
-const BACKUP_LOCAL_STORAGE_KEYS = [
-  SETTINGS_KEY, CLOUD_KEY, ICONS_KEY, HIDDEN_ICONS_KEY, WALLPAPER_OPACITY_KEY,
-  WIDGET_BACKGROUNDS_KEY, DESKTOP_SCALE_KEY, CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY,
-  'app_theme', 'app_theme_preset', 'app_theme_mode', ...CHAT_LOCAL_KEYS, API_POOL_GROUPS_KEY,
-  'moments_unread_count', 'games_unread_count'
 ];
 
 const IMAGE_DRESS_KEYS = [
@@ -1944,10 +1932,7 @@ function toggleIconHidden(id) {
 async function exportAll() {
   const data = { localStorage: {}, indexedDB: {} };
 
-  BACKUP_LOCAL_STORAGE_KEYS.forEach((key) => {
-    data.localStorage[key] = getData(key);
-  });
-  getMemorySummaryCheckpointKeys().forEach((key) => {
+  getBackupLocalKeys().forEach((key) => {
     data.localStorage[key] = getData(key);
   });
 
@@ -1981,7 +1966,7 @@ async function importAll() {
     };
     await restoreLocalSnapshot(importData, {
       stores: DB_STORES,
-      isAllowedLocalKey: (key) => BACKUP_LOCAL_STORAGE_KEYS.includes(key) || isMemorySummaryCheckpointKey(key),
+      isAllowedLocalKey: isBackupLocalKey,
       overwrite: true
     });
 

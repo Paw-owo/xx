@@ -197,9 +197,13 @@ function normalizeStoreRecord(storeName, keyOrRecord, value) {
   };
 }
 
-function cleanForDB(value) {
+function cleanForDB(value, ancestors = new WeakSet()) {
   if (Array.isArray(value)) {
-    return value.map((item) => cleanForDB(item)).filter((item) => item !== undefined);
+    if (ancestors.has(value)) throw new TypeError('数据库记录不能包含循环引用');
+    ancestors.add(value);
+    const result = value.map((item) => cleanForDB(item, ancestors)).filter((item) => item !== undefined);
+    ancestors.delete(value);
+    return result;
   }
 
   if (typeof value === 'undefined' || typeof value === 'function' || typeof value === 'symbol') {
@@ -218,14 +222,17 @@ function cleanForDB(value) {
     return value;
   }
 
+  if (ancestors.has(value)) throw new TypeError('数据库记录不能包含循环引用');
+  ancestors.add(value);
   const result = {};
 
   Object.entries(value).forEach(([key, item]) => {
-    const clean = cleanForDB(item);
+    const clean = cleanForDB(item, ancestors);
     if (typeof clean !== 'undefined') {
       result[key] = clean;
     }
   });
+  ancestors.delete(value);
 
   return result;
 }
@@ -581,5 +588,7 @@ export async function getStorageUsage() {
     percent: 0
   };
 }
+
+export const __storageTestHooks = Object.freeze({ cleanForDB });
 
 // 改了什么：DB_VERSION 从 6 升到 7，新增 songs/playlists/albums/memories_album 四个 store，保留已有 store 与导出函数不变。
