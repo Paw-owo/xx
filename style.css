@@ -29,6 +29,10 @@
   --color-danger: #C68181;
   --border-soft: #EBD9D6;
   --icon-color: #9C747A;
+  --icon-tile-bg: var(--bg-card);
+  --icon-tile-alt-cool: color-mix(in srgb, var(--decor-blue) 38%, var(--bg-card));
+  --icon-tile-alt-warm: color-mix(in srgb, var(--decor-yellow) 36%, var(--bg-card));
+  --icon-detail: color-mix(in srgb, var(--accent-dark) 76%, var(--text-primary));
   --decor-blue: #C7DCE0;
   --decor-yellow: #EAD9A9;
   --decor-pink: var(--accent-light);
@@ -1526,6 +1530,8 @@ textarea::placeholder {
 
 svg {
   color: var(--icon-color);
+  overflow: visible;
+  transition: transform 180ms ease, color 180ms ease;
 }
 
 .toggle,
@@ -1558,29 +1564,29 @@ input:checked + .switch {
 .desktop-icon-art {
   border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
   border-radius: 34% 42% 36% 44%;
-  background: var(--bg-card);
+  background: var(--icon-tile-bg);
   color: var(--icon-color);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
-  background: var(--bg-card);
-  box-shadow: var(--shadow-card);
+  background: var(--icon-tile-bg);
+  box-shadow: none;
 }
 
 .desktop-icon:nth-child(3n + 2) .desktop-icon-art {
-  background: color-mix(in srgb, var(--decor-blue) 38%, var(--bg-card));
+  background: var(--icon-tile-alt-cool);
 }
 
 .desktop-icon:nth-child(3n) .desktop-icon-art {
-  background: color-mix(in srgb, var(--decor-yellow) 36%, var(--bg-card));
+  background: var(--icon-tile-alt-warm);
 }
 
 .dock {
   border: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent);
   border-radius: var(--radius-xl);
   background: color-mix(in srgb, var(--bg-card) 94%, transparent);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1596,4 +1602,179 @@ input:checked + .switch {
 @keyframes soft-breathe {
   0%, 100% { transform: translateY(0) rotate(-.4deg); }
   50% { transform: translateY(-3px) rotate(.4deg); }
+}
+
+/* ═══════════════════════════════════════ */
+/* 【全应用软萌组件层】所有内置 App 共用，不介入业务结构 */
+/* ═══════════════════════════════════════ */
+
+#app-layer {
+  --app-cute-surface: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  --app-cute-surface-soft: color-mix(in srgb, var(--accent-light) 42%, var(--bg-card));
+  --app-cute-surface-mini: color-mix(in srgb, var(--bg-card) 76%, var(--accent-light));
+  --app-cute-line: color-mix(in srgb, var(--border-soft) 78%, transparent);
+}
+
+#app-layer > * {
+  background:
+    radial-gradient(circle at 8% 4%, color-mix(in srgb, var(--accent-light) 48%, transparent), transparent 24%),
+    radial-gradient(circle at 94% 88%, color-mix(in srgb, var(--decor-blue) 30%, transparent), transparent 26%),
+    var(--bg-primary);
+  color: var(--text-primary);
+}
+
+/* 每个 App 的导航都使用同一组柔软卡片和猫耳轮廓。 */
+#app-layer :is([class$="-nav"], [class$="-topbar"], .app-topbar) {
+  position: relative;
+  border-bottom: 1px solid var(--app-cute-line);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
+  box-shadow: none;
+}
+
+#app-layer :is([class$="-nav"], [class$="-topbar"], .app-topbar)::before,
+#app-layer :is([class$="-nav"], [class$="-topbar"], .app-topbar)::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--app-cute-line);
+  border-bottom: 0;
+  background: var(--accent-light);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  pointer-events: none;
+}
+
+#app-layer :is([class$="-nav"], [class$="-topbar"], .app-topbar)::before { left: 18px; }
+#app-layer :is([class$="-nav"], [class$="-topbar"], .app-topbar)::after { right: 18px; }
+
+/* 各 App 自有卡片仍保留内容和布局，只统一材质、圆角与层次。 */
+#app-layer :is(
+  [class$="-card"], .settings-card, .character-card, .placeholder-card,
+  .tts-settings-section, .wallet-section, .ann-section, .dg-section
+) {
+  border: 1px solid var(--app-cute-line);
+  border-radius: 30px 34px 28px 36px;
+  background:
+    radial-gradient(circle at 92% 12%, color-mix(in srgb, var(--accent-light) 52%, transparent), transparent 22%),
+    var(--app-cute-surface);
+  box-shadow: none;
+}
+
+#app-layer :is(
+  input:not([type="checkbox"]):not([type="radio"]), textarea, select,
+  .input-card, .textarea-card, .chat-input-card,
+  [class$="-field"]
+) {
+  border: 1px solid var(--app-cute-line) !important;
+  border-radius: var(--radius-md);
+  background: var(--app-cute-surface-soft);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+#app-layer :is(
+  button[class*="btn"], .icon-button, .settings-nav-item,
+  .app-back, [role="button"][class*="button"]
+) {
+  border: 1px solid var(--app-cute-line) !important;
+  border-radius: var(--radius-full);
+  background: var(--app-cute-surface-soft);
+  color: var(--icon-color);
+  box-shadow: none;
+  transition: transform 180ms cubic-bezier(.2,.8,.2,1), background 180ms ease, color 180ms ease;
+}
+
+#app-layer :is(
+  button[class*="btn"], .icon-button, .settings-nav-item,
+  .app-back, [role="button"][class*="button"]
+):active {
+  transform: scale(var(--press-scale));
+}
+
+#app-layer :is(
+  .btn-primary, [class$="-primary"], [class$="-save-btn"],
+  [class$="-submit-btn"], [class$="-buy-btn"]
+) {
+  background: var(--accent);
+  color: var(--bubble-user-text);
+}
+
+/* 小卡片：列表项和紧凑信息块使用更轻的奶油材质，不改变原有排版。 */
+#app-layer :is(
+  [class$="-item"], [class$="-mini"], [class$="-compact"]
+) {
+  border: 1px solid var(--app-cute-line);
+  border-radius: 22px 25px 20px 27px;
+  background:
+    radial-gradient(circle at 88% 16%, color-mix(in srgb, var(--decor-pink) 44%, transparent), transparent 24%),
+    var(--app-cute-surface);
+  box-shadow: none;
+}
+
+/* 小胶囊：标签、状态、筛选项及徽章统一为带柔和高光的主题胶囊。 */
+#app-layer :is(
+  [class$="-chip"], [class$="-pill"], [class$="-tag"], [class$="-badge"]
+) {
+  border: 1px solid var(--app-cute-line);
+  border-radius: var(--radius-full);
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--bg-card) 80%, transparent) 0 2px, transparent 3px),
+    var(--app-cute-surface-mini);
+  color: var(--text-secondary);
+  box-shadow: none;
+  font-weight: 650;
+}
+
+#app-layer :is(
+  [class$="-chip"], [class$="-pill"], [class$="-tag"], [class$="-badge"]
+):is(.active, .is-active, [aria-selected="true"], [aria-pressed="true"]) {
+  border-color: color-mix(in srgb, var(--accent) 68%, var(--border-soft));
+  background: var(--accent);
+  color: var(--bubble-user-text);
+}
+
+/* mini/small 操作保持紧凑尺寸，增加蝴蝶结般的双侧柔软弧面。 */
+#app-layer :is(button, [role="button"]):is([class*="mini-btn"], [class*="small-btn"]) {
+  border: 1px solid var(--app-cute-line) !important;
+  border-radius: var(--radius-full);
+  background: var(--app-cute-surface-mini);
+  color: var(--icon-color);
+  box-shadow: none;
+}
+
+#app-layer :is(button, [role="button"]):is([class*="mini-btn"], [class*="small-btn"]) > svg {
+  width: 18px;
+  height: 18px;
+}
+
+#app-layer :is([class$="-empty"], .empty-state) {
+  border: 1px dashed var(--app-cute-line);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+}
+
+#app-layer :is([class$="-empty-icon"], .empty-state svg, .placeholder-icon) {
+  border-radius: 42% 48% 44% 50%;
+  background: var(--app-cute-surface-soft);
+  color: var(--icon-color);
+  box-shadow: none;
+}
+
+#app-layer :is([class$="-empty-icon"], .empty-state svg, .placeholder-icon) svg,
+#app-layer :is(button, [role="button"]) > svg {
+  width: max(1.35em, 22px);
+  height: max(1.35em, 22px);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #app-layer *,
+  #app-layer *::before,
+  #app-layer *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
