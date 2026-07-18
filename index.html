@@ -1003,6 +1003,9 @@
       gap: calc(12px * var(--desktop-widget-scale));
       padding: calc(12px * var(--desktop-widget-scale));
       overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--border-soft) 58%, transparent);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--bg-card) 76%, transparent), color-mix(in srgb, var(--accent) 15%, transparent));
+      box-shadow: 0 calc(12px * var(--desktop-widget-scale)) calc(30px * var(--desktop-widget-scale)) color-mix(in srgb, var(--text-primary) 12%, transparent);
     }
 
     .vinyl-record-wrap {
@@ -1010,19 +1013,22 @@
       flex-shrink: 0;
       width: calc(80px * var(--desktop-widget-scale));
       height: calc(80px * var(--desktop-widget-scale));
+      border-radius: calc(24px * var(--desktop-widget-scale));
+      background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+      padding: calc(6px * var(--desktop-widget-scale));
     }
 
     .vinyl-record {
       width: 100%;
       height: 100%;
       border-radius: 50%;
-      background: color-mix(in srgb, var(--text-primary) 90%, transparent);
+      background: repeating-radial-gradient(circle, color-mix(in srgb, var(--text-primary) 62%, var(--bg-card)) 0 2px, color-mix(in srgb, var(--text-primary) 52%, var(--bg-card)) 3px 5px);
       display: flex;
       align-items: center;
       justify-content: center;
       animation: vinyl-spin 4s linear infinite;
       animation-play-state: paused;
-      box-shadow: 0 0 0 calc(2px * var(--desktop-widget-scale)) color-mix(in srgb, var(--text-primary) 20%, transparent);
+      box-shadow: 0 calc(5px * var(--desktop-widget-scale)) calc(14px * var(--desktop-widget-scale)) color-mix(in srgb, var(--text-primary) 18%, transparent);
     }
 
     .vinyl-record.spinning {
@@ -1064,6 +1070,7 @@
       overflow: hidden;
       z-index: 2;
       background: color-mix(in srgb, var(--accent) 30%, var(--bg-card));
+      box-shadow: 0 0 0 calc(4px * var(--desktop-widget-scale)) color-mix(in srgb, var(--bg-card) 74%, transparent);
     }
 
     .vinyl-cover img {
@@ -1080,6 +1087,7 @@
       align-items: center;
       justify-content: center;
       color: var(--accent);
+      background: radial-gradient(circle at 70% 22%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 26%), linear-gradient(145deg, color-mix(in srgb, var(--accent) 16%, var(--bg-card)), var(--bg-card));
     }
 
     .vinyl-cover-placeholder svg {
@@ -1129,7 +1137,7 @@
       justify-content: center;
       background: color-mix(in srgb, var(--bg-primary) 40%, transparent);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
+      border: 1px solid color-mix(in srgb, var(--border-soft) 55%, transparent);
       transition: all 200ms ease;
     }
 
@@ -1159,10 +1167,14 @@
       color: var(--text-hint);
     }
 
+    .vinyl-record.preparing { animation: vinyl-pulse 1.1s ease-in-out infinite; }
+
     @keyframes vinyl-spin {
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+    @keyframes vinyl-pulse { 50% { transform: scale(.96); opacity: .72; } }
+    @media (prefers-reduced-motion: reduce) { .vinyl-record { animation: none; } }
     /* 奶油手账桌面：与应用内的全局视觉语言保持一致。 */
     .status-cute-pill {
       border: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent);
@@ -1423,7 +1435,7 @@
     let dockDragState = null;
     let clockTimer = null;
     let weatherTimer = null;
-    let vinylTimer = null;
+    let vinylOff = null;
     let lockInput = '';
     let lockCheckTimer = null;
     let renderTimer = null;
@@ -1960,7 +1972,7 @@
         prevBtn.appendChild(createIcon('back', 16));
         prevBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          window.musicPlayer?.playPrevious?.();
+          getAPI('music')?.playPrevious?.();
         });
 
         const playBtn = document.createElement('button');
@@ -1969,7 +1981,9 @@
         playBtn.appendChild(createIcon('play', 18));
         playBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          window.musicPlayer?.togglePlay?.();
+          const player = getAPI('music');
+          if (player) player.togglePlay?.();
+          else openApp('music');
         });
 
         const nextBtn = document.createElement('button');
@@ -1977,12 +1991,17 @@
         nextBtn.appendChild(createIcon('forward', 16));
         nextBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          window.musicPlayer?.playNext?.();
+          getAPI('music')?.playNext?.();
         });
 
         controls.append(prevBtn, playBtn, nextBtn);
         info.append(titleEl, artistEl, controls);
         widgetEl.append(recordWrap, info);
+        widgetEl.addEventListener('click', async (event) => {
+          if (event.target.closest('.vinyl-ctrl-btn') || editing || dragState || clickSuppressor.consume()) return;
+          await openApp('music');
+          getAPI('music')?.openPlayer?.();
+        });
       }
 
       widgetEl.querySelectorAll('[data-widget-icon]').forEach((iconEl) => {
@@ -2410,7 +2429,18 @@
     function renderLockDots() { [...lockDotsEl.querySelectorAll('.lock-dot')].forEach((dot, index) => { dot.classList.toggle('filled', index < lockInput.length); }); }
     function checkLockPassword() { lockCheckTimer = null; if (lockInput === LOCK_PASSWORD) { setData('app_lock_unlocked', true); updateLockState(); showToast('解锁啦'); return; } lockInput = ''; lockErrorEl.textContent = '嘿嘿，不对哦'; renderLockDots(); }
 
-    function initWidgets() { updateClock(); clearInterval(clockTimer); clockTimer = window.setInterval(updateClock, 1000); updateWeather(); clearInterval(weatherTimer); weatherTimer = window.setInterval(updateWeather, 1000 * 60 * 30); updateAnniversaryWidget(); updateFocusWidget(); clearInterval(vinylTimer); vinylTimer = window.setInterval(updateVinylWidget, 800); }
+    function initWidgets() {
+      updateClock(); clearInterval(clockTimer); clockTimer = window.setInterval(updateClock, 1000);
+      updateWeather(); clearInterval(weatherTimer); weatherTimer = window.setInterval(updateWeather, 1000 * 60 * 30);
+      updateAnniversaryWidget(); updateFocusWidget(); updateVinylWidget();
+      if (!vinylOff) vinylOff = busSubscribe({
+        'music:statechange': updateVinylWidget,
+        'music:change': updateVinylWidget,
+        'music:play': updateVinylWidget,
+        'music:pause': updateVinylWidget,
+        'music:ended': updateVinylWidget
+      });
+    }
 
     function updateClock() {
       const now = new Date();
@@ -2479,11 +2509,13 @@
 
       if (!disc) return;
 
-      const player = window.musicPlayer;
-      const isPlaying = player?.isPlaying?.() || false;
-      const song = player?.getCurrentSong?.() || null;
+      const player = getAPI('music') || window.musicPlayer;
+      const playerState = player?.getState?.() || null;
+      const isPlaying = playerState?.isPlaying === true && playerState?.sourceState === 'playing';
+      const song = player?.getCurrentSong?.() || (playerState?.songId ? playerState : null);
 
       disc.classList.toggle('spinning', isPlaying);
+      disc.classList.toggle('preparing', playerState?.sourceState === 'preparing');
 
       if (coverEl) {
         if (song?.cover) {
@@ -2501,13 +2533,13 @@
         }
       }
 
-      if (titleEl) titleEl.textContent = song?.title || '还没有歌曲呢';
-      if (artistEl) artistEl.textContent = song ? (song.artist || '未知艺术家') : '去音乐里挑一首吧';
+      if (titleEl) titleEl.textContent = song?.title || '还没有音乐';
+      if (artistEl) artistEl.textContent = song ? (playerState?.sourceState === 'preparing' ? '正在准备播放' : playerState?.needsPlayGesture ? '点一下继续播放' : playerState?.sourceState === 'error' ? (playerState.error || '播放没有成功') : (song.artist || '未知歌手')) : '打开音乐库导入歌曲';
 
       if (playBtnEl) {
         const svg = playBtnEl.querySelector('svg');
         if (svg) {
-          const newIcon = createIcon(isPlaying ? 'pause' : 'play', 18);
+          const newIcon = createIcon(playerState?.sourceState === 'preparing' ? 'refresh' : isPlaying ? 'pause' : 'play', 18);
           svg.replaceWith(newIcon);
         }
       }
