@@ -337,26 +337,30 @@
       -webkit-backdrop-filter: none;
     }
 
-    .desktop-icon[data-app-id="chat"] .desktop-icon-art:not(.has-custom-image) {
-      --chat-icon-line: color-mix(in srgb, var(--text-primary) 52%, var(--accent-dark));
-      --chat-icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
-      --chat-icon-accent: color-mix(in srgb, var(--accent) 76%, var(--bg-card));
-      --chat-icon-blush: color-mix(in srgb, var(--accent) 58%, var(--accent-light));
+    .desktop-icon-art:not(.has-custom-image),
+    .placeholder-icon {
+      --app-icon-line: color-mix(in srgb, var(--text-primary) 55%, var(--accent-dark));
+      --app-icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
+      --app-icon-accent: color-mix(in srgb, var(--accent) 72%, var(--bg-card));
+      --app-icon-blush: color-mix(in srgb, var(--accent) 58%, var(--accent-light));
+    }
+
+    .desktop-icon-art:not(.has-custom-image) {
       background: transparent;
       box-shadow: none;
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
     }
 
-    .desktop-icon[data-app-id="chat"] .chat-cat-icon {
+    .app-character-icon {
       width: calc(56px * var(--desktop-icon-scale));
       height: calc(56px * var(--desktop-icon-scale));
+      overflow: visible;
     }
 
-    .desktop-icon-art svg {
-      width: calc(27px * var(--desktop-icon-scale));
-      height: calc(27px * var(--desktop-icon-scale));
-      flex: 0 0 auto;
+    .placeholder-icon .app-character-icon {
+      width: 56px;
+      height: 56px;
     }
 
     .desktop-icon-image,
@@ -1229,19 +1233,19 @@
     const RESIZE_RENDER_DELAY = 260;
 
     const APPS = [
-      { id: 'chat', name: '聊天', module: './apps/chat.js', icon: 'heart', dock: true, page: 0, ready: true },
-      { id: 'moments', name: '朋友圈', module: './apps/moments.js', icon: 'camera', dock: true, page: 0, ready: true },
-      { id: 'settings', name: '设置', module: './apps/settings.js', icon: 'settings', dock: true, page: 0, ready: true },
-      { id: 'gallery', name: '记仇本', module: './apps/gallery.js', icon: 'grudge', dock: true, page: 0, ready: true },
-      { id: 'characters', name: '角色', module: './apps/characters.js', icon: 'smile', dock: false, page: 0, ready: true },
-      { id: 'worldbook', name: '世界书', module: './apps/worldbook.js', icon: 'memory', dock: false, page: 0, ready: true },
-      { id: 'wallet', name: '钱包', module: './apps/wallet.js', icon: 'transfer', dock: false, page: 0, ready: true },
-      { id: 'shop', name: '商店', module: './apps/shop.js', icon: 'star', dock: false, page: 0, ready: true },
-      { id: 'memo', name: '备忘录', module: './apps/memo.js', icon: 'edit', dock: false, page: 0, ready: true },
-      { id: 'anniversary', name: '纪念日', module: './apps/anniversary.js', icon: 'check', dock: false, page: 0, ready: true },
-      { id: 'games', name: '游戏', module: './apps/games.js', icon: 'play', dock: false, page: 0, ready: true },
-      { id: 'music', name: '音乐', module: './apps/music.js', icon: 'music', dock: false, page: 0, ready: true },
-      { id: 'dream', name: '梦境', module: './apps/dream.js', icon: 'dream', dock: false, page: 0, ready: true }
+      { id: 'chat', name: '聊天', module: './apps/chat.js', dock: true, page: 0, ready: true, character: { label: '抱气泡的小猫', accent: 'M18 57c0-8 7-14 15-14h30c8 0 15 6 15 14v7c0 8-7 14-15 14H43L29 86l3-8c-8 0-14-6-14-14Z', details: ['M36 60h24', 'M36 68h15'] } },
+      { id: 'moments', name: '朋友圈', module: './apps/moments.js', dock: true, page: 0, ready: true, character: { label: '举动态相机的小猫', accent: 'M25 51h46v29H25Z', details: ['M35 51l4-7h18l4 7', 'M48 59a7 7 0 1 1 0 14 7 7 0 0 1 0-14Z', 'M66 57h.1'] } },
+      { id: 'settings', name: '设置', module: './apps/settings.js', dock: true, page: 0, ready: true, character: { label: '抱齿轮的小猫', accent: 'M48 52l4-5 6 2 1 6 6 2v7l-6 2-1 6-6 2-4-5-4 5-6-2-1-6-6-2v-7l6-2 1-6 6-2Z', details: ['M48 57a6 6 0 1 1 0 12 6 6 0 0 1 0-12Z'] } },
+      { id: 'gallery', name: '记仇本', module: './apps/gallery.js', dock: true, page: 0, ready: true, character: { label: '鼓脸生气的小猫', expression: 'M43 56c3-3 7-3 10 0', accent: 'M25 59c0-8 7-13 15-13h16c8 0 15 5 15 13v22H25Z', details: ['M34 43l8 3', 'M62 43l-8 3', 'M31 65c5-4 10-4 15 1', 'M65 65c-5-4-10-4-15 1', 'M76 31l5-5m-2 12 7-1m-14-12 2-7'] } },
+      { id: 'characters', name: '角色', module: './apps/characters.js', dock: false, page: 0, ready: true, character: { label: '抱角色面具伙伴的小猫', accent: 'M25 51c7-5 15-5 22 0v24c-8 6-17 4-22-3Zm46 0c-7-5-15-5-22 0v24c8 6 17 4 22-3Z', details: ['M31 60h.1m9 0h.1m15 0h.1m9 0h.1', 'M32 68c3 2 6 2 9 0m14 0c3 2 6 2 9 0'] } },
+      { id: 'worldbook', name: '世界书', module: './apps/worldbook.js', dock: false, page: 0, ready: true, character: { label: '环抱世界书的小猫', accent: 'M19 51c10-4 20-2 29 5 9-7 19-9 29-5v31c-10-4-20-2-29 5-9-7-19-9-29-5Z', details: ['M48 56v31', 'M29 61c5-1 10 0 14 3m10 0c4-3 9-4 14-3'] } },
+      { id: 'wallet', name: '钱包', module: './apps/wallet.js', dock: false, page: 0, ready: true, character: { label: '趴在零钱包上的小猫', accent: 'M18 57h60v24H18Z', details: ['M18 62h60', 'M59 65h19v10H59Z', 'M66 70h.1'] } },
+      { id: 'shop', name: '商店', module: './apps/shop.js', dock: false, page: 0, ready: true, character: { label: '钻出购物袋的小猫', accent: 'M22 48h52l-3 37H25Z', details: ['M35 53c0-13 26-13 26 0', 'M30 60h.1m36 0h.1'] } },
+      { id: 'memo', name: '备忘录', module: './apps/memo.js', dock: false, page: 0, ready: true, character: { label: '伏在便签本上的小猫', accent: 'M24 47h48v38H24Z', details: ['M32 58h31', 'M32 67h25', 'M32 76h18', 'M62 76l8-8'] } },
+      { id: 'anniversary', name: '纪念日', module: './apps/anniversary.js', dock: false, page: 0, ready: true, character: { label: '抱日期花环的小猫', accent: 'M48 48a18 18 0 1 1 0 36 18 18 0 0 1 0-36Z', details: ['M40 60h16v13H40Z', 'M40 64h16', 'M44 57v6m8-6v6', 'M25 57l-6-4m52 4 6-4'] } },
+      { id: 'games', name: '游戏', module: './apps/games.js', dock: false, page: 0, ready: true, character: { label: '操控游戏手柄的小猫', accent: 'M25 55c5-7 41-7 46 0l7 18c2 7-7 11-12 5l-6-7H36l-6 7c-5 6-14 2-12-5Z', details: ['M31 62v10m-5-5h10', 'M64 63h.1m7 7h.1'] } },
+      { id: 'music', name: '音乐', module: './apps/music.js', dock: false, page: 0, ready: true, character: { label: '戴耳机弹音符的小猫', accent: 'M22 58v-8c0-18 52-18 52 0v8', details: ['M22 57h8v17h-8Z', 'M66 57h8v17h-8Z', 'M48 55v19', 'M48 57l13-4v16', 'M43 75a5 3 0 1 0 5 0m8-5a5 3 0 1 0 5 0'] } },
+      { id: 'dream', name: '梦境', module: './apps/dream.js', dock: false, page: 0, ready: true, character: { label: '蜷卧月亮云朵的小猫', accent: 'M68 45c-12 2-17 16-8 25-12 8-30 3-34-8-4 12 7 22 22 22 17 0 29-13 27-28-2 5-4 8-7 9Z', details: ['M20 78c-8 0-8-10 0-10 2-9 15-8 18 0', 'M70 38h.1m7 8h.1'] } }
     ];
 
     const WIDGETS = [
@@ -1588,7 +1592,7 @@
         const app = APPS.find((item) => item.id === appId);
         const artEl = iconEl.querySelector('.desktop-icon-art');
         if (!app || !artEl) return;
-        const custom = await readIconRecord(app);
+        const custom = await resolveAppIconRecord(app);
         const customImage = getImageFromRecord(custom);
         const customName = custom?.name || app.name;
         iconEl.setAttribute('aria-label', customName);
@@ -1608,7 +1612,7 @@
 
     async function applyCurrentAppImage() { if (!currentAppId) return; const appRoot = appLayerEl.querySelector('[data-image-key]'); if (!appRoot) return; await applyImageToElement(appRoot, `app_bg_${currentAppId}`, { opacity: false }); }
 
-    async function readIconRecord(app) {
+    async function resolveAppIconRecord(app) {
       const icons = getCustomIcons();
       const localCustom = icons[app.id] || icons[app.name] || null;
       const candidateKeys = [`app_icon_${app.id}`, `app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name];
@@ -1941,40 +1945,37 @@
     }
 
     function createDefaultAppIcon(app, size = 28) {
-      if (app?.id !== 'chat') return createIcon(app?.icon, size);
+      const character = app?.character;
+      if (!character) return createIcon('star', size);
 
       const ns = 'http://www.w3.org/2000/svg';
       const svg = document.createElementNS(ns, 'svg');
-      svg.classList.add('chat-cat-icon');
+      svg.classList.add('app-character-icon');
       svg.setAttribute('viewBox', '0 0 96 96');
-      svg.setAttribute('fill', 'none');
-      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('role', 'img');
+      svg.setAttribute('aria-label', character.label);
       svg.setAttribute('focusable', 'false');
 
       const group = document.createElementNS(ns, 'g');
       group.setAttribute('fill', 'none');
-      group.setAttribute('stroke', 'var(--chat-icon-line)');
-      group.setAttribute('stroke-width', '4');
+      group.setAttribute('stroke', 'var(--app-icon-line)');
+      group.setAttribute('stroke-width', '3.6');
       group.setAttribute('stroke-linecap', 'round');
       group.setAttribute('stroke-linejoin', 'round');
-
       const addShape = (tag, attributes) => {
         const shape = document.createElementNS(ns, tag);
         Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
         group.appendChild(shape);
       };
 
-      addShape('path', { fill: 'var(--chat-icon-fur)', d: 'M21 46V28l10 7c5-3 11-5 17-5s12 2 17 5l10-7v20c0 16-12 27-27 27S21 63 21 46Z' });
-      addShape('path', { fill: 'var(--chat-icon-accent)', d: 'M57 27c-3-7 2-13 9-9l5 4 5-4c7-4 12 2 9 9-2 5-7 8-14 4-7 4-12 1-14-4Z' });
-      addShape('circle', { cx: '64', cy: '23', r: '1.6', fill: 'var(--chat-icon-fur)', stroke: 'none' });
-      addShape('circle', { cx: '78', cy: '24', r: '1.6', fill: 'var(--chat-icon-fur)', stroke: 'none' });
-      addShape('circle', { cx: '38', cy: '47', r: '2.5', fill: 'var(--chat-icon-line)', stroke: 'none' });
-      addShape('circle', { cx: '58', cy: '47', r: '2.5', fill: 'var(--chat-icon-line)', stroke: 'none' });
-      addShape('path', { d: 'M44 54c2 3 6 3 8 0' });
-      addShape('path', { stroke: 'var(--chat-icon-blush)', d: 'M29 55h6m26 0h6' });
-      addShape('path', { fill: 'var(--chat-icon-accent)', d: 'M18 61c0-7 6-12 13-12h34c7 0 13 5 13 12v7c0 7-6 12-13 12H39L27 87l2-7c-6-1-11-6-11-12v-7Z' });
-      addShape('path', { fill: 'var(--chat-icon-fur)', d: 'M20 65c-5 1-7 7-4 11 3 5 9 4 13 0m47-11c5 1 7 7 4 11-3 5-9 4-13 0' });
-      ['39', '48', '57'].forEach((cx) => addShape('circle', { cx, cy: '65', r: '3', fill: 'var(--chat-icon-line)', stroke: 'none' }));
+      addShape('path', { fill: 'var(--app-icon-fur)', d: 'M22 48V27l10 8c5-4 10-5 16-5s11 1 16 5l10-8v21c0 15-11 25-26 25S22 63 22 48Z' });
+      addShape('circle', { cx: '39', cy: '47', r: '2.4', fill: 'var(--app-icon-line)', stroke: 'none' });
+      addShape('circle', { cx: '57', cy: '47', r: '2.4', fill: 'var(--app-icon-line)', stroke: 'none' });
+      addShape('path', { d: character.expression || 'M44 54c2 3 6 3 8 0' });
+      addShape('path', { stroke: 'var(--app-icon-blush)', d: 'M30 55h6m24 0h6' });
+      addShape('path', { fill: 'var(--app-icon-accent)', d: character.accent });
+      character.details.forEach((d) => addShape('path', { d }));
+      addShape('path', { fill: 'var(--app-icon-fur)', d: 'M25 64c-7 0-10 6-7 11 3 5 9 4 14 0m39-11c7 0 10 6 7 11-3 5-9 4-14 0' });
 
       svg.appendChild(group);
       return svg;
@@ -2458,7 +2459,7 @@
       const card = document.createElement('div');
       card.className = 'placeholder-card';
       const icon = document.createElement('div');
-      icon.className = 'placeholder-icon'; icon.appendChild(createIcon(app.icon, 28));
+      icon.className = 'placeholder-icon'; icon.appendChild(createDefaultAppIcon(app, 28));
       const heading = document.createElement('h2');
       heading.className = 'placeholder-title'; heading.textContent = app.name;
       const text = document.createElement('p');
@@ -2476,14 +2477,14 @@
 
     async function applyPlaceholderImages(app, root, icon) {
       await applyImageToElement(root, `app_bg_${app.id}`, { opacity: false });
-      const record = await readIconRecord(app);
+      const record = await resolveAppIconRecord(app);
       const image = getImageFromRecord(record);
       if (image) {
         icon.innerHTML = '';
         const img = document.createElement('img');
         img.alt = ''; img.src = image;
         img.style.opacity = String(getOpacityFromRecord(record));
-        img.addEventListener('error', () => { icon.innerHTML = ''; icon.appendChild(createIcon(app.icon, 28)); });
+        img.addEventListener('error', () => { icon.innerHTML = ''; icon.appendChild(createDefaultAppIcon(app, 28)); });
         icon.appendChild(img);
       }
     }
