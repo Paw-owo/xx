@@ -157,7 +157,9 @@ function createPreset(id, name, mode, palette) {
       'decor-blue': palette.blue,
       'decor-yellow': palette.yellow,
       'bubble-user-bg': 'color-mix(in srgb, var(--accent) 72%, var(--bg-card))',
-      'bubble-user-text': palette.text,
+      // Dark presets deliberately keep the bubble pastel/light, so their normal
+      // (light) body copy does not provide enough contrast on a user message.
+      'bubble-user-text': mode === 'dark' ? palette.background : palette.text,
       'bubble-ai-bg': palette.card,
       'bubble-ai-text': palette.text,
       ...(mode === 'dark' ? DARK_SHADOWS : LIGHT_SHADOWS)
@@ -253,6 +255,15 @@ export function importTheme(json) {
   const preset = normalizePresetId(imported.preset || getData(PRESET_KEY) || DEFAULT_PRESET);
   const presetTheme = getPresetById(preset);
   const mode = normalizeMode(imported.mode || presetTheme.mode || DEFAULT_MODE);
+  const importedVariables = normalizeVariables(imported.variables || {});
+  const importedCustomVariables = normalizeVariables(imported.customVariables || {});
+  // `variables` is part of the supported import format, not merely a snapshot
+  // for the current page. Persist it as customization data so an import that
+  // omits the optional customVariables duplicate survives the next load.
+  const customVariables = {
+    ...importedVariables,
+    ...importedCustomVariables
+  };
 
   document.documentElement.setAttribute('data-theme', preset);
 
@@ -262,12 +273,9 @@ export function importTheme(json) {
     variables: {
       ...BASE_VARIABLES,
       ...presetTheme.variables,
-      ...normalizeVariables(imported.variables || {}),
-      ...normalizeVariables(imported.customVariables || {})
+      ...customVariables
     },
-    customVariables: {
-      ...normalizeVariables(imported.customVariables || {})
-    }
+    customVariables
   });
 
   currentTheme = next;
