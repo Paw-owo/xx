@@ -337,20 +337,41 @@
       -webkit-backdrop-filter: none;
     }
 
-    .desktop-icon[data-app-id="chat"] .desktop-icon-art:not(.has-custom-image) {
-      --chat-icon-line: color-mix(in srgb, var(--text-primary) 52%, var(--accent-dark));
-      --chat-icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
-      --chat-icon-accent: color-mix(in srgb, var(--accent) 76%, var(--bg-card));
-      --chat-icon-blush: color-mix(in srgb, var(--accent) 58%, var(--accent-light));
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
       background: transparent;
       box-shadow: none;
       backdrop-filter: none;
       -webkit-backdrop-filter: none;
     }
 
-    .desktop-icon[data-app-id="chat"] .chat-cat-icon {
+    .cozy-app-icon {
       width: calc(56px * var(--desktop-icon-scale));
       height: calc(56px * var(--desktop-icon-scale));
+      --icon-line: color-mix(in srgb, var(--text-primary) 54%, var(--accent-dark));
+      --icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
+      --icon-accent: color-mix(in srgb, var(--accent) 74%, var(--bg-card));
+      --icon-soft: color-mix(in srgb, var(--accent-light) 70%, var(--bg-card));
+      --icon-blush: color-mix(in srgb, var(--accent) 52%, var(--accent-light));
+      overflow: visible;
+    }
+
+    .cozy-app-icon g {
+      fill: none;
+      stroke: var(--icon-line);
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .cozy-app-icon .fur { fill: var(--icon-fur); }
+    .cozy-app-icon .accent { fill: var(--icon-accent); }
+    .cozy-app-icon .soft { fill: var(--icon-soft); }
+    .cozy-app-icon .face { fill: var(--icon-line); stroke: none; }
+    .cozy-app-icon .blush { stroke: var(--icon-blush); }
+
+    .placeholder-icon .cozy-app-icon {
+      width: 54px;
+      height: 54px;
     }
 
     .desktop-icon-art svg {
@@ -1220,6 +1241,7 @@
     import { initPushBridge } from './core/push.js';
     import { createEdgeFlipScheduler, createClickSuppressor, clampPageIndex } from './core/desktop-drag.js';
     import { APPS } from './core/app-registry.js';
+    import { createDefaultAppIcon } from './core/default-app-icons.js';
 
     const LOCK_PASSWORD = '0326';
     const CUSTOM_FONT_KEY = 'app_custom_font';
@@ -1925,46 +1947,6 @@
       return iconEl;
     }
 
-    function createDefaultAppIcon(app, size = 28) {
-      if (app?.id !== 'chat') return createIcon(app?.icon, size);
-
-      const ns = 'http://www.w3.org/2000/svg';
-      const svg = document.createElementNS(ns, 'svg');
-      svg.classList.add('chat-cat-icon');
-      svg.setAttribute('viewBox', '0 0 96 96');
-      svg.setAttribute('fill', 'none');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.setAttribute('focusable', 'false');
-
-      const group = document.createElementNS(ns, 'g');
-      group.setAttribute('fill', 'none');
-      group.setAttribute('stroke', 'var(--chat-icon-line)');
-      group.setAttribute('stroke-width', '4');
-      group.setAttribute('stroke-linecap', 'round');
-      group.setAttribute('stroke-linejoin', 'round');
-
-      const addShape = (tag, attributes) => {
-        const shape = document.createElementNS(ns, tag);
-        Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, value));
-        group.appendChild(shape);
-      };
-
-      addShape('path', { fill: 'var(--chat-icon-fur)', d: 'M21 46V28l10 7c5-3 11-5 17-5s12 2 17 5l10-7v20c0 16-12 27-27 27S21 63 21 46Z' });
-      addShape('path', { fill: 'var(--chat-icon-accent)', d: 'M57 27c-3-7 2-13 9-9l5 4 5-4c7-4 12 2 9 9-2 5-7 8-14 4-7 4-12 1-14-4Z' });
-      addShape('circle', { cx: '64', cy: '23', r: '1.6', fill: 'var(--chat-icon-fur)', stroke: 'none' });
-      addShape('circle', { cx: '78', cy: '24', r: '1.6', fill: 'var(--chat-icon-fur)', stroke: 'none' });
-      addShape('circle', { cx: '38', cy: '47', r: '2.5', fill: 'var(--chat-icon-line)', stroke: 'none' });
-      addShape('circle', { cx: '58', cy: '47', r: '2.5', fill: 'var(--chat-icon-line)', stroke: 'none' });
-      addShape('path', { d: 'M44 54c2 3 6 3 8 0' });
-      addShape('path', { stroke: 'var(--chat-icon-blush)', d: 'M29 55h6m26 0h6' });
-      addShape('path', { fill: 'var(--chat-icon-accent)', d: 'M18 61c0-7 6-12 13-12h34c7 0 13 5 13 12v7c0 7-6 12-13 12H39L27 87l2-7c-6-1-11-6-11-12v-7Z' });
-      addShape('path', { fill: 'var(--chat-icon-fur)', d: 'M20 65c-5 1-7 7-4 11 3 5 9 4 13 0m47-11c5 1 7 7 4 11-3 5-9 4-13 0' });
-      ['39', '48', '57'].forEach((cx) => addShape('circle', { cx, cy: '65', r: '3', fill: 'var(--chat-icon-line)', stroke: 'none' }));
-
-      svg.appendChild(group);
-      return svg;
-    }
-
     function getLayer(page) { return document.querySelector(`.desktop-free-layer[data-layer="${Number(page) === 1 ? 1 : 0}"]`); }
 
     function getResolvedIconPosition(app, index) {
@@ -2443,7 +2425,7 @@
       const card = document.createElement('div');
       card.className = 'placeholder-card';
       const icon = document.createElement('div');
-      icon.className = 'placeholder-icon'; icon.appendChild(createIcon(app.icon, 28));
+      icon.className = 'placeholder-icon'; icon.appendChild(createDefaultAppIcon(app, 28));
       const heading = document.createElement('h2');
       heading.className = 'placeholder-title'; heading.textContent = app.name;
       const text = document.createElement('p');
@@ -2468,7 +2450,7 @@
         const img = document.createElement('img');
         img.alt = ''; img.src = image;
         img.style.opacity = String(getOpacityFromRecord(record));
-        img.addEventListener('error', () => { icon.innerHTML = ''; icon.appendChild(createIcon(app.icon, 28)); });
+        img.addEventListener('error', () => { icon.innerHTML = ''; icon.appendChild(createDefaultAppIcon(app, 28)); });
         icon.appendChild(img);
       }
     }
