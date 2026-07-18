@@ -169,13 +169,13 @@ function injectStyle() {
     }
 
     .api-pool-status.ok {
-      background: color-mix(in srgb, #4caf50 18%, transparent);
-      color: #2e7d32;
+      background: color-mix(in srgb, var(--color-success) 18%, transparent);
+      color: var(--color-success);
     }
 
     .api-pool-status.error {
-      background: color-mix(in srgb, #ef5350 18%, transparent);
-      color: #c62828;
+      background: color-mix(in srgb, var(--accent) 18%, transparent);
+      color: var(--accent);
     }
 
     .api-pool-status.idle {
@@ -203,7 +203,7 @@ function injectStyle() {
 
     .api-pool-endpoint-error {
       font-size: var(--font-size-small);
-      color: #c62828;
+      color: var(--accent);
       line-height: 1.4;
       word-break: break-word;
     }
@@ -229,7 +229,7 @@ function injectStyle() {
     }
 
     .api-pool-endpoint-actions button.danger {
-      color: #c62828;
+      color: var(--accent);
     }
 
     .api-pool-empty {
@@ -592,7 +592,7 @@ function openEditor(item, options = {}) {
   const isEdit = !!item;
   const lockGroup = options.lockGroup || '';
   const overlay = el('div', 'settings-sheet-overlay');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,0.3);';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:color-mix(in srgb, var(--media-ink-deep) 30%, transparent);';
 
   const sheet = el('div', 'settings-sheet');
   sheet.style.cssText = 'width:min(100%,460px);max-height:80vh;overflow-y:auto;border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--bg-card);padding:16px;display:flex;flex-direction:column;gap:10px;';

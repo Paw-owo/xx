@@ -2,27 +2,50 @@
 /* imports: none */
 
 /* ═══════════════════════════════════════ */
-/* 【变量】默认主题 - 浅色蓝系（天空蓝） */
+/* 【全局软萌主题变量】运行时由 core/theme.js 覆盖 */
 /* ═══════════════════════════════════════ */
 
 :root {
-  --bg-primary: #F2F6FB;
-  --bg-secondary: #E4ECF5;
-  --bg-card: #FFFFFF;
-  --bg-overlay: rgba(0, 0, 0, 0.28);
-  --accent: #7AA2D6;
-  --accent-light: #DAE5F5;
-  --accent-dark: #5B84BC;
-  --text-primary: #1C1C1E;
-  --text-secondary: #8A8A8E;
-  --text-hint: #C4C4C8;
-  --bubble-user-bg: #7AA2D6;
-  --bubble-user-text: #FFFFFF;
-  --bubble-ai-bg: #FFFFFF;
-  --bubble-ai-text: #1C1C1E;
-  --bubble-radius: 18px;
-  --bubble-radius-tail: 4px;
-  --font-main: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --bg-main: #FBF4F1;
+  --bg-light: #F7E8E8;
+  --bg-primary: var(--bg-main);
+  --bg-secondary: var(--bg-light);
+  --bg-card: #FFF9F5;
+  --surface: var(--bg-card);
+  --surface-soft: color-mix(in srgb, var(--bg-card) 82%, transparent);
+  --surface-glass: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+  --surface-muted: color-mix(in srgb, var(--bg-card) 84%, var(--bg-secondary));
+  --bg-overlay: color-mix(in srgb, var(--text-primary) 24%, transparent);
+  --accent: #C98F9C;
+  --accent-light: #F2DADD;
+  --accent-dark: #A86F7B;
+  --color-accent: var(--accent);
+  --text-primary: #665052;
+  --text-secondary: #907779;
+  --text-hint: #B9A4A3;
+  --text-soft: color-mix(in srgb, var(--text-primary) 72%, var(--text-secondary));
+  --color-text: var(--text-primary);
+  --color-success: #91AA96;
+  --color-danger: #C68181;
+  --border-soft: #EBD9D6;
+  --icon-color: #9C747A;
+  --decor-blue: #C7DCE0;
+  --decor-yellow: #EAD9A9;
+  --decor-pink: var(--accent-light);
+  --decor-cream: var(--bg-card);
+  --media-ink: color-mix(in srgb, var(--text-primary) 76%, var(--bg-primary));
+  --media-ink-deep: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
+  --media-on-dark: var(--bg-card);
+  --media-highlight: color-mix(in srgb, var(--decor-yellow) 72%, var(--bg-card));
+  --media-overlay-soft: color-mix(in srgb, var(--text-primary) 18%, transparent);
+  --media-overlay: color-mix(in srgb, var(--text-primary) 36%, transparent);
+  --bubble-user-bg: #E9C4CA;
+  --bubble-user-text: var(--text-primary);
+  --bubble-ai-bg: var(--bg-card);
+  --bubble-ai-text: var(--text-primary);
+  --bubble-radius: 23px;
+  --bubble-radius-tail: 9px;
+  --font-main: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-size-base: 15px;
   --font-size-small: 13px;
   --font-size-title: 17px;
@@ -30,20 +53,18 @@
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
-  --radius-sm: 8px;
-  --radius-md: 16px;
-  --radius-lg: 24px;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-
-  --surface-soft: color-mix(in srgb, var(--bg-card) 72%, transparent);
-  --surface-glass: color-mix(in srgb, var(--bg-primary) 86%, transparent);
-  --surface-muted: color-mix(in srgb, var(--bg-secondary) 64%, transparent);
-  --text-soft: color-mix(in srgb, var(--text-primary) 72%, var(--text-secondary));
-  --press-scale: 0.96;
-  --motion: all 200ms ease;
-
+  --radius-sm: 14px;
+  --radius-md: 21px;
+  --radius-lg: 29px;
+  --radius-xl: 36px;
+  --radius-full: 999px;
+  --shadow-sm: 0 3px 10px color-mix(in srgb, var(--text-primary) 6%, transparent);
+  --shadow-md: 0 7px 22px color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --shadow-lg: 0 12px 34px color-mix(in srgb, var(--text-primary) 9%, transparent);
+  --shadow-card: 0 5px 18px color-mix(in srgb, var(--text-primary) 6%, transparent);
+  --shadow-float: 0 10px 30px color-mix(in srgb, var(--text-primary) 9%, transparent);
+  --press-scale: .97;
+  --motion: all 240ms cubic-bezier(.2,.8,.2,1);
   --chat-fold-card-bg: var(--bg-card);
   --chat-fold-card-open-bg: var(--accent-light);
   --chat-fold-detail-bg: var(--bg-secondary);
@@ -56,128 +77,6 @@
   --chat-tool-breath-shadow-strong: var(--shadow-md);
 }
 
-/* ═══════════════════════════════════════ */
-/* 【变量】浅色主题 - 樱花粉 */
-/* ═══════════════════════════════════════ */
-
-[data-theme="pink"] {
-  --bg-primary: #FDF5F7;
-  --bg-secondary: #F5E8EC;
-  --bg-card: #FFFFFF;
-  --bg-overlay: rgba(0, 0, 0, 0.28);
-  --accent: #E2A0B4;
-  --accent-light: #F8DEE8;
-  --accent-dark: #C88898;
-  --text-primary: #1C1C1E;
-  --text-secondary: #8A8A8E;
-  --text-hint: #C4C4C8;
-  --bubble-user-bg: #E2A0B4;
-  --bubble-user-text: #FFFFFF;
-  --bubble-ai-bg: #FFFFFF;
-  --bubble-ai-text: #1C1C1E;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-}
-
-/* ═══════════════════════════════════════ */
-/* 【变量】浅色主题 - 薰衣紫 */
-/* ═══════════════════════════════════════ */
-
-[data-theme="purple"] {
-  --bg-primary: #F6F3FC;
-  --bg-secondary: #EDE8F5;
-  --bg-card: #FFFFFF;
-  --bg-overlay: rgba(0, 0, 0, 0.28);
-  --accent: #A88CC8;
-  --accent-light: #E6DAF2;
-  --accent-dark: #8E70B0;
-  --text-primary: #1C1C1E;
-  --text-secondary: #8A8A8E;
-  --text-hint: #C4C4C8;
-  --bubble-user-bg: #A88CC8;
-  --bubble-user-text: #FFFFFF;
-  --bubble-ai-bg: #FFFFFF;
-  --bubble-ai-text: #1C1C1E;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
-}
-
-/* ═══════════════════════════════════════ */
-/* 【变量】夜间主题 - 奶咖夜 */
-/* ═══════════════════════════════════════ */
-
-[data-theme="milk-cafe"] {
-  --bg-primary: #2A2420;
-  --bg-secondary: #352F2A;
-  --bg-card: #3C352F;
-  --bg-overlay: rgba(0, 0, 0, 0.52);
-  --accent: #C8A882;
-  --accent-light: #4A4038;
-  --accent-dark: #D8BC96;
-  --text-primary: #F0E8DC;
-  --text-secondary: #A89888;
-  --text-hint: #786858;
-  --bubble-user-bg: #C8A882;
-  --bubble-user-text: #2A2420;
-  --bubble-ai-bg: #3C352F;
-  --bubble-ai-text: #F0E8DC;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.24);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.36);
-}
-
-/* ═══════════════════════════════════════ */
-/* 【变量】夜间主题 - 暖灰夜 */
-/* ═══════════════════════════════════════ */
-
-[data-theme="warm-gray"] {
-  --bg-primary: #1E1E20;
-  --bg-secondary: #2A2A2E;
-  --bg-card: #303034;
-  --bg-overlay: rgba(0, 0, 0, 0.52);
-  --accent: #B8A898;
-  --accent-light: #3A3838;
-  --accent-dark: #CCC0B0;
-  --text-primary: #E8E4E0;
-  --text-secondary: #989490;
-  --text-hint: #686460;
-  --bubble-user-bg: #B8A898;
-  --bubble-user-text: #1E1E20;
-  --bubble-ai-bg: #303034;
-  --bubble-ai-text: #E8E4E0;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.24);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.36);
-}
-
-/* ═══════════════════════════════════════ */
-/* 【变量】夜间主题 - 可可夜 */
-/* ═══════════════════════════════════════ */
-
-[data-theme="cocoa"] {
-  --bg-primary: #221E1C;
-  --bg-secondary: #2E2A26;
-  --bg-card: #36302C;
-  --bg-overlay: rgba(0, 0, 0, 0.52);
-  --accent: #A8846C;
-  --accent-light: #403830;
-  --accent-dark: #C09878;
-  --text-primary: #E8DCD4;
-  --text-secondary: #A09080;
-  --text-hint: #706050;
-  --bubble-user-bg: #A8846C;
-  --bubble-user-text: #221E1C;
-  --bubble-ai-bg: #36302C;
-  --bubble-ai-text: #E8DCD4;
-  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.18);
-  --shadow-md: 0 2px 12px rgba(0, 0, 0, 0.24);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.36);
-}
-
-/* ═══════════════════════════════════════ */
-/* 【基础重置】html / body / 全局 */
 /* ═══════════════════════════════════════ */
 
 html,
@@ -1480,3 +1379,221 @@ a {
 }
 
 /* 依赖：无 */
+
+/* ═══════════════════════════════════════ */
+/* 【软萌视觉语言】全应用统一的奶油卡片与手账触感 */
+/* ═══════════════════════════════════════ */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .34;
+  background-image:
+    radial-gradient(circle at 14% 18%, color-mix(in srgb, var(--accent-light) 52%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--decor-yellow) 44%, transparent) 0 2px, transparent 3px),
+    radial-gradient(circle at 74% 78%, color-mix(in srgb, var(--decor-blue) 42%, transparent) 0 1px, transparent 2px);
+  background-size: 38px 38px, 52px 52px, 31px 31px;
+}
+
+.app-screen,
+.app-content,
+.screen,
+.page {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.app-header,
+.nav-bar,
+.top-bar,
+.toolbar {
+  background: color-mix(in srgb, var(--bg-primary) 94%, var(--bg-card));
+  border-bottom-color: color-mix(in srgb, var(--border-soft) 60%, transparent);
+  box-shadow: none;
+}
+
+.app-title,
+.nav-title,
+.section-title,
+.card-title {
+  color: var(--text-primary);
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+
+.card,
+.list-item,
+.setting-item,
+.form-group,
+.section-card,
+.empty-state {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.card-action,
+.list-row,
+.setting-row {
+  min-height: 54px;
+  border-radius: var(--radius-md);
+}
+
+.card-action + .card-action,
+.list-row + .list-row,
+.setting-row + .setting-row {
+  border-top-color: color-mix(in srgb, var(--border-soft) 58%, transparent);
+}
+
+button,
+.btn-primary,
+.btn-ghost,
+.icon-button,
+.app-back {
+  border-radius: var(--radius-full);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bubble-user-text);
+  border-color: transparent;
+  box-shadow: none;
+  font-weight: 700;
+}
+
+.btn-ghost,
+.icon-button,
+.app-back {
+  background: var(--accent-light);
+  color: var(--icon-color);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+input,
+textarea,
+select,
+.input,
+.form-input {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+  color: var(--text-primary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--bg-card) 70%, transparent);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-hint);
+}
+
+.badge,
+.tag,
+.chip,
+.pill {
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent-light);
+  color: var(--accent-dark);
+}
+
+.bottom-sheet,
+.sheet-panel,
+.modal,
+.dialog,
+.install-prompt,
+.guide-dialog {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 70%, transparent);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  background: var(--bg-card);
+  box-shadow: var(--shadow-float);
+}
+
+.avatar,
+.avatar img {
+  border-radius: 42% 48% 44% 50%;
+}
+
+.avatar {
+  padding: 3px;
+  background: var(--accent-light);
+  color: var(--icon-color);
+}
+
+svg {
+  color: var(--icon-color);
+}
+
+.toggle,
+.switch {
+  background: var(--bg-secondary);
+  border-color: var(--border-soft);
+}
+
+.toggle.is-on,
+.switch.is-on,
+input:checked + .toggle,
+input:checked + .switch {
+  background: var(--accent);
+}
+
+.toast {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-full);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.message-bubble,
+.chat-bubble {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 55%, transparent);
+  box-shadow: none;
+}
+
+.desktop-icon-art {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
+  border-radius: 34% 42% 36% 44%;
+  background: var(--bg-card);
+  color: var(--icon-color);
+  box-shadow: var(--shadow-card);
+}
+
+.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.desktop-icon:nth-child(3n + 2) .desktop-icon-art {
+  background: color-mix(in srgb, var(--decor-blue) 38%, var(--bg-card));
+}
+
+.desktop-icon:nth-child(3n) .desktop-icon-art {
+  background: color-mix(in srgb, var(--decor-yellow) 36%, var(--bg-card));
+}
+
+.dock {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent);
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  box-shadow: var(--shadow-card);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .desktop-icon-art,
+  .empty-state svg,
+  .placeholder-icon svg {
+    animation: soft-breathe 4.8s ease-in-out infinite;
+  }
+
+  .desktop-icon:nth-child(2n) .desktop-icon-art { animation-delay: -2.1s; }
+}
+
+@keyframes soft-breathe {
+  0%, 100% { transform: translateY(0) rotate(-.4deg); }
+  50% { transform: translateY(-3px) rotate(.4deg); }
+}

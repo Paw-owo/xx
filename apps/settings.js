@@ -2619,7 +2619,7 @@ function downloadJson(filename, data) {
 function normalizeColor(value) {
   const text = String(value || '').trim();
   if (/^#[0-9a-fA-F]{3,8}$/.test(text)) return text;
-  return '#ffffff';
+  return getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim();
 }
 
 function getPresetName(id) {

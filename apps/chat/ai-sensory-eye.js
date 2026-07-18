@@ -352,7 +352,7 @@ export async function compressImageForVision(input, maxSize = 1280, quality = 0.
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff'; // jpeg 不支持透明，铺白底避免黑底
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim(); // jpeg 不支持透明，使用主题卡片色铺底
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
 
