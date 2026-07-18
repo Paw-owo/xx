@@ -73,6 +73,12 @@ const BACKUP_EXCLUDED_LOCAL_KEYS = new Set([
   'weather_cache'
 ]);
 
+// Older cloud snapshots may contain transient keys that are no longer backed up.
+// Accept them during validation for backwards compatibility, but never restore them.
+const LEGACY_DISCARDED_LOCAL_KEYS = new Set([
+  'app_lock_unlocked'
+]);
+
 // 动态前缀键：按角色/群聊/会话隔离的配置，无法静态列举，需在 buildLocalSnapshot 时前缀扫描收集。
 // 漏掉会导致换设备/导入后角色配置（主动消息、TTS、可见条数、壁纸透明度）丢失，
 // 以及 app_anniversary_greeted 丢失导致当天纪念日重复问候+重复落库。
@@ -306,7 +312,9 @@ export async function buildLocalSnapshot() {
 export async function applyLocalSnapshot(snapshot, options = {}) {
   const skipCloudConfig = options.skipCloudConfig === true;
   const localStorageData = Object.fromEntries(
-    Object.entries(snapshot?.localStorage || {}).filter(([key]) => !(skipCloudConfig && key === CLOUD_KEY))
+    Object.entries(snapshot?.localStorage || {}).filter(([key]) => (
+      !LEGACY_DISCARDED_LOCAL_KEYS.has(key) && !(skipCloudConfig && key === CLOUD_KEY)
+    ))
   );
   const now = getNow();
   const syncStatus = {
@@ -684,7 +692,9 @@ function assertJsonValue(value) {
 
 function isSnapshotLocalKey(key, internal = false) {
   if (internal && key === SYNC_STATUS_KEY) return true;
-  return LOCAL_STORAGE_KEYS.includes(key) || isDynamicSnapshotLocalKey(key);
+  return LOCAL_STORAGE_KEYS.includes(key)
+    || LEGACY_DISCARDED_LOCAL_KEYS.has(key)
+    || isDynamicSnapshotLocalKey(key);
 }
 
 function isDynamicSnapshotLocalKey(key) {
