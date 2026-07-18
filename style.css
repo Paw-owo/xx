@@ -421,7 +421,11 @@ a {
 
 .sheet-overlay {
   position: fixed;
-  inset: 0;
+  top: var(--app-viewport-top, 0px);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--app-viewport-height, 100dvh);
   z-index: 199;
   opacity: 0;
   pointer-events: none;
@@ -440,7 +444,7 @@ a {
   right: 0;
   bottom: 0;
   z-index: 200;
-  max-height: 82vh;
+  max-height: var(--app-viewport-height, 82dvh);
   overflow-x: hidden;
   overflow-y: auto;
   padding: 10px 20px calc(var(--spacing-lg) + env(safe-area-inset-bottom));
@@ -1609,6 +1613,10 @@ input:checked + .switch {
 /* ═══════════════════════════════════════ */
 
 #app-layer {
+  top: var(--app-viewport-top, 0px);
+  bottom: auto;
+  height: var(--app-viewport-height, 100dvh);
+  transform: translateZ(0);
   --app-cute-surface: color-mix(in srgb, var(--bg-card) 94%, transparent);
   --app-cute-surface-soft: color-mix(in srgb, var(--accent-light) 42%, var(--bg-card));
   --app-cute-surface-mini: color-mix(in srgb, var(--bg-card) 76%, var(--accent-light));
@@ -1621,6 +1629,10 @@ input:checked + .switch {
     radial-gradient(circle at 94% 88%, color-mix(in srgb, var(--decor-blue) 30%, transparent), transparent 26%),
     var(--bg-primary);
   color: var(--text-primary);
+}
+
+.phone-desktop.has-image .desktop-soft-layer {
+  display: none;
 }
 
 /* 每个 App 的导航都使用同一组柔软卡片和猫耳轮廓。 */

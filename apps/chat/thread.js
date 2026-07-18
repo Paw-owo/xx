@@ -70,10 +70,6 @@ const state = {
   proactiveTimer: null,
   proactiveChecking: false,
   mountVersion: 0,
-  keyboardOpen: false,
-  keyboardOffset: 0,
-  keyboardViewportHandler: null,
-  keyboardViewportTimers: new Set(),
   relationshipLock: null,
   relationshipPunishment: null,
   activeTtsMessageId: '',
@@ -164,8 +160,6 @@ export async function mountChatThread(containerEl, options = {}) {
   state.messageQueue = [];
   state.pendingImages = [];
   state.proactiveChecking = false;
-  state.keyboardOpen = false;
-  state.keyboardOffset = 0;
   state.relationshipLock = null;
   state.relationshipPunishment = null;
   state.activeTtsMessageId = '';
@@ -179,7 +173,6 @@ export async function mountChatThread(containerEl, options = {}) {
   restoreDraft();
 
   injectStyle();
-  setupKeyboardViewport();
 
   await loadThreadData();
   await loadWallpaperCache();
@@ -231,7 +224,6 @@ export function unmountChatThread() {
   stopAll();
   resetVoicePlayer();
   stopProactiveChecks();
-  cleanupKeyboardViewport();
   closeStickerSheet();
   closeThreadPanels();
   hideBottomSheet();
@@ -355,10 +347,8 @@ function render() {
   if (!state.rootEl || !state.mounted) return;
 
   const page = el('section', `chat-page chat-thread-page mode-${state.displayMode}`);
-  page.dataset.keyboard = state.keyboardOpen ? 'true' : 'false';
   page.dataset.locked = getRelationshipLockLevel(state) ? 'true' : 'false';
   page.dataset.aiGenerating = isAIWorking() ? 'true' : 'false';
-  page.style.setProperty('--chat-keyboard-offset', `${state.keyboardOffset}px`);
 
   if (state.wallpaperImage) {
     const bg = el('div', 'chat-thread-wallpaper');
@@ -462,8 +452,6 @@ function createSearchCard() {
     refreshMessageAreaOnly();
   });
 
-  input.addEventListener('focus', handleComposerFocus);
-  input.addEventListener('blur', handleComposerBlur);
 
   const close = iconButton('close', '关闭搜索');
   close.addEventListener('click', () => {
@@ -569,8 +557,6 @@ function createInputBar() {
     updateSendButtonState(send, input);
   });
 
-  input.addEventListener('focus', handleComposerFocus);
-  input.addEventListener('blur', handleComposerBlur);
 
   input.addEventListener('keydown', async (event) => {
     if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
@@ -1114,83 +1100,6 @@ async function runProactiveCheck() {
   }
 }
 
-function setupKeyboardViewport() {
-  cleanupKeyboardViewport();
-  state.keyboardViewportHandler = () => updateKeyboardViewport();
-
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', state.keyboardViewportHandler);
-    window.visualViewport.addEventListener('scroll', state.keyboardViewportHandler);
-  }
-
-  window.addEventListener('resize', state.keyboardViewportHandler);
-  updateKeyboardViewport();
-}
-
-function cleanupKeyboardViewport() {
-  for (const timer of state.keyboardViewportTimers) {
-    window.clearTimeout(timer);
-  }
-  state.keyboardViewportTimers.clear();
-
-  if (state.keyboardViewportHandler) {
-    if (window.visualViewport) {
-      window.visualViewport.removeEventListener('resize', state.keyboardViewportHandler);
-      window.visualViewport.removeEventListener('scroll', state.keyboardViewportHandler);
-    }
-
-    window.removeEventListener('resize', state.keyboardViewportHandler);
-    state.keyboardViewportHandler = null;
-  }
-
-  state.keyboardOpen = false;
-  state.keyboardOffset = 0;
-  document.documentElement.style.removeProperty('--chat-keyboard-offset');
-}
-
-function scheduleKeyboardViewportUpdate(callback, delay) {
-  const timer = window.setTimeout(() => {
-    state.keyboardViewportTimers.delete(timer);
-    callback();
-  }, delay);
-  state.keyboardViewportTimers.add(timer);
-}
-
-function updateKeyboardViewport() {
-  if (!state.mounted) return;
-
-  const viewport = window.visualViewport;
-  const layoutHeight = window.innerHeight || document.documentElement.clientHeight || 0;
-  const visualHeight = viewport?.height || layoutHeight;
-  const visualTop = viewport?.offsetTop || 0;
-  const offset = Math.max(0, layoutHeight - visualHeight - visualTop);
-
-  state.keyboardOffset = offset > 80 ? Math.round(offset) : 0;
-  state.keyboardOpen = state.keyboardOffset > 0 || isInputFocused();
-
-  document.documentElement.style.setProperty('--chat-keyboard-offset', `${state.keyboardOffset}px`);
-
-  const page = state.rootEl?.querySelector?.('.chat-thread-page');
-  if (page) {
-    page.dataset.keyboard = state.keyboardOpen ? 'true' : 'false';
-    page.style.setProperty('--chat-keyboard-offset', `${state.keyboardOffset}px`);
-  }
-}
-
-function handleComposerFocus() {
-  state.keyboardOpen = true;
-  scheduleKeyboardViewportUpdate(updateKeyboardViewport, 40);
-  scheduleKeyboardViewportUpdate(updateKeyboardViewport, 260);
-}
-
-function handleComposerBlur() {
-  scheduleKeyboardViewportUpdate(() => {
-    state.keyboardOpen = isInputFocused();
-    if (!state.keyboardOpen) state.keyboardOffset = 0;
-    updateKeyboardViewport();
-  }, 80);
-}
-
 function getStatusText() {
   if (isAIWorking()) {
     if (state.messageQueue.length > 0) {
@@ -1337,10 +1246,9 @@ function injectStyle() {
   style.id = STYLE_ID;
   style.textContent = `
     .chat-thread-page{
-      --chat-keyboard-offset:0px;
       position:relative;
-      height:calc(100dvh - var(--chat-keyboard-offset,0px));
-      max-height:calc(100dvh - var(--chat-keyboard-offset,0px));
+      height:100%;
+      max-height:100%;
       display:flex;
       flex-direction:column;
       overflow:hidden;
