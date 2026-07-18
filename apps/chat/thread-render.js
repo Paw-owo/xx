@@ -1543,7 +1543,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--text-hint);
-      box-shadow: var(--shadow-sm);
       font-size: 11px;
       line-height: 1.35;
       white-space: nowrap;
@@ -1646,7 +1645,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       font-size: 11px;
       font-weight: 600;
     }
@@ -1685,7 +1683,6 @@ function injectStyle() {
       gap: 6px;
       padding: 10px 12px;
       border-radius: 20px;
-      box-shadow: var(--shadow-sm);
       overflow: hidden;
     }
 
@@ -1726,7 +1723,6 @@ function injectStyle() {
       border-radius: 0;
       background: transparent;
       color: var(--text-primary);
-      box-shadow: none;
       overflow: visible;
     }
 
@@ -1742,7 +1738,6 @@ function injectStyle() {
     .chat-message-row.mode-dialog .chat-message-bubble.image-bubble {
       padding: 0;
       background: transparent;
-      box-shadow: none;
     }
 
     /* ── 错误气泡卡片 ── */
@@ -1791,7 +1786,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--accent);
       color: var(--bubble-user-text);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 12px;
       font-weight: 600;
@@ -1818,7 +1812,6 @@ function injectStyle() {
       padding: 2px 4px;
       border-radius: 999px;
       background: var(--surface-muted);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-version-pager-btn {
@@ -1922,7 +1915,6 @@ function injectStyle() {
       justify-content: center;
       border-radius: 16px;
       background: var(--surface-muted);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-message-image {
@@ -1982,7 +1974,6 @@ function injectStyle() {
       border-radius: 16px;
       background: var(--surface-muted);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font-size: 13px;
       line-height: 1.5;
       text-align: center;
@@ -1997,7 +1988,6 @@ function injectStyle() {
     .chat-voice-card {
       border-radius: 16px;
       background: var(--surface-muted);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-message-quote {
@@ -2057,7 +2047,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--accent);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-voice-waves {
@@ -2157,7 +2146,6 @@ function injectStyle() {
       padding: 0;
       border-radius: 22px;
       background: var(--surface-muted);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-message-code-top {
@@ -2210,7 +2198,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font-size: 11px;
       transition: all 200ms ease;
     }
@@ -2249,7 +2236,6 @@ function injectStyle() {
       border-radius: 12px;
       background: var(--bg-card);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 12px;
       text-align: center;
@@ -2323,7 +2309,6 @@ function injectStyle() {
       border-radius: 16px;
       background: var(--bg-card);
       color: var(--accent);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-game-title,
@@ -2370,7 +2355,6 @@ function injectStyle() {
       overflow: hidden;
       border-radius: 14px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-mini-card-cover img {
@@ -2401,7 +2385,6 @@ function injectStyle() {
       padding: 4px;
       border-radius: 10px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-dice-face span {
@@ -2493,7 +2476,6 @@ function injectStyle() {
       padding: 0 7px;
       background: var(--bg-card);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 11px;
       transition: all 200ms ease;
@@ -2511,7 +2493,6 @@ function injectStyle() {
       min-width: 22px;
       padding: 0 6px;
       background: transparent;
-      box-shadow: none;
     }
 
     .chat-message-token-chip {
@@ -2572,7 +2553,6 @@ function injectStyle() {
       padding: 0 14px;
       background: var(--surface-muted);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 13px;
       font-weight: 500;
@@ -2630,13 +2610,11 @@ function injectStyle() {
     .chat-edit-btn.primary {
       background: var(--accent);
       color: var(--bubble-user-text);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-edit-btn.ghost {
       background: var(--surface-muted);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
     }
 
     /* ── 引用预览条 ── */
@@ -2652,7 +2630,6 @@ function injectStyle() {
       border-radius: 16px;
       background: var(--bg-card);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       animation: chatMessageIn 180ms ease both;
     }
 
@@ -2726,7 +2703,6 @@ function injectStyle() {
       border-radius: 14px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       transition: all 200ms ease;
     }
 
@@ -2740,7 +2716,6 @@ function injectStyle() {
       min-height: 0;
       border-radius: 0;
       background: var(--bg-card);
-      box-shadow: none;
     }
 
     /* ── 动画 ── */

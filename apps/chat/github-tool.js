@@ -312,7 +312,7 @@ const STYLE_CSS = `
 .gh-submit-btn:active:not(:disabled) { transform: scale(0.97); }
 .gh-status { font-size: 12px; color: var(--text-secondary); padding: 8px 12px; border-radius: 10px; background: var(--bg-card); line-height: 1.5; }
 .gh-status-error { color: var(--accent); }
-.gh-status-success { color: var(--success, #34c759); }
+.gh-status-success { color: var(--color-success); }
 .gh-pr-link { display: inline-block; padding: 10px 14px; border-radius: 10px; background: var(--accent); color: var(--bubble-user-text); font-size: 13px; font-weight: 600; text-decoration: none; margin-top: 4px; word-break: break-all; }
 .gh-pr-link:active { transform: scale(0.97); }
 .gh-branch-info { font-size: 11px; color: var(--text-tertiary, var(--text-secondary)); font-family: var(--font-mono, monospace); word-break: break-all; }

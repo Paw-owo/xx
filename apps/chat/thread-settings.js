@@ -1413,7 +1413,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       transition:var(--motion);
     }
 
@@ -1480,7 +1479,6 @@ function injectStyle() {
     .settings-card{
       border-radius:var(--radius-lg);
       background:var(--bg-card);
-      box-shadow:var(--shadow-sm);
       padding:16px;
       margin-bottom:14px;
     }
@@ -1584,7 +1582,6 @@ function injectStyle() {
       border-radius:22px;
       background:var(--surface-muted);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       font-size:18px;
       font-weight:650;
     }
@@ -1613,7 +1610,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--surface-muted);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       font-size:var(--font-size-base);
       transition:var(--motion);
       margin-top:10px;
@@ -1642,7 +1638,6 @@ function injectStyle() {
       height:18px;
       border-radius:999px;
       background:var(--bg-card);
-      box-shadow:var(--shadow-sm);
       transition:var(--motion);
     }
 
@@ -1664,7 +1659,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--surface-muted);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       margin-top:10px;
     }
 
@@ -1708,7 +1702,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--surface-muted);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       margin-top:10px;
     }
 
@@ -1751,7 +1744,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--surface-muted);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       font-size:var(--font-size-small);
       transition:var(--motion);
     }
@@ -1786,7 +1778,6 @@ function injectStyle() {
 
     .settings-image-preview.has-preview{
       background:var(--bg-card);
-      box-shadow:var(--shadow-sm);
     }
 
     .settings-image-preview img{
@@ -1954,7 +1945,6 @@ function injectStyle() {
 
     .api-choice-card.selected{
       background:var(--accent-light);
-      box-shadow:inset 0 0 0 1.5px var(--accent-dark);
     }
 
     .api-choice-copy{
@@ -2018,7 +2008,6 @@ function injectStyle() {
       padding:12px;
       border-radius:16px;
       background:var(--surface-muted);
-      box-shadow:var(--shadow-sm);
     }
 
     .api-pool-model-title{
@@ -2058,7 +2047,6 @@ function injectStyle() {
       background:var(--bg-card);
       color:var(--text-primary);
       text-align:left;
-      box-shadow:var(--shadow-sm);
       transition:var(--motion);
     }
 
@@ -2110,7 +2098,6 @@ function injectStyle() {
       padding:24px 22px 18px;
       border-radius:28px;
       background:var(--bg-card);
-      box-shadow:var(--shadow-lg);
       text-align:center;
       animation:settingsConfirmCardIn 220ms ease;
     }
@@ -2142,7 +2129,6 @@ function injectStyle() {
       border-radius:18px;
       background:var(--surface-muted);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       font:inherit;
       font-size:14px;
       font-weight:600;

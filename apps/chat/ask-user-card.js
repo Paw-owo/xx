@@ -479,7 +479,6 @@ function injectStyle() {
       position:fixed;left:0;right:0;bottom:0;z-index:10043;
       width:100vw;height:75vh;display:flex;flex-direction:column;
       border-radius:28px 28px 0 0;background:var(--bg-card);
-      box-shadow:0 -8px 32px rgba(0,0,0,0.12);
       transform:translateY(108%);
       transition:transform 280ms cubic-bezier(0.34,1.56,0.64,1);
       overflow:hidden;

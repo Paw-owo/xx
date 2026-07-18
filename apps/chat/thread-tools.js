@@ -108,37 +108,37 @@ function injectStyle() {
     .tools-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 4px}
     .tool-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 4px 10px;border:none;outline:none;border-radius:var(--radius-lg);background:transparent;cursor:pointer;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);-webkit-tap-highlight-color:transparent;user-select:none}
     .tool-cell:active{transform:scale(0.9)}
-    .tool-icon-wrap{width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--surface-muted);border-radius:var(--radius-md);padding:3px;box-shadow:var(--shadow-sm);transition:all 0.2s ease}
+    .tool-icon-wrap{width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--surface-muted);border-radius:var(--radius-md);padding:3px;transition:all 0.2s ease}
     .tool-cell:active .tool-icon-wrap{transform:scale(0.92)}
     .tool-icon-wrap svg{width:100%;height:100%}
     .tool-name{font-size:11px;font-weight:500;color:var(--text-secondary);line-height:1.2;text-align:center;white-space:nowrap}
     .tools-detail-wrap{display:flex;flex-direction:column;gap:14px;padding:4px 4px 8px;animation:toolsFadeIn 200ms ease both}
     .tools-detail-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;margin-bottom:4px}
-    .tools-back-btn{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border:none;outline:none;border-radius:var(--radius-md);background:var(--bg-card);color:var(--text-primary);box-shadow:var(--shadow-sm);transition:all 200ms ease}
+    .tools-back-btn{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;border:none;outline:none;border-radius:var(--radius-md);background:var(--bg-card);color:var(--text-primary);transition:all 200ms ease}
     .tools-back-btn:active{transform:scale(0.92)}
     .tools-back-btn svg{width:18px;height:18px}
     .tools-detail-title{min-width:0;color:var(--text-primary);font-size:var(--font-size-title);font-weight:600;line-height:1.35}
     .tools-detail-spacer{width:38px;height:38px}
     .tools-option-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    .tools-option-btn{min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;border:none;outline:none;border-radius:var(--radius-lg);background:var(--surface-muted);color:var(--text-primary);box-shadow:var(--shadow-sm);cursor:pointer;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);-webkit-tap-highlight-color:transparent;font-family:inherit;text-align:center}
+    .tools-option-btn{min-height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:12px;border:none;outline:none;border-radius:var(--radius-lg);background:var(--surface-muted);color:var(--text-primary);cursor:pointer;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);-webkit-tap-highlight-color:transparent;font-family:inherit;text-align:center}
     .tools-option-btn:active{transform:scale(0.94)}
     .tools-option-icon{width:32px;height:32px;display:flex;align-items:center;justify-content:center;color:var(--accent)}
     .tools-option-icon svg{width:100%;height:100%}
     .tools-option-label{font-size:13px;font-weight:600;color:var(--text-primary)}
     .tools-option-sub{font-size:11px;color:var(--text-hint)}
-    .tools-stat-row{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border-radius:var(--radius-lg);background:var(--surface-muted);box-shadow:var(--shadow-sm)}
+    .tools-stat-row{display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 14px;border-radius:var(--radius-lg);background:var(--surface-muted);}
     .tools-stat-item{display:flex;flex-direction:column;align-items:center;gap:2px}
     .tools-stat-num{font-size:18px;font-weight:700;color:var(--text-primary)}
     .tools-stat-label{font-size:11px;color:var(--text-hint)}
     .tools-stat-divider{width:1px;height:24px;background:var(--bg-hover)}
     .tools-chip-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-    .tools-chip{display:flex;align-items:center;gap:8px;padding:12px 14px;border:none;outline:none;border-radius:var(--radius-lg);background:var(--surface-muted);color:var(--text-primary);box-shadow:var(--shadow-sm);cursor:pointer;transition:all 0.2s ease;font-family:inherit;font-size:14px;text-align:left;-webkit-tap-highlight-color:transparent}
+    .tools-chip{display:flex;align-items:center;gap:8px;padding:12px 14px;border:none;outline:none;border-radius:var(--radius-lg);background:var(--surface-muted);color:var(--text-primary);cursor:pointer;transition:all 0.2s ease;font-family:inherit;font-size:14px;text-align:left;-webkit-tap-highlight-color:transparent}
     .tools-chip:active{transform:scale(0.97)}
     .tools-chip-text{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
     .tools-chip-del{width:26px;height:26px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:999px;background:transparent;color:var(--text-hint);cursor:pointer;transition:all 0.2s ease}
     .tools-chip-del:active{transform:scale(0.85)}
     .tools-input-row{display:flex;gap:8px;margin-top:4px}
-    .tools-input{flex:1;padding:0 12px;min-height:44px;border:none;outline:none;border-radius:var(--radius-md);background:var(--surface-muted);color:var(--text-primary);box-shadow:var(--shadow-sm);font-family:inherit;font-size:14px;line-height:1.5;-webkit-appearance:none;appearance:none}
+    .tools-input{flex:1;padding:0 12px;min-height:44px;border:none;outline:none;border-radius:var(--radius-md);background:var(--surface-muted);color:var(--text-primary);font-family:inherit;font-size:14px;line-height:1.5;-webkit-appearance:none;appearance:none}
     .tools-send-btn{padding:0 16px;min-height:44px;border:none;outline:none;border-radius:var(--radius-md);background:var(--accent);color:var(--bubble-user-text);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;transition:all 0.2s ease}
     .tools-send-btn:active{transform:scale(0.95)}
     .tools-empty{padding:20px 12px;border-radius:var(--radius-lg);background:var(--surface-muted);color:var(--text-hint);font-size:13px;line-height:1.6;text-align:center}

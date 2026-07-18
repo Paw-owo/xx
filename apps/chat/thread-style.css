@@ -40,7 +40,6 @@
   overflow: hidden;
   border-radius: 999px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
   font-size: 15px;
   font-weight: 600;
 }
@@ -146,7 +145,6 @@
   border-radius: 999px;
   color: var(--text-secondary);
   background: var(--surface-muted);
-  box-shadow: var(--shadow-sm);
   font-size: 11px;
   line-height: 1;
   white-space: nowrap;
@@ -179,7 +177,6 @@
   border-radius: 18px;
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   font-size: 14px;
   transition: all 200ms ease;
@@ -232,7 +229,6 @@
   border-radius: 20px;
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   transition: all 200ms ease;
   animation: chatToolCardIn 220ms ease both;
@@ -256,7 +252,6 @@
   border-radius: 13px;
   color: var(--accent);
   background: var(--surface-muted);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-thread-tool-name {
@@ -292,7 +287,6 @@
   border-radius: 999px;
   background: var(--bg-card);
   color: var(--text-secondary);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   font-size: 12px;
   transition: all 200ms ease;
@@ -376,7 +370,6 @@
   border-radius: 999px;
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   font-size: 12px;
   font-weight: 600;
 }
@@ -414,7 +407,6 @@
   gap: 8px;
   padding: 12px 14px;
   border-radius: var(--bubble-radius);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-message-bubble.role-user {
@@ -451,7 +443,6 @@
 .chat-message-image {
   max-width: 220px;
   border-radius: 16px;
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-message-quote,
@@ -465,7 +456,6 @@
 .chat-message-code {
   width: min(100%, 680px);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-message-code-top {
@@ -514,7 +504,6 @@
   padding: 0 8px;
   border-radius: 999px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-message-code-action:active,
@@ -547,7 +536,6 @@
   padding: 0 8px;
   border-radius: 999px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-html-preview-sheet {
@@ -576,7 +564,6 @@
   border: 0;
   border-radius: 18px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-game-card {
@@ -586,7 +573,6 @@
   align-items: center;
   gap: 12px;
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
 
@@ -599,7 +585,6 @@
   border-radius: 18px;
   background: var(--bg-card);
   color: var(--accent);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-game-title {
@@ -633,7 +618,6 @@
   padding: 5px;
   border-radius: 10px;
   background: var(--bg-card);
-  box-shadow: inset 0 0 0 999px color-mix(in srgb, var(--accent-light) 32%, transparent);
 }
 
 .chat-dice-face span {
@@ -686,7 +670,6 @@
   border-radius: 999px;
   padding: 0 8px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
 }
 
 .chat-action-sheet,
@@ -718,7 +701,6 @@
   border-radius: 16px;
   background: var(--surface-muted);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   font-size: 14px;
   transition: all 200ms ease;
@@ -768,7 +750,6 @@
   border-radius: 16px;
   background: var(--bg-card);
   color: var(--text-secondary);
-  box-shadow: var(--shadow-sm);
   animation: chatMessageIn 180ms ease both;
 }
 
@@ -834,7 +815,6 @@
   border-radius: 36px;
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: var(--shadow-md);
   font-size: 32px;
   font-weight: 600;
 }
@@ -882,7 +862,6 @@
   padding: 12px 14px;
   border-radius: 20px;
   background: var(--bg-card);
-  box-shadow: var(--shadow-sm);
   animation: chatCallIn 200ms ease both;
 }
 
@@ -930,7 +909,6 @@
   border-radius: 18px;
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   font-size: 16px;
   line-height: 1.6;
   -webkit-appearance: none;
@@ -951,7 +929,6 @@
   border-radius: 18px;
   background: var(--accent);
   color: var(--bubble-user-text);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   font-size: 14px;
   transition: all 200ms ease;
@@ -980,7 +957,6 @@
   border-radius: 999px;
   background: var(--bg-card);
   color: var(--text-primary);
-  box-shadow: var(--shadow-sm);
   font: inherit;
   font-size: 14px;
   transition: all 200ms ease;

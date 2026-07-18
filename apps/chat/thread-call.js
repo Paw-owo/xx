@@ -759,7 +759,6 @@ function injectStyle() {
       border-radius: 36px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-md);
       font-size: 32px;
       font-weight: 600;
     }
@@ -792,7 +791,6 @@ function injectStyle() {
       padding: 18px;
       border-radius: 24px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
       text-align: center;
     }
 
@@ -841,7 +839,6 @@ function injectStyle() {
       padding: 12px 14px;
       border-radius: 20px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
       animation: chatCallIn 200ms ease both;
     }
 
@@ -893,7 +890,6 @@ function injectStyle() {
       border-radius: 18px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       font-size: 16px;
       line-height: 1.6;
       -webkit-appearance: none;
@@ -914,7 +910,6 @@ function injectStyle() {
       border-radius: 18px;
       background: var(--accent);
       color: var(--bubble-user-text);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 14px;
       transition: all 200ms ease;
@@ -943,7 +938,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 14px;
       transition: all 200ms ease;
