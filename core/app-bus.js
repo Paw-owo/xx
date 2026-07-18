@@ -73,8 +73,10 @@ function logEvent(name, data) {
     const log = Array.isArray(getData(EVENT_LOG_KEY)) ? getData(EVENT_LOG_KEY) : [];
     log.push({ name, data: safeForLog(data), at: Date.now() });
     while (log.length > EVENT_LOG_LIMIT) log.shift();
-    setData(EVENT_LOG_KEY, log);
-  } catch (_) {}
+    if (!setData(EVENT_LOG_KEY, log)) console.warn('[app-bus] event log could not be saved');
+  } catch (error) {
+    console.warn('[app-bus] event log could not be saved', error);
+  }
 }
 
 function safeForLog(value) {

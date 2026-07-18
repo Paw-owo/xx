@@ -308,7 +308,8 @@ export async function regenerateThreadMessage(state, messageId) {
       updatedAt: getNow()
     });
     try {
-      await setDB(store, updated);
+      const saved = await setDB(store, updated);
+      if (!saved) archiveFailed = true;
     } catch (err) {
       archiveFailed = true;
       console.warn('[thread-actions] archive target (new group) failed', err?.message || err);
@@ -321,7 +322,8 @@ export async function regenerateThreadMessage(state, messageId) {
       updatedAt: getNow()
     });
     try {
-      await setDB(store, updated);
+      const saved = await setDB(store, updated);
+      if (!saved) archiveFailed = true;
     } catch (err) {
       archiveFailed = true;
       console.warn('[thread-actions] archive target (existing group) failed', err?.message || err);
@@ -337,7 +339,12 @@ export async function regenerateThreadMessage(state, messageId) {
   }
 
   // 请求新回复，传入 versionGroupId
-  await requestAIReplySafely(state, { regenerate: true, versionGroupId });
+  const generated = await requestAIReplySafely(state, { regenerate: true, versionGroupId });
+  if (!generated) {
+    const restored = await setDB(store, cleanForDB(target));
+    if (restored) await refreshStateMessages(state);
+    return null;
+  }
 
   return true;
 }
@@ -1104,6 +1111,11 @@ async function requestAIReplySafely(state, options = {}) {
 
   if (typeof fn !== 'function') {
     state.aiGenerating = false;
+    try {
+      state.renderOnly?.();
+    } catch (error) {
+      console.warn('[thread-actions] render without AI module failed', error);
+    }
     showToast('AI 回复模块还没接上');
     return null;
   }
@@ -1118,6 +1130,11 @@ async function requestAIReplySafely(state, options = {}) {
     return null;
   } finally {
     state.aiGenerating = false;
+    try {
+      state.renderOnly?.();
+    } catch (error) {
+      console.warn('[thread-actions] render after AI request failed', error);
+    }
   }
 }
 

@@ -1453,14 +1453,8 @@ async function deleteCharacter(characterId) {
   const ok = await showConfirm(`确定删除「${character.name || '这个角色'}」吗？聊天记录不会在这里自动删除。`);
   if (!ok) return;
 
-  const deletion = await deleteCharacterPrivateData(characterId);
+  const deletion = await deleteCharacterPrivateData(characterId, { includeCharacter: true, markSeedDeleted: true });
   if (!deletion.success) {
-    showToast('角色删除失败，请重试');
-    return;
-  }
-
-  const characterDeleted = await deleteDB('characters', characterId);
-  if (characterDeleted !== true) {
     showToast('角色删除失败，请重试');
     return;
   }

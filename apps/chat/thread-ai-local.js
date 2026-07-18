@@ -2,12 +2,11 @@
 // 三层回退总管：用户API → 硅基流动 → 本地关键词匹配
 // 启动时自动往数据库塞默认人设"初一"
 // imports:
-//   from '../../core/storage.js': getData, setData, getDB, setDB, getAllDB, generateId, getNow, getByIndexDB
+//   from '../../core/storage.js': getData, getDB, setDB, getAllDB, generateId, getNow, getByIndexDB
 //   from '../../core/local-chat.js': DEFAULT_CHARACTER, WELCOME_MESSAGES, generateLocalReply, requestSiliconFlowReply
 
 import {
   getData,
-  setData,
   getDB,
   setDB,
   getAllDB,
@@ -29,6 +28,7 @@ import {
 
 export async function seedDefaultCharacter() {
   try {
+    if (getData(`chat_seed_deleted_${DEFAULT_CHARACTER.id}`) === true) return;
     const existing = await getDB('characters', DEFAULT_CHARACTER.id).catch(() => null);
 
     if (!existing) {
@@ -159,5 +159,4 @@ export async function tryLocalOrSiliconFlowReply(state, options = {}) {
   };
 }
 
-// 依赖：../../core/storage.js(getData,setData,getDB,setDB,getAllDB,generateId,getNow,getByIndexDB)；../../core/local-chat.js(DEFAULT_CHARACTER,WELCOME_MESSAGES,generateLocalReply,requestSiliconFlowReply)
-
+// 依赖：../../core/storage.js(getData,getDB,setDB,getAllDB,generateId,getNow,getByIndexDB)；../../core/local-chat.js(DEFAULT_CHARACTER,WELCOME_MESSAGES,generateLocalReply,requestSiliconFlowReply)

@@ -2846,7 +2846,7 @@ async function loadInventory() {
 }
 
 function loadAnniversary() {
-  return getData('anniversary_items') || getData('app_anniversary') || getData('anniversaries') || null;
+  return getData('anniversaries') || getData('anniversary_items') || getData('app_anniversary') || null;
 }
 
 // ═══════════════════════════════════════

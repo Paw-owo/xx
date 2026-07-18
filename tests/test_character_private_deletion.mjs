@@ -35,6 +35,7 @@ function installStorage({ failDelete = null, failCheckpoint = false } = {}) {
     ['grudges', [{ id: 'grudge-a', characterId: 'char-a' }, { id: 'grudge-b', characterId: 'char-b' }]],
     ['punishments', [{ id: 'punishment-a', characterId: 'char-a' }, { id: 'punishment-b', characterId: 'char-b' }]],
     ['relationship_locks', [{ id: 'lock-a', characterId: 'char-a' }, { id: 'lock-b', characterId: 'char-b' }]],
+    ['ai_phone_diaries', [{ id: 'diary-a', characterId: 'char-a' }, { id: 'diary-b', characterId: 'char-b' }]],
     ['groups', [{ id: 'group-1', memberIds: ['char-a', 'char-b'] }]]
   ]);
   const localKeys = new Set(['mem_sum_char-a', 'mem_sum_char-b']);
@@ -85,10 +86,10 @@ console.log('\n[1] 两条 UI 路径调用同一个共用入口');
   const chatListSource = await fs.readFile(new URL('../apps/chat/list.js', import.meta.url), 'utf8');
   assert(characterSource.includes("from '../core/character-deletion.js'"), '角色管理导入共用清理入口');
   assert(chatListSource.includes("from '../../core/character-deletion.js'"), '聊天列表导入同一共用清理入口');
-  assert(/deleteCharacterPrivateData\(characterId\)/.test(characterSource), '角色管理删除调用共用入口');
-  assert(/deleteCharacterPrivateData\(id, \{ includeMessages: true \}\)/.test(chatListSource), '聊天列表调用共用入口并明确删除消息');
-  assert(/deleteCharacterPrivateData\(characterId\)[\s\S]*?deleteDB\('characters', characterId\)/.test(characterSource), '角色管理在私有数据成功后自行删除角色主记录');
-  assert(/deleteCharacterPrivateData\(id, \{ includeMessages: true \}\)[\s\S]*?deleteDB\('characters', id\)/.test(chatListSource), '聊天列表在私有数据成功后自行删除角色主记录');
+  assert(/deleteCharacterPrivateData\(characterId, \{ includeCharacter: true, markSeedDeleted: true \}\)/.test(characterSource), '角色管理通过共用事务删除角色');
+  assert(/deleteCharacterPrivateData\(id, \{ includeMessages: true, includeCharacter: true, markSeedDeleted: true \}\)/.test(chatListSource), '聊天列表通过共用事务删除角色和消息');
+  assert(!/deleteDB\('characters', characterId\)/.test(characterSource), '角色管理不再事务外删除角色主记录');
+  assert(!/deleteDB\('characters', id\)/.test(chatListSource), '聊天列表不再事务外删除角色主记录');
   assert(!chatListSource.includes("deleteIndexedByCharacter('memories'"), '聊天列表不再保留平行 memories 清理清单');
 }
 
@@ -99,6 +100,17 @@ console.log('\n[2b] 聊天列表删除范围包含消息');
   assert(result.success === true, '包含消息的清理成功');
   assert(!env.stores.get('messages').some((row) => row.characterId === 'char-a'), '当前角色消息被清理');
   assert(env.stores.get('messages').some((row) => row.id === 'message-b'), '其他角色消息保留');
+  resetStorage();
+}
+
+console.log('\n[2c] 主记录与 ai_phone 私有数据在同一回滚边界');
+{
+  const env = installStorage();
+  const result = await deletion.deleteCharacterPrivateData('char-a', { includeCharacter: true, markSeedDeleted: true });
+  assert(result.success === true, '角色事务删除成功');
+  assert(!env.stores.get('characters').some((row) => row.id === 'char-a'), '角色主记录被删除');
+  assert(!env.stores.get('ai_phone_diaries').some((row) => row.characterId === 'char-a'), 'ai_phone 私有记录被删除');
+  assert(env.stores.get('ai_phone_diaries').some((row) => row.characterId === 'char-b'), '其他角色 ai_phone 记录保留');
   resetStorage();
 }
 
@@ -125,8 +137,8 @@ console.log('\n[5] 记忆清理入口同步清 checkpoint');
   assert(/store === 'memories'[\s\S]*?clearMemorySummaryCheckpoints\(\)/.test(settingsSource), '单独清记忆时同步清理 checkpoint');
   assert(/clearStoreDB\('memories'\)[\s\S]*?clearMemorySummaryCheckpoints\(\)/.test(settingsSource), '清聊天相关数据时同步清理 checkpoint');
   assert(/getMemorySummaryCheckpointKeys\(\)[\s\S]*?removeData\(key\)/.test(settingsSource), '仅通过规范 checkpoint 键清单执行清理');
-  assert(/getMemorySummaryCheckpointKeys\(\)\.forEach[\s\S]*?data\.localStorage\[key\]/.test(settingsSource), '全量导出收集规范 checkpoint 键');
-  assert(/isAllowedLocalKey:[\s\S]*?isMemorySummaryCheckpointKey\(key\)/.test(settingsSource), '全量导入仅允许规范 checkpoint 动态键');
+  assert(/getBackupLocalKeys\(\)\.forEach[\s\S]*?data\.localStorage\[key\]/.test(settingsSource), '全量导出使用统一备份键清单');
+  assert(/isAllowedLocalKey:\s*isBackupLocalKey/.test(settingsSource), '全量导入使用统一备份键判定');
 }
 
 console.log('\n[3] 任一步失败不返回成功，UI 不显示成功提示');
