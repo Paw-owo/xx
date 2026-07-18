@@ -1713,8 +1713,9 @@ function injectStyle() {
       --lt-gold-worn: var(--decor-yellow);
       --lt-gold-light: var(--decor-yellow);
       --lt-gold-dim: color-mix(in srgb, var(--decor-yellow) 40%, transparent);
-      --lt-text-primary: var(--decor-yellow);
-      --lt-text-dim: var(--decor-yellow);
+      /* media-on-dark tracks the opposite side of media-ink-deep in both modes. */
+      --lt-text-primary: var(--media-on-dark);
+      --lt-text-dim: color-mix(in srgb, var(--media-on-dark) 72%, transparent);
       --lt-blood: var(--accent);
       position: relative;
       width: 100%;
