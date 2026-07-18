@@ -1917,16 +1917,16 @@ async function uploadIcon(id) {
   render('icons');
 }
 
-function clearIconBackground(id) {
-  const icons = getData(ICONS_KEY) || {};
-  const current = icons[id] || {};
-  if (current.backgroundCleared === true) {
-    showToast('这个图标已经没有背景啦');
-    return;
+async function clearIconBackground(id) {
+  if (window.AppImages?.removeAppIconImage) await window.AppImages.removeAppIconImage(id);
+  else {
+    await deleteDB('blobs', `app_icon_${id}`);
+    const icons = getData(ICONS_KEY) || {};
+    const current = icons[id] || {};
+    const { image, iconImage, backgroundImage, imageBase64, blobKey, ...preserved } = current;
+    icons[id] = preserved;
+    setData(ICONS_KEY, icons);
   }
-
-  icons[id] = { ...current, backgroundCleared: true, updatedAt: getNow() };
-  setData(ICONS_KEY, icons);
   showToast('图标背景清掉啦');
   emitRefresh();
   render('icons');
