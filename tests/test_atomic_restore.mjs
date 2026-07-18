@@ -232,4 +232,19 @@ console.log('\n[9] checkpoint 写入失败不返回成功并恢复原值');
   resetHooks();
 }
 
+console.log('\n[10] 旧云快照的临时解锁键可兼容但不会恢复');
+{
+  local.set('app_lock_unlocked', true);
+  const env = installMemoryStorage({});
+  const result = await applyLocalSnapshot({
+    localStorage: { app_lock_unlocked: false, app_settings: { restored: true } },
+    indexedDB: {}
+  });
+  assert(result === true, '包含旧解锁键的云快照仍可成功恢复');
+  assert(local.get('app_lock_unlocked') === true, '旧解锁键被丢弃且不改变当前会话状态');
+  assert(!env.calls.localSet.includes('app_lock_unlocked'), '恢复过程不会写入旧解锁键');
+  assert(local.get('app_settings').restored === true, '旧解锁键不影响其他配置恢复');
+  resetHooks();
+}
+
 console.log(`\n✅ atomic restore tests passed: ${passed}`);
