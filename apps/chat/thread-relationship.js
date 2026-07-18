@@ -346,7 +346,6 @@ function injectStyle() {
       border-radius:20px;
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       animation:chatRelationshipIn 200ms ease both;
     }
 
@@ -359,7 +358,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--surface-muted);
       color:var(--accent);
-      box-shadow:var(--shadow-sm);
     }
 
     .chat-relationship-lock-text{
@@ -394,7 +392,6 @@ function injectStyle() {
       border-radius:999px;
       background:var(--accent);
       color:var(--bubble-user-text);
-      box-shadow:var(--shadow-sm);
       font:inherit;
       font-size:12px;
       transition:all 200ms ease;
@@ -412,7 +409,6 @@ function injectStyle() {
       padding:14px;
       border-radius:18px;
       background:var(--bg-card);
-      box-shadow:var(--shadow-sm);
     }
 
     .chat-lock-card-title{
@@ -460,7 +456,6 @@ function injectStyle() {
       border-radius:var(--radius-md);
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       transition:all 200ms ease;
     }
 
@@ -500,7 +495,6 @@ function injectStyle() {
       align-items:center;
       justify-content:center;
       border-radius:16px;
-      box-shadow:var(--shadow-sm);
       font:inherit;
       font-size:14px;
       transition:all 200ms ease;

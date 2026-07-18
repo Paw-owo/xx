@@ -701,7 +701,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-md);
       font-size: 24px;
       font-weight: 600;
       outline: 6px solid var(--bg-primary);
@@ -748,7 +747,6 @@ function injectStyle() {
       padding: 0 14px;
       background: var(--bg-card);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 13px;
       transition: all 200ms ease;
@@ -790,7 +788,6 @@ function injectStyle() {
       padding: 14px;
       border-radius: 22px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-memory-card[data-size="short"] {
@@ -864,7 +861,6 @@ function injectStyle() {
       color: var(--text-secondary);
       font: inherit;
       font-size: 12px;
-      box-shadow: var(--shadow-sm);
       transition: all 200ms ease;
     }
 

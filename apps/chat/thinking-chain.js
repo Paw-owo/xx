@@ -891,7 +891,6 @@ function injectStyle() {
       flex-direction:column;
       border-radius:28px 28px 0 0;
       background:var(--bg-card);
-      box-shadow:0 -8px 32px rgba(0,0,0,0.12);
       transform:translateY(108%);
       transition:transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
       overflow:hidden;
@@ -982,7 +981,7 @@ function injectStyle() {
       top:28px;
       bottom:-12px;
       width:1.5px;
-      background:linear-gradient(to bottom, var(--accent-light), transparent);
+      background:var(--accent-light);
     }
 
     /* 圆点 */
@@ -1010,8 +1009,8 @@ function injectStyle() {
       animation:tc-pulse-dot 1.4s ease-in-out infinite;
     }
     .tc-step-dot.error{
-      border-color:var(--tc-error, #d96060);
-      background:var(--tc-error, #d96060);
+      border-color:var(--color-danger);
+      background:var(--color-danger);
     }
     .tc-step-dot.error::after{
       content:'';
@@ -1022,7 +1021,7 @@ function injectStyle() {
 
     @keyframes tc-pulse-dot{
       0%,100%{border-color:var(--accent-light)}
-      50%{border-color:var(--accent-dark);box-shadow:0 0 6px color-mix(in srgb, var(--accent) 50%, transparent)}
+      50%{border-color:var(--accent-dark);}
     }
 
     .tc-step-content{
@@ -1060,9 +1059,9 @@ function injectStyle() {
       border:1px solid var(--accent-light);
     }
     .tc-tag-error{
-      background:color-mix(in srgb, var(--tc-error, #d96060) 16%, var(--bg-card));
-      color:var(--tc-error, #d96060);
-      border-color:color-mix(in srgb, var(--tc-error, #d96060) 32%, transparent);
+      background:color-mix(in srgb, var(--color-danger) 16%, var(--bg-card));
+      color:var(--color-danger);
+      border-color:color-mix(in srgb, var(--color-danger) 32%, transparent);
     }
     .tc-step-arrow{
       width:14px;height:14px;
@@ -1091,7 +1090,7 @@ function injectStyle() {
       font-weight:600;
       color:var(--text-secondary);
     }
-    .tc-text-error{color:var(--tc-error, #d96060)}
+    .tc-text-error{color:var(--color-danger)}
     .tc-detail-text{
       font-size:14px;
       line-height:1.8;
@@ -1120,8 +1119,8 @@ function injectStyle() {
       word-break:break-word;
     }
     .tc-detail-code-error{
-      background:color-mix(in srgb, var(--tc-error, #d96060) 12%, var(--bg-card));
-      color:var(--tc-error, #d96060);
+      background:color-mix(in srgb, var(--color-danger) 12%, var(--bg-card));
+      color:var(--color-danger);
     }
 
     @media(prefers-reduced-motion:reduce){

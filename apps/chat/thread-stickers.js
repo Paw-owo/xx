@@ -749,7 +749,6 @@ function ensureStyle() {
       border-radius: 999px;
       background: var(--surface-muted);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 12px;
       font-weight: 500;
@@ -793,7 +792,6 @@ function ensureStyle() {
       justify-content: center;
       border-radius: 16px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
       overflow: hidden;
       cursor: pointer;
       transition: all 160ms ease;
@@ -827,7 +825,6 @@ function ensureStyle() {
 
     .ss-cell-add {
       background: var(--surface-muted);
-      box-shadow: none;
       color: var(--text-secondary);
       opacity: 0.5;
       transition: all 160ms ease;
@@ -872,7 +869,6 @@ function ensureStyle() {
       justify-content: center;
       border-radius: 999px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
       color: var(--text-hint);
       z-index: 2;
       opacity: 0.5;
@@ -900,7 +896,6 @@ function ensureStyle() {
       border-radius: 999px;
       background: var(--accent);
       color: var(--bubble-user-text);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 13px;
       font-weight: 600;
@@ -977,7 +972,6 @@ function ensureStyle() {
       max-width: 160px;
       max-height: 160px;
       border-radius: 18px;
-      box-shadow: var(--shadow-card);
       object-fit: contain;
     }
 
@@ -1003,7 +997,6 @@ function ensureStyle() {
       border-radius: 16px;
       background: var(--accent);
       color: var(--bubble-user-text);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 14px;
       font-weight: 600;
@@ -1041,7 +1034,6 @@ function ensureStyle() {
       padding: 22px 20px 18px;
       border-radius: 24px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-float);
       transform: scale(0.95) translateY(8px);
       transition: transform 200ms ease;
     }

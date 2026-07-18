@@ -1386,7 +1386,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       transition:all 200ms ease;
     }
 
@@ -1417,7 +1416,6 @@ function injectStyle() {
       overflow:hidden;
       border-radius:999px;
       background:var(--bg-card);
-      box-shadow:var(--shadow-sm);
       font-size:14px;
       font-weight:600;
       flex:0 0 auto;
@@ -1474,7 +1472,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       font-size:16px;
       line-height:1.6;
     }
@@ -1534,7 +1531,6 @@ function injectStyle() {
       border-radius:12px;
       overflow:hidden;
       background:var(--surface-muted);
-      box-shadow:var(--shadow-sm);
     }
     .chat-pending-image img{
       width:100%;
@@ -1553,8 +1549,8 @@ function injectStyle() {
       justify-content:center;
       border:none;
       border-radius:50%;
-      background:rgba(0,0,0,0.5);
-      color:#fff;
+      background:var(--bg-overlay);
+      color:var(--bubble-user-text);
       cursor:pointer;
       padding:0;
       -webkit-tap-highlight-color:transparent;
@@ -1579,7 +1575,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       font-size:16px;
       line-height:1.6;
       -webkit-appearance:none;
@@ -1627,8 +1622,8 @@ function injectStyle() {
       cursor:not-allowed;
     }
     @keyframes chatMicPulse{
-      0%,100%{transform:scale(1);box-shadow:0 0 0 0 color-mix(in srgb,var(--color-danger) 45%,transparent)}
-      50%{transform:scale(1.06);box-shadow:0 0 0 6px color-mix(in srgb,var(--color-danger) 0%,transparent)}
+      0%,100%{transform:scale(1);}
+      50%{transform:scale(1.06);}
     }
 
     /* 录音状态栏：跨整行，放在输入框上方（与图片预览栏并列） */
@@ -1708,7 +1703,6 @@ function injectStyle() {
       border-radius:999px;
       background:var(--bg-card);
       color:var(--text-secondary);
-      box-shadow:var(--shadow-sm);
       font:inherit;
       font-size:12px;
       transition:all 200ms ease;

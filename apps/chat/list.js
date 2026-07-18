@@ -1432,7 +1432,6 @@ function injectStyle() {
       padding: 0 16px;
       background: var(--bg-card);
       color: var(--text-secondary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 14px;
       transition: all 200ms ease;
@@ -1486,7 +1485,6 @@ function injectStyle() {
       padding: 12px;
       border-radius: 22px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
       transition: all 200ms ease;
     }
 
@@ -1509,7 +1507,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--bg-secondary);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       font-size: 16px;
       font-weight: 600;
     }
@@ -1576,7 +1573,6 @@ function injectStyle() {
       border-radius: 999px;
       background: var(--surface-muted);
       color: var(--accent);
-      box-shadow: var(--shadow-sm);
       font-size: 11px;
       line-height: 1;
       white-space: nowrap;
@@ -1668,7 +1664,6 @@ function injectStyle() {
       border-radius: 20px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       text-align: left;
       font: inherit;
       transition: all 200ms ease;
@@ -1692,7 +1687,6 @@ function injectStyle() {
       border-radius: 16px;
       background: var(--surface-muted);
       color: currentColor;
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-list-action-text {
@@ -1737,7 +1731,6 @@ function injectStyle() {
       padding: 12px;
       border-radius: 22px;
       background: var(--bg-card);
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-list-picker-info {
@@ -1781,7 +1774,6 @@ function injectStyle() {
       padding: 0 12px;
       background: var(--surface-muted);
       color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
       font: inherit;
       font-size: 12px;
       white-space: nowrap;
@@ -1832,7 +1824,6 @@ function injectStyle() {
       border-radius: 28px;
       background: var(--bg-card);
       color: var(--text-primary);
-      box-shadow: var(--shadow-lg);
       font-family: var(--font-main);
       opacity: 0;
       pointer-events: auto;
@@ -1871,7 +1862,6 @@ function injectStyle() {
       font: inherit;
       font-size: 16px;
       outline: transparent solid 2px;
-      box-shadow: var(--shadow-sm);
     }
 
     .chat-input-dialog-input::placeholder {
@@ -1879,7 +1869,6 @@ function injectStyle() {
     }
 
     .chat-input-dialog-input:focus-visible {
-      box-shadow: var(--shadow-md);
     }
 
     .chat-input-dialog-actions {

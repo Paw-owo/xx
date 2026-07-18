@@ -301,7 +301,6 @@ function injectStyle() {
       border-radius:24px;
       overflow:hidden;
       background:var(--bg-card);
-      box-shadow:var(--shadow-sm);
     }
 
     .chat-panel-icon-btn{
@@ -313,7 +312,6 @@ function injectStyle() {
       border-radius:16px;
       background:var(--bg-card);
       color:var(--text-primary);
-      box-shadow:var(--shadow-sm);
       transition:all 200ms ease;
     }
 
