@@ -27,6 +27,8 @@
       --desktop-wallpaper-soft: 0.10;
       --desktop-card-blur: 20px;
       --desktop-soft-shadow: var(--shadow-sm);
+      --desktop-icon-art-size: 68px;
+      --desktop-icon-svg-size: 62px;
     }
 
     html,
@@ -164,8 +166,8 @@
     }
 
     .status-cute-pill svg {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       flex: 0 0 auto;
       stroke: currentColor;
       stroke-width: 1.5;
@@ -345,8 +347,8 @@
     }
 
     .cozy-app-icon {
-      width: calc(56px * var(--desktop-icon-scale));
-      height: calc(56px * var(--desktop-icon-scale));
+      width: calc(var(--desktop-icon-svg-size) * var(--desktop-icon-scale));
+      height: calc(var(--desktop-icon-svg-size) * var(--desktop-icon-scale));
       --icon-line: color-mix(in srgb, var(--text-primary) 54%, var(--accent-dark));
       --icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
       --icon-accent: color-mix(in srgb, var(--accent) 74%, var(--bg-card));
@@ -368,13 +370,20 @@
     .cozy-app-icon .soft { fill: var(--icon-soft); }
     .cozy-app-icon .face { fill: var(--icon-line); stroke: none; }
     .cozy-app-icon .blush { stroke: var(--icon-blush); }
+    .cozy-app-icon .icon-decoration {
+      stroke: var(--icon-detail);
+      stroke-width: 2.8;
+    }
+    .cozy-app-icon .icon-decoration .sparkle { fill: var(--icon-soft); }
+    .cozy-app-icon .icon-decoration .bow { fill: var(--icon-accent); }
+    .cozy-app-icon .icon-decoration .bell { fill: var(--decor-yellow); }
 
     .placeholder-icon .cozy-app-icon {
       width: 54px;
       height: 54px;
     }
 
-    .desktop-icon-art svg {
+    .desktop-icon-art svg:not(.cozy-app-icon) {
       width: calc(27px * var(--desktop-icon-scale));
       height: calc(27px * var(--desktop-icon-scale));
       flex: 0 0 auto;
@@ -1173,26 +1182,26 @@
     }
 
     .desktop-icon-art {
-      width: calc(68px * var(--desktop-icon-scale));
-      height: calc(68px * var(--desktop-icon-scale));
+      width: calc(var(--desktop-icon-art-size) * var(--desktop-icon-scale));
+      height: calc(var(--desktop-icon-art-size) * var(--desktop-icon-scale));
       border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
       border-radius: 34% 42% 36% 44%;
-      background: var(--bg-card);
+      background: var(--icon-tile-bg);
       color: var(--icon-color);
-      box-shadow: var(--shadow-card);
+      box-shadow: none;
     }
 
     .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
-      background: var(--bg-card);
-      box-shadow: var(--shadow-card);
+      background: var(--icon-tile-bg);
+      box-shadow: none;
     }
 
     .desktop-icon:nth-child(3n + 2) .desktop-icon-art {
-      background: color-mix(in srgb, var(--decor-blue) 38%, var(--bg-card));
+      background: var(--icon-tile-alt-cool);
     }
 
     .desktop-icon:nth-child(3n) .desktop-icon-art {
-      background: color-mix(in srgb, var(--decor-yellow) 36%, var(--bg-card));
+      background: var(--icon-tile-alt-warm);
     }
 
     .desktop-icon-name {

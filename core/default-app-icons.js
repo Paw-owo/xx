@@ -55,7 +55,12 @@ export function createDefaultAppIcon(app, size = 28, documentRef = document) {
   svg.setAttribute('height', String(size));
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
-  svg.innerHTML = `<g>${drawing}</g>`;
+  svg.innerHTML = `<g class="icon-character">${drawing}</g>
+    <g class="icon-decoration" aria-hidden="true">
+      <path class="sparkle" d="m13 17 1.8 4.2L19 23l-4.2 1.8L13 29l-1.8-4.2L7 23l4.2-1.8Z"/>
+      <path class="bow" d="M72 15c-7-5-12-2-10 5 1 4 5 6 10 3 5 3 9 1 10-3 2-7-3-10-10-5Z"/>
+      <circle class="bell" cx="72" cy="20" r="3.2"/>
+    </g>`;
   return svg;
 }
 
