@@ -240,7 +240,11 @@ function ensureCoreUiStyle() {
     .sheet-overlay,
     .cute-dialog-backdrop {
       position: fixed;
-      inset: 0;
+      top: var(--app-viewport-top, 0px);
+      right: 0;
+      bottom: auto;
+      left: 0;
+      height: var(--app-viewport-height, 100dvh);
       z-index: 10000;
       background: var(--bg-overlay);
       opacity: 0;
@@ -260,7 +264,7 @@ function ensureCoreUiStyle() {
       right: 12px;
       bottom: calc(12px + env(safe-area-inset-bottom));
       z-index: 10010;
-      max-height: min(74vh, 680px);
+      max-height: min(calc(var(--app-viewport-height, 100dvh) - 24px), 680px);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -314,7 +318,11 @@ function ensureCoreUiStyle() {
     .cute-dialog-layer,
     .guide-overlay {
       position: fixed;
-      inset: 0;
+      top: var(--app-viewport-top, 0px);
+      right: 0;
+      bottom: auto;
+      left: 0;
+      height: var(--app-viewport-height, 100dvh);
       z-index: 10010;
       display: flex;
       align-items: center;

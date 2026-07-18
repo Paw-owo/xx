@@ -714,9 +714,14 @@
 
     #app-layer {
       position: fixed;
-      inset: 0;
+      top: var(--app-viewport-top, 0px);
+      right: 0;
+      bottom: auto;
+      left: 0;
+      height: var(--app-viewport-height, 100dvh);
       z-index: 30;
       pointer-events: none;
+      transform: translateZ(0);
     }
 
     #app-layer.has-app {
@@ -1357,6 +1362,7 @@
     import { createEdgeFlipScheduler, createClickSuppressor, clampPageIndex } from './core/desktop-drag.js';
     import { APPS } from './core/app-registry.js';
     import { createDefaultAppIcon } from './core/default-app-icons.js';
+    import { initViewportManager } from './core/viewport.js';
 
     const LOCK_PASSWORD = '0326';
     const CUSTOM_FONT_KEY = 'app_custom_font';
@@ -1488,6 +1494,7 @@
     window.refreshDesktop = refreshDesktop;
 
     boot();
+    initViewportManager();
 
     async function boot() {
       try {
@@ -1640,6 +1647,7 @@
         .desktop-icon::before,.desktop-icon::after,.desktop-icon-art::before,.desktop-icon-art::after{content:none!important;display:none!important}
         .desktop-icon-art,.desktop-icon-art:hover,.desktop-icon-art:focus,.desktop-icon-art:focus-visible,.desktop-icon-art:active,.dock .desktop-icon-art,.dock .desktop-icon-art:hover,.dock .desktop-icon-art:focus,.dock .desktop-icon-art:focus-visible,.dock .desktop-icon-art:active{outline:0!important;border-color:transparent!important}
         .desktop-icon-art.has-custom-image,.desktop-icon-art.has-custom-image:hover,.desktop-icon-art.has-custom-image:focus,.desktop-icon-art.has-custom-image:focus-visible,.desktop-icon-art.has-custom-image:active{background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+        .desktop-icon-art.background-cleared,.desktop-icon-art.background-cleared:hover,.desktop-icon-art.background-cleared:focus,.desktop-icon-art.background-cleared:focus-visible,.desktop-icon-art.background-cleared:active{background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
         .desktop-icon-image{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;margin:0!important;padding:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important;pointer-events:none!important}
         .desktop-item,.desktop-widget,.desktop-icon{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important}
         #app-layer *,#app-layer *::before,#app-layer *::after,.placeholder-app *,.placeholder-app *::before,.placeholder-app *::after{border-color:transparent!important}
@@ -1726,6 +1734,7 @@
         if (nameEl) nameEl.textContent = customName;
         artEl.innerHTML = '';
         artEl.classList.toggle('has-custom-image', Boolean(customImage));
+        artEl.classList.toggle('background-cleared', custom?.backgroundCleared === true);
         if (customImage) {
           const image = document.createElement('img');
           image.className = 'desktop-icon-image'; image.alt = ''; image.src = customImage; image.draggable = false;

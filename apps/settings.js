@@ -1497,15 +1497,20 @@ async function renderIconsPage() {
     const dbRecord = await getDB('blobs', `app_icon_${id}`);
     const image = dbRecord?.value || dbRecord?.image || custom.image || custom.iconImage || custom.backgroundImage || '';
     const opacity = Number(custom.opacity ?? 100);
+    const backgroundCleared = custom.backgroundCleared === true;
     const isHidden = hidden.has(id);
     const box = el('div', 'settings-widget-bg-block');
 
     const previewEl = imagePreview(image || '', custom.name || name, isHidden ? 'settings' : 'star');
 
+    const clearBackgroundButton = actionBtn('delete', backgroundCleared ? '背景已清除' : '清除背景', () => clearIconBackground(id));
+    clearBackgroundButton.disabled = backgroundCleared;
+
     box.append(listAction(isHidden ? 'settings' : 'star', custom.name || name, isHidden ? '已隐藏' : image ? '已换图' : '默认图标', [
       actionBtn('edit', '改名', () => renameIcon(id, name)),
       actionBtn('upload', '换图', () => uploadIcon(id)),
-      actionBtn(isHidden ? 'settings' : 'delete', isHidden ? '恢复' : '隐藏', () => toggleIconHidden(id))
+      actionBtn(isHidden ? 'settings' : 'delete', isHidden ? '恢复' : '隐藏', () => toggleIconHidden(id)),
+      clearBackgroundButton
     ], previewEl));
 
     box.append(labelBlock('透明度', rangeBlock(opacity, 15, 100, 1, (value, live) => saveIconOpacity(id, value, live))));
@@ -1729,8 +1734,11 @@ async function clearBlobImage(key, opacityKey) {
   const ok = await showConfirm('要清掉这张图吗？');
   if (!ok) return;
 
-  await deleteDB('blobs', key);
-  removeData(key);
+  if (window.AppImages?.removeImageRecord) await window.AppImages.removeImageRecord(key);
+  else {
+    await deleteDB('blobs', key);
+    removeData(key);
+  }
   if (opacityKey) removeData(opacityKey);
 
   showToast('图片清掉啦');
@@ -1905,6 +1913,21 @@ async function uploadIcon(id) {
 
   setData(ICONS_KEY, icons);
   showToast('图标换好啦');
+  emitRefresh();
+  render('icons');
+}
+
+function clearIconBackground(id) {
+  const icons = getData(ICONS_KEY) || {};
+  const current = icons[id] || {};
+  if (current.backgroundCleared === true) {
+    showToast('这个图标已经没有背景啦');
+    return;
+  }
+
+  icons[id] = { ...current, backgroundCleared: true, updatedAt: getNow() };
+  setData(ICONS_KEY, icons);
+  showToast('图标背景清掉啦');
   emitRefresh();
   render('icons');
 }
@@ -2933,6 +2956,11 @@ function injectStyle() {
       padding: 8px 12px;
       font-size: var(--font-size-small);
       transition: var(--motion);
+    }
+
+    .settings-action-btn:disabled {
+      opacity: .52;
+      cursor: default;
     }
 
     .settings-action-btn.active-selected {
