@@ -78,14 +78,14 @@ const IMAGE_DRESS_KEYS = [
   'app_game_hero_image', 'app_bg_settings', 'app_bg_characters', 'app_bg_chat',
   'app_bg_chat_memory', 'app_bg_moments', 'app_bg_worldbook', 'app_bg_wallet',
   'app_bg_shop', 'app_bg_memo', 'app_bg_anniversary', 'app_bg_games',
-  'app_bg_truth_game', 'app_bg_draw_guess', 'app_bg_liars_tavern'
+  'app_bg_dream', 'app_bg_truth_game', 'app_bg_draw_guess', 'app_bg_liars_tavern'
 ];
 
 const IMAGE_BLOB_KEYS = [
   WALLPAPER_KEY, 'app_game_hero_image', 'app_bg_settings', 'app_bg_characters',
   'app_bg_chat', 'app_bg_chat_memory', 'app_bg_moments', 'app_bg_worldbook',
   'app_bg_wallet', 'app_bg_shop', 'app_bg_memo', 'app_bg_anniversary',
-  'app_bg_games', 'app_bg_truth_game', 'app_bg_draw_guess', 'app_bg_liars_tavern'
+  'app_bg_games', 'app_bg_dream', 'app_bg_truth_game', 'app_bg_draw_guess', 'app_bg_liars_tavern'
 ];
 
 const DEFAULT_SETTINGS = {
@@ -2183,6 +2183,7 @@ async function clearAllData() {
     CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY, API_POOL_GROUPS_KEY,
     'app_theme', 'app_theme_preset', 'app_theme_mode', ...CHAT_LOCAL_KEYS,
     'moments_unread_count', 'games_unread_count',
+    'app_dream_last_gen', 'app_dream_config',
     'music_app_settings', 'music_current_song',
     // GitHub 工具配置和 Token：清空全部时一并清理，避免敏感凭据残留
     ...GITHUB_TOOL_STORAGE_KEYS
