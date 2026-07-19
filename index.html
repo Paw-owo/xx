@@ -2574,7 +2574,7 @@
       weatherController?.abort();
       weatherController = new AbortController();
       const controller = weatherController;
-      const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+      const timeoutId = window.setTimeout(() => controller.abort(), 8000);
 
       weatherRequest = (async () => {
         try {
