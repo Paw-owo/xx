@@ -43,6 +43,11 @@ import {
 import { tryLocalOrSiliconFlowReply } from './thread-ai-local.js';
 import { analyzeImages } from './ai-sensory-eye.js';
 import { getPoolGroups } from '../../core/api.js';
+import { runSubAgent, listSubAgents } from '../../core/sub-agent-system.js';
+import { runSubAgentTeam, assessSubAgentNeed } from '../../core/ai-agent-coordinator.js';
+import { ensureDeveloperAgentRegistered } from './developer-agent.js';
+import { ensureThemeAgentRegistered } from './theme-agent.js';
+import { ensureReviewAgentRegistered } from './review-agent.js';
 
 // thinking 纯函数共享模块：消除 sanitizer 漂移，测试直接测真实生产代码
 import {
@@ -75,6 +80,10 @@ const GRUDGE_TRIGGER_SCORE = 5;
 const STREAM_RENDER_THROTTLE_MS = 80;
 
 const activeAIJobs = new Map();
+
+ensureDeveloperAgentRegistered();
+ensureThemeAgentRegistered();
+ensureReviewAgentRegistered();
 
 // 未读数 read-modify-write 串行化队列：避免多个并发 +1 因 await 交错导致覆盖回退
 // 每个 key 一条链，写操作排队执行
@@ -806,6 +815,19 @@ async function requestPrivateReply(state, options = {}) {
         }
       }
 
+      if (result && result.content && parseSubAgentCall(result.content)) {
+        acc.rawContent = '';
+        acc.rawThinking = '';
+        const ph1 = state.messages.find((m) => m.id === placeholder.id);
+        if (ph1) { ph1.content = ''; ph1.thinking = ''; ph1.isStreaming = false; }
+        state.renderOnly?.();
+        const handled = await handleSubAgentRequest(result);
+        if (handled.handled) {
+          result = handled.finalResult;
+          if (handled.subAgentCard) pendingToolRecords.push(handled.toolRecord);
+        }
+      }
+
       const hasContent = result && (result.content || result.thinking);
       if (!hasContent && character?.useLocalChat) {
         result = await tryLocalOrSiliconFlowReply(state, {
@@ -854,6 +876,10 @@ async function requestPrivateReply(state, options = {}) {
     const finalMessage = cleanForDB({
       ...placeholder,
       content: parsed.content || '我刚刚有点卡住了，可以再说一遍吗？',
+      type: parsed.subAgentCard ? 'sub_agent_summary_card' : (placeholder.type || ''),
+      title: parsed.subAgentCard?.title || '',
+      subAgentCard: parsed.subAgentCard || undefined,
+      subAgentResult: parsed.subAgentResult || undefined,
       thinking: parsed.thinking || '',
       thinkingSummary: parsed.thinkingSummary || summarizeText(parsed.thinking || '', 15),
       toolCalls: [...(parsed.toolCalls || []), ...pendingToolRecords],
@@ -1110,6 +1136,19 @@ async function requestGroupReply(state, options = {}) {
             }
           }
 
+          if (result && result.content && parseSubAgentCall(result.content)) {
+            acc.rawContent = '';
+            acc.rawThinking = '';
+            const ph1 = state.groupMessages.find((m) => m.id === placeholder.id);
+            if (ph1) { ph1.content = ''; ph1.thinking = ''; ph1.isStreaming = false; }
+            state.renderOnly?.();
+            const handled = await handleSubAgentRequest(result);
+            if (handled.handled) {
+              result = handled.finalResult;
+              if (handled.toolRecord) pendingToolRecords.push(handled.toolRecord);
+            }
+          }
+
           const hasContent = result && (result.content || result.thinking);
           if (!hasContent && character?.useLocalChat) {
             result = await tryLocalOrSiliconFlowReply(state, {
@@ -1159,6 +1198,10 @@ async function requestGroupReply(state, options = {}) {
         const finalMessage = cleanForDB({
           ...placeholder,
           content: parsed.content || '我先听你们说。',
+          type: parsed.subAgentCard ? 'sub_agent_summary_card' : (placeholder.type || ''),
+          title: parsed.subAgentCard?.title || '',
+          subAgentCard: parsed.subAgentCard || undefined,
+          subAgentResult: parsed.subAgentResult || undefined,
           thinking: parsed.thinking || '',
           thinkingSummary: parsed.thinkingSummary || summarizeText(parsed.thinking || '', 15),
           toolCalls: [...(parsed.toolCalls || []), ...pendingToolRecords],
@@ -1637,6 +1680,7 @@ async function buildPrompt({
     buildModePrompt(mode, group, activeCharacter, options, userName, userProfile),
     mcpToolsPrompt,
     mcpToolProtocol,
+    buildSubAgentPrompt(),
     ASK_USER_PROMPT,
     options.proactive ? buildProactivePrompt(options.proactiveReason, messages, userName, activeCharacter) : ''
   ].filter(Boolean).join('\n\n');
@@ -2080,6 +2124,15 @@ function formatMessageForPrompt(message, mode, userName = '你') {
 // ═══════════════════════════════════════
 
 const MCP_TOOL_CALL_TYPE = 'mcp_tool_call';
+const SUB_AGENT_CALL_TYPE = 'sub_agent_call';
+const SUB_AGENT_TEAM_CALL_TYPE = 'sub_agent_team_call';
+
+function buildSubAgentPrompt() {
+  const agents = listSubAgents().filter((agent) => ['theme-agent', 'review-agent', 'developer-agent'].includes(agent.id));
+  if (!agents.length) return '';
+  const list = agents.map((agent) => `- ${agent.id}（scope: ${agent.scope}）`).join('\n');
+  return `子智能体调用协议（内部协议，不是最终回复）：只有用户明确提出代码开发、GitHub 操作、项目审查、主题设计、复杂拆解或多步骤执行，且任务不是普通聊天/简单问答时，才允许调用子智能体。需要单个专用能力时，输出严格 JSON：{"type":"sub_agent_call","agent":"theme-agent|review-agent|developer-agent","task":{"scope":"theme|review|development","prompt":"简短任务"}}。需要协调多个小伙伴时，输出严格 JSON：{"type":"sub_agent_team_call","task":{"prompt":"整体任务","agents":["developer-agent","review-agent","theme-agent"]}}。可用子智能体：\n${list}\n子智能体结果会以默认折叠的任务总结卡片展示，不展示底层推理链。不需要子智能体时直接自然回复。`;
+}
 
 // 尝试解析 AI 回复是否为严格工具调用 JSON
 // 容错：允许前后有少量空白；不要求整段唯一 JSON（部分模型会包 markdown 代码块）
@@ -2107,6 +2160,63 @@ function parseMcpToolCall(text) {
     } catch (_) { /* 继续下一个候选 */ }
   }
   return null;
+}
+
+function parseSubAgentCall(text) {
+  if (!text || typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const candidates = [trimmed];
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenceMatch?.[1]) candidates.push(fenceMatch[1].trim());
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed?.type === SUB_AGENT_CALL_TYPE && typeof parsed.agent === 'string' && parsed.agent) {
+        const task = parsed.task && typeof parsed.task === 'object' ? parsed.task : {};
+        return { type: SUB_AGENT_CALL_TYPE, agent: parsed.agent, task };
+      }
+      if (parsed?.type === SUB_AGENT_TEAM_CALL_TYPE) {
+        const task = parsed.task && typeof parsed.task === 'object' ? parsed.task : {};
+        return { type: SUB_AGENT_TEAM_CALL_TYPE, agent: '', task };
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+async function handleSubAgentRequest(firstResult) {
+  const call = parseSubAgentCall(firstResult.content);
+  if (!call) return { handled: false };
+  const decision = assessSubAgentNeed(call.task || {});
+  if (!decision.needSubAgent) {
+    return { handled: true, finalResult: { content: '', thinking: '', thinkingSummary: '', toolCalls: [] }, blockedByIntent: true, decision };
+  }
+  const result = call.type === SUB_AGENT_TEAM_CALL_TYPE
+    ? await runSubAgentTeam(call.task, {})
+    : await runSubAgent(call.agent, call.task, { scope: call.task?.scope || '' });
+  const card = result.card || null;
+  const content = result.ok
+    ? result.userSummary || card?.visibleSummary || '任务总结已经收好。'
+    : '这个小伙伴刚刚没整理好，稍后再试试。';
+  return {
+    handled: true,
+    finalResult: {
+      content,
+      thinking: '',
+      thinkingSummary: '任务总结',
+      subAgentCard: card,
+      subAgentResult: result.internalResult || { status: 'failed', resultSummary: (result.errors || []).join('、') }
+    },
+    toolRecord: {
+      name: call.agent || 'sub-agent-team',
+      action: call.type === SUB_AGENT_TEAM_CALL_TYPE ? 'sub_agent_team' : 'sub_agent',
+      status: result.ok ? 'done' : 'error',
+      summary: content,
+      result: card?.detail || content
+    },
+    subAgentCard: card
+  };
 }
 
 // 执行一轮 MCP 工具调用闭环
@@ -2338,6 +2448,8 @@ function normalizeAIResult(result, userName = '你') {
       thinking: stripEmoji(thinking),
       thinkingSummary: summary,
       toolCalls: normalizeToolCalls(result.toolCalls || result.tools || result.choices?.[0]?.message?.tool_calls || []),
+      subAgentCard: result.subAgentCard || null,
+      subAgentResult: result.subAgentResult || null,
       askUser: parsed.askUser || null
     };
   }

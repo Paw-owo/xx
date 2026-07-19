@@ -4,7 +4,7 @@
 //   from './thread-tools.js': createThreadToolsGrid
 //   from './thread-settings.js': mountThreadSettings, unmountThreadSettings
 //   from './thread-call.js': mountThreadCall, unmountThreadCall
-//   from './thread-actions.js': sendThreadMessage
+//   from './thread-actions.js': sendThreadMessage, sendCardMessage
 
 import {
   showBottomSheet,
@@ -16,7 +16,7 @@ import { createChatIcon } from './icons.js';
 import { createThreadToolsGrid } from './thread-tools.js';
 import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
 import { mountThreadCall, unmountThreadCall } from './thread-call.js';
-import { sendThreadMessage } from './thread-actions.js';
+import { sendThreadMessage, sendCardMessage } from './thread-actions.js';
 
 var STYLE_ID = 'chat-thread-panels-style';
 
@@ -74,6 +74,17 @@ function showToolsSheet(state, options) {
     onRejectCall: function() { closeThreadCallPanel(); },
     onSend: async function(text) {
       await sendThreadMessage(state, text);
+    },
+    onSubAgentResult: async function(payload) {
+      await sendCardMessage(state, payload.card || {}, {
+        role: 'assistant',
+        type: 'sub_agent_summary_card',
+        content: payload.userSummary || payload.card?.visibleSummary || '任务总结已经收好。',
+        title: payload.card?.title || '任务总结',
+        subAgentResult: payload.internalResult || {},
+        subAgentCard: payload.card || {},
+        triggerAI: false
+      });
     },
     onTransfer: async function(payload) {
       var text = payload.note ? '转了 ' + payload.amount + '，' + payload.note : '转了 ' + payload.amount;

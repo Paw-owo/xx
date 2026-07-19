@@ -9,6 +9,7 @@ import { createChatIcon } from './icons.js';
 import { getData } from '../../core/storage.js';
 import { showToast, showBottomSheet, hideBottomSheet } from '../../core/ui.js';
 import { createThinkingCard, hasThinkingChain } from './thinking-chain.js';
+import { createSubAgentCard, isSubAgentCardMessage } from './sub-agent-card.js';
 import { splitCodeBlocks } from './render-pure.js';
 import { parseAskUserBlocks, stripAskUserBlocks } from './ask-user-pure.js';
 import { createAskUserCard } from './ask-user-card.js';
@@ -448,6 +449,7 @@ function createBubbleContent(state, message, pageEl) {
   if (message.type === 'image') bubble.classList.add('image-bubble');
   if (isVoiceMessage(message)) bubble.classList.add('voice-bubble');
   if (message.isError) bubble.classList.add('error-bubble');
+  if (isSubAgentCardMessage(message)) bubble.classList.add('sub-agent-bubble');
 
   if (message.quoteText) {
     bubble.append(createQuoteBlock(message.quoteText));
@@ -482,6 +484,11 @@ function createMessageContent(state, message, pageEl) {
 
   if (isVoiceMessage(message)) {
     content.appendChild(createVoiceMessageCard(state, message));
+    return content;
+  }
+
+  if (isSubAgentCardMessage(message)) {
+    content.appendChild(createSubAgentCard(message));
     return content;
   }
 
@@ -1299,6 +1306,7 @@ function getPreviewText(message) {
   if (isVoiceMessage(message)) return `[语音] ${getVoiceTranscript(message)}`.trim();
   if (message.type === 'dice') return `[骰子 ${normalizeDiceValue(message.diceValue || message.value || message.result) || ''}]`;
   if (message.type === 'rps') return `[石头剪刀布 ${getRpsLabel(normalizeRpsChoice(message.rpsChoice || message.choice || message.result))}]`;
+  if (isSubAgentCardMessage(message)) return `[任务总结] ${message.content || message.title || ''}`.trim();
 
   const text = stripAskUserBlocks(String(message.content || '')).trim();
   return text.length > 80 ? `${text.slice(0, 80)}…` : text;

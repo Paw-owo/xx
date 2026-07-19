@@ -6,7 +6,7 @@
 
 import { getData, setData, removeData, generateId, getNow } from './storage.js';
 import { getCurrentTheme, applyTheme, exportTheme, importTheme } from './theme.js';
-import { applyThemeResources, previewThemeResources, confirmThemeResourcePreview, restoreThemeResourcePreview, deleteThemeResources, getThemeResourceTaskState } from './theme-resource-manager.js';
+import { applyThemeResources, previewThemeResources, confirmThemeResourcePreview, restoreThemeResourcePreview, deleteThemeResources, getThemeResourceTaskState, readThemeImageResource } from './theme-resource-manager.js';
 
 export const THEME_AI_PROTOCOL_VERSION = '1.0.0';
 export const THEME_AI_PACKAGE_TYPE = 'ai-phone-theme-package';
@@ -22,7 +22,7 @@ const THEME_CONFIG_FIELDS = new Set(['themeId', 'themeName', 'version', 'parentT
 const IMAGE_SLOT_FIELDS = new Set(['slot', 'resource', 'required', 'reason']);
 const IMAGE_RESOURCE_FIELDS = new Set(['kind', 'value', 'name', 'mimeType', 'opacity', 'metadata']);
 const DECORATION_FIELDS = new Set(['desktopWallpaperSoft', 'cardTextureOpacity', 'decorDensity', 'decorIntensity', 'decorEnabled', 'roundness', 'spacingScale', 'motionScale']);
-const PACKAGE_FIELDS = new Set(['type', 'schemaVersion', 'protocolVersion', 'exportedAt', 'shareInfo', 'versionInfo', 'parentThemeId', 'themeConfig', 'themeVariables', 'imageSlots', 'uiDecorationParameters', 'theme', 'optimizationLog']);
+const PACKAGE_FIELDS = new Set(['type', 'schemaVersion', 'protocolVersion', 'exportedAt', 'shareInfo', 'versionInfo', 'parentThemeId', 'themeConfig', 'themeVariables', 'imageSlots', 'uiDecorationParameters', 'theme', 'resources', 'optimizationLog']);
 
 export const ALLOWED_THEME_VARIABLES = Object.freeze({
   colors: Object.freeze([
@@ -321,6 +321,123 @@ export function exportThemePackage(themeId = '') {
   };
 }
 
+export async function exportThemePackageAsync(themeId = '') {
+  const result = exportThemePackage(themeId);
+  if (!result.ok) return result;
+  const theme = result.package.theme || {};
+  const resources = await collectPortableThemeResources(theme.imageSlots || {});
+  const portableSlots = rewriteImageSlotsWithPortableResources(theme.imageSlots || {}, resources);
+  const pkg = {
+    ...result.package,
+    imageSlots: sanitizePackageValue(portableSlots),
+    theme: sanitizePackageValue({ ...theme, imageSlots: portableSlots }),
+    resources: sanitizePackageValue({
+      version: '1',
+      exportedAt: getNow(),
+      imageSlots: resources
+    })
+  };
+  return { ok: true, package: pkg, externalDependencies: Object.values(resources).filter((item) => item?.externalDependency) };
+}
+
+async function collectPortableThemeResources(imageSlots = {}) {
+  const resources = {};
+  for (const [slot, value] of Object.entries(normalizeImageSlots(imageSlots))) {
+    const resource = value.resource || {};
+    const portable = await makePortableImageResource(slot, resource);
+    resources[slot] = portable;
+  }
+  return resources;
+}
+
+async function makePortableImageResource(slot, resource = {}) {
+  const base = { slot, kind: resource.kind || inferResourceKind(resource.value), name: resource.name || '', mimeType: resource.mimeType || '', opacity: resource.opacity, metadata: resource.metadata || {} };
+  const value = String(resource.value || '').trim();
+  if (!value) return { ...base, status: 'missing', value: '' };
+  if (value.startsWith('data:image/')) return { ...base, status: 'embedded', kind: 'dataUrl', value };
+  const stored = await readThemeImageResource(slot);
+  const storedData = await imageRecordToDataUrl(stored);
+  if (storedData) return { ...base, status: 'embedded', kind: 'dataUrl', value: storedData, originalKind: base.kind };
+  if (/^https?:\/\//i.test(value)) {
+    const downloaded = await downloadImageAsDataUrl(value);
+    if (downloaded) return { ...base, status: 'embedded', kind: 'dataUrl', value: downloaded, originalKind: 'url', originalUrl: value };
+    return { ...base, status: 'external', kind: 'url', value, externalDependency: true, reason: 'resource_download_failed' };
+  }
+  if (value.startsWith('blob:')) return { ...base, status: 'unavailable', kind: 'blob', value: '', externalDependency: true, reason: 'blob_resource_not_readable' };
+  return { ...base, status: 'external', value, externalDependency: true, reason: 'resource_not_embedded' };
+}
+
+function rewriteImageSlotsWithPortableResources(imageSlots = {}, resources = {}) {
+  const slots = normalizeImageSlots(imageSlots);
+  Object.entries(resources || {}).forEach(([slot, portable]) => {
+    if (!slots[slot] || portable?.status !== 'embedded' || !portable.value) return;
+    slots[slot] = {
+      ...slots[slot],
+      resource: {
+        ...slots[slot].resource,
+        kind: 'dataUrl',
+        value: portable.value,
+        mimeType: portable.mimeType || slots[slot].resource.mimeType || inferMimeTypeFromDataUrl(portable.value),
+        metadata: {
+          ...(slots[slot].resource.metadata || {}),
+          portable: true,
+          originalKind: portable.originalKind || slots[slot].resource.kind || ''
+        }
+      }
+    };
+  });
+  return slots;
+}
+
+function hydrateImageSlotsFromPackage(imageSlots = {}, packageResources = {}) {
+  return rewriteImageSlotsWithPortableResources(imageSlots, packageResources);
+}
+
+async function imageRecordToDataUrl(record) {
+  if (!record) return '';
+  const direct = [record.data, record.value, record.image, record.source].find((item) => String(item || '').startsWith('data:image/'));
+  if (direct) return String(direct);
+  const blob = [record.blob, record.file, record.data, record.value].find((item) => typeof Blob !== 'undefined' && item instanceof Blob);
+  if (blob) return blobToDataUrl(blob);
+  return '';
+}
+
+async function downloadImageAsDataUrl(url) {
+  if (typeof fetch !== 'function') return '';
+  try {
+    const response = await fetch(url);
+    if (!response?.ok) return '';
+    const contentType = String(response.headers?.get?.('content-type') || '');
+    if (contentType && !contentType.toLowerCase().startsWith('image/')) return '';
+    const blob = await response.blob();
+    if (!String(blob.type || contentType).toLowerCase().startsWith('image/')) return '';
+    return blobToDataUrl(blob);
+  } catch (_) {
+    return '';
+  }
+}
+
+async function blobToDataUrl(blob) {
+  if (!blob) return '';
+  if (typeof FileReader !== 'undefined') {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(blob);
+    });
+  }
+  if (typeof Buffer !== 'undefined' && typeof blob.arrayBuffer === 'function') {
+    const buffer = Buffer.from(await blob.arrayBuffer());
+    return `data:${blob.type || 'image/png'};base64,${buffer.toString('base64')}`;
+  }
+  return '';
+}
+
+function inferMimeTypeFromDataUrl(value) {
+  return String(value || '').match(/^data:([^;,]+)/)?.[1] || '';
+}
+
 function importThemePackageWithoutPreview(input) {
   let data = input;
   if (typeof input === 'string') {
@@ -339,6 +456,9 @@ function importThemePackageWithoutPreview(input) {
     imageSlots: data.imageSlots,
     uiDecorationParameters: data.uiDecorationParameters
   });
+  if (data.resources?.imageSlots) {
+    rawTheme.imageSlots = hydrateImageSlotsFromPackage(rawTheme.imageSlots || {}, data.resources.imageSlots);
+  }
   const rawValidation = validateAIThemeResult(rawTheme);
   if (!rawValidation.ok) return { ok: false, errors: rawValidation.errors, missingAssets: rawValidation.missingAssets };
   const theme = createThemeConfig(rawTheme);
