@@ -31,6 +31,14 @@ import { getWorldbookForCharacter } from '../worldbook.js';
 import { buildMcpToolsContext, getUsableMcpTools, callMcpTool } from '../../core/mcp.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
+import {
+  getThemeAIContext,
+  validateAIThemeResult,
+  previewThemeAsync,
+  confirmThemePreviewAsync,
+  cancelThemePreviewAsync,
+  getThemePreviewState
+} from '../../core/theme-ai-agent.js';
 
 import { tryLocalOrSiliconFlowReply } from './thread-ai-local.js';
 import { analyzeImages } from './ai-sensory-eye.js';
@@ -464,6 +472,159 @@ export async function requestProactiveThreadMessage(state, reason = 'manual') {
 }
 
 // ═══════════════════════════════════════
+// 【聊天主题设计入口】聊天负责发起创造，主题中心负责管理资产
+// ═══════════════════════════════════════
+
+async function maybeHandleThemeDesignRequest({ state, job, placeholder, characterId, character, userMessage, userName }) {
+  const text = String(userMessage?.content || '').trim();
+  const intent = detectThemeDesignIntent(text);
+  if (!intent) return null;
+
+  let reply = null;
+  const toolRecords = [];
+  try {
+    if (intent.action === 'cancel') {
+      const cancelled = await cancelThemePreviewAsync();
+      reply = cancelled.ok
+        ? '好呀，刚刚试穿的小世界已经轻轻放回去啦。想换别的风格时，直接告诉我就好。'
+        : '这里现在没有正在试穿的小世界，可以继续告诉我想要什么样的主题。';
+    } else if (intent.action === 'confirm') {
+      const confirmed = await confirmThemePreviewAsync();
+      if (confirmed.ok) {
+        const themeName = confirmed.theme?.themeConfig?.themeName || '新主题';
+        reply = `已经帮你换上并保存「${themeName}」啦。之后可以去主题中心里继续应用、收藏、改名字、导入或导出。`;
+        toolRecords.push(buildThemeToolRecord('confirmThemePreview', { action: 'confirm' }, { themeName }));
+      } else {
+        reply = '这里还没有可以确认的主题预览。你可以先描述想要的小手机风格，我来帮你做一版。';
+      }
+    } else {
+      const generated = await requestChatThemeFromAI(intent.prompt, character, userName);
+      const validation = validateAIThemeResult(generated);
+      if (!validation.ok) {
+        reply = `这版主题还没捏稳：${validation.errors.join('、')}。可以换一种描述，我再帮你做一版。`;
+      } else {
+        const preview = await previewThemeAsync(generated);
+        if (!preview.ok) {
+          reply = `主题草稿已经有啦，但预览还没贴好：${(preview.errors || []).join('、')}。可以再让我调整一下。`;
+        } else {
+          const cfg = generated.themeConfig || {};
+          const missing = validation.missingAssets?.length ? `有 ${validation.missingAssets.length} 个图片素材还需要之后补上，` : '';
+          reply = `我按你的描述做了一版「${cfg.themeName || '新主题'}」，现在已经在小手机上安全预览。${missing}你看看现在的颜色和氛围，喜欢就回复“确认保存主题”，不喜欢就告诉我要怎么改，或回复“取消主题预览”。`;
+          toolRecords.push(buildThemeToolRecord('previewTheme', { prompt: intent.prompt }, { themeName: cfg.themeName || '', missingAssets: validation.missingAssets || [] }));
+        }
+      }
+    }
+  } catch (error) {
+    reply = `主题小工坊刚刚有点忙：${error?.message || error}。检查一下 API 设置后，我还能继续帮你做。`;
+  }
+
+  const finalMessage = cleanForDB({
+    ...placeholder,
+    content: reply,
+    thinking: '',
+    thinkingSummary: '主题设计',
+    toolCalls: toolRecords,
+    askUser: undefined,
+    memoryWrites: [],
+    grudgeWrites: [],
+    proactive: false,
+    proactiveReason: '',
+    relationshipLockId: '',
+    isPending: false,
+    isStreaming: false,
+    isStopped: false,
+    isError: false,
+    status: 'done',
+    updatedAt: getNow()
+  });
+  await safeSetMessage(PRIVATE_STORE, finalMessage);
+  if (isStateForThisJob(state, job)) { await syncPrivateState(state, characterId); state.renderOnly?.(); }
+  finishAIJob(state, job);
+  return finalMessage;
+}
+
+function detectThemeDesignIntent(text) {
+  const clean = String(text || '').trim();
+  if (!clean) return null;
+  const hasPreview = Boolean(getThemePreviewState());
+  if (hasPreview && /^(确认|保存|应用|换上|就这个|喜欢|确认保存主题)/.test(clean)) return { action: 'confirm', prompt: clean };
+  if (hasPreview && /^(取消|不要|放回|撤销|取消主题预览)/.test(clean)) return { action: 'cancel', prompt: clean };
+  if (!/(主题|小世界|外观|壁纸|配色|装扮|界面风格)/.test(clean)) return null;
+  if (!/(做|生成|设计|换|改|调整|优化|预览|捏|制作|帮我)/.test(clean)) return null;
+  return { action: 'generate', prompt: clean.replace(/^帮我/, '').trim() || clean };
+}
+
+async function requestChatThemeFromAI(prompt, character, userName) {
+  const context = getThemeAIContext();
+  const active = context.activeVersion || null;
+  const response = await silentRequest({
+    messages: [
+      { role: 'system', content: buildChatThemeSystemPrompt(context) },
+      { role: 'user', content: JSON.stringify({
+        task: active ? 'optimize_existing_theme' : 'create_theme',
+        userPrompt: prompt,
+        companionName: character?.name || '',
+        userName,
+        activeTheme: active,
+        currentTheme: context.currentTheme,
+        allowedVariables: context.allowedVariables,
+        allowedImageSlots: context.allowedImageSlots,
+        output: '只返回主题对象，包含 themeVariables、themeConfig、imageSlots、uiDecorationParameters 中需要的字段。'
+      }) }
+    ],
+    temperature: 0.45,
+    maxTokens: 1800,
+    timeout: 45000,
+    json: true
+  });
+  const raw = response?.theme || response;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('还没拿到可用的主题草稿');
+  const cfg = raw.themeConfig && typeof raw.themeConfig === 'object' ? raw.themeConfig : {};
+  const nextVersion = Number(active?.themeConfig?.version || 0) + 1;
+  return {
+    ...raw,
+    themeConfig: {
+      ...cfg,
+      themeName: cfg.themeName || inferChatThemeName(prompt),
+      description: cfg.description || String(prompt || '').slice(0, 160),
+      parentThemeId: active?.themeConfig?.themeId || cfg.parentThemeId || '',
+      version: active ? nextVersion : (cfg.version || 1),
+      metadata: { ...(cfg.metadata || {}), source: 'chat-theme-design', prompt: String(prompt || '') }
+    }
+  };
+}
+
+function buildChatThemeSystemPrompt(context) {
+  return [
+    '你是小手机聊天里的主题设计能力，只负责生成主题协议对象。',
+    '只返回 JSON 对象，不要 Markdown，不要解释，不要暴露协议说明给用户。',
+    '顶层只能包含 themeVariables、imageSlots、themeConfig、uiDecorationParameters。',
+    '变量必须来自 allowedVariables，图片槽必须来自 allowedImageSlots。没有素材时可用 required/reason 提醒，不要编造未知路径。',
+    `允许字段：${JSON.stringify(context.whitelist.allowedSections)}`,
+    `禁止范围：${JSON.stringify(context.whitelist.forbiddenTargets)}`
+  ].join('\n');
+}
+
+function inferChatThemeName(prompt) {
+  const text = String(prompt || '').replace(/[。！!？?]/g, '').trim();
+  if (!text) return '聊天生成主题';
+  return text.length > 16 ? `${text.slice(0, 16)}主题` : `${text}主题`;
+}
+
+function buildThemeToolRecord(name, args, result) {
+  return cleanForDB({
+    id: generateId('tool'),
+    name,
+    toolName: name,
+    status: 'done',
+    arguments: args,
+    result,
+    detailSummary: '已经把主题能力接到聊天里处理。',
+    _source: 'app'
+  });
+}
+
+// ═══════════════════════════════════════
 // 【私聊回复】生成单人聊天回复并触发统一记忆系统
 // ═══════════════════════════════════════
 
@@ -523,6 +684,17 @@ async function requestPrivateReply(state, options = {}) {
     await safeSetMessage(PRIVATE_STORE, placeholder);
     await syncPrivateState(state, characterId);
     state.renderOnly?.();
+
+    const themeHandled = await maybeHandleThemeDesignRequest({
+      state,
+      job,
+      placeholder,
+      characterId,
+      character,
+      userMessage,
+      userName
+    });
+    if (themeHandled) return themeHandled;
   } catch (e) {
     preludeError = e;
   }

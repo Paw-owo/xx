@@ -43,11 +43,11 @@ assert.match(source, /previewThemeAsync/);
 assert.match(source, /confirmThemePreview/);
 assert.match(source, /cancelThemePreview/);
 assert.match(source, /getActiveThemeVersion/);
-assert.match(source, /openApp\?\.\('theme-studio'/);
-assert.match(source, /editingTheme/);
+assert.doesNotMatch(source, /openApp\?\.\('theme-studio'/);
+assert.match(source, /openApp\?\.\('chat'/);
 assert.match(source, /我的小世界/);
 assert.match(source, /换上它/);
-assert.match(source, /继续调整/);
+assert.match(source, /编辑信息/);
 assert.match(source, /查看成长记录/);
 assert.match(source, /分享/);
 assert.match(source, /收进小仓库/);
@@ -67,7 +67,6 @@ assert.match(source, /var\(--radius-lg\)/);
 
 const studioSource = readFileSync(new URL('../apps/theme-studio.js', import.meta.url), 'utf8');
 assert.match(studioSource, /hydrateInitialEditingTheme/);
-assert.match(studioSource, /editingTheme/);
 assert.match(studioSource, /themePrompt/);
 
 const settingsSource = readFileSync(new URL('../apps/settings.js', import.meta.url), 'utf8');

@@ -35,6 +35,7 @@ const TOOL_GROUPS = [
     tools: [
       { id: 'image', title: '图片', icon: 'image' },
       { id: 'quickReply', title: '快捷回复', icon: 'chat' },
+      { id: 'themeDesign', title: '做主题', icon: 'chat' },
       { id: 'transfer', title: '转账', icon: 'transfer' },
       { id: 'phone', title: '电话', icon: 'phone' },
     ]
@@ -335,6 +336,10 @@ async function handleToolClick(toolId, state, options, showDetail) {
         options.onPickImages();
       }
       closeToolsSheet(options);
+      break;
+    case 'themeDesign':
+      closeToolsSheet(options);
+      sendMessageToChat('我想请你帮我设计一个小手机主题：', options);
       break;
     case 'transfer':
       closeToolsSheet(options);

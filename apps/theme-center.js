@@ -77,10 +77,10 @@ function renderHero() {
   text.append(
     el('small', '', '我的小世界'),
     el('h2', '', active?.themeConfig?.themeName || '还在等第一个小世界'),
-    el('p', '', versions.length ? `这里藏着 ${versions.length} 个小世界，可以慢慢试穿、分享、继续打磨。` : '还没有收藏过主题，可以先去 AI 主题工作室捏一个。')
+    el('p', '', versions.length ? `这里藏着 ${versions.length} 个小世界，可以慢慢试穿、分享和收纳。` : '还没有保存过主题，可以先在聊天里告诉 TA 想做什么风格。')
   );
   hero.append(text, actionRow([
-    actionButton('去捏一个新世界', 'star', () => openStudio()),
+    actionButton('去聊天里做主题', 'chat', () => appContext.openApp?.('chat')),
     actionButton('导入主题小包', 'upload', handleImportClick)
   ]));
   const file = el('input', 'theme-center-import-file');
@@ -116,7 +116,7 @@ function renderSections() {
   grid.append(
     themeShelf('当前使用', active ? [active] : [], '小手机现在正穿着它。'),
     themeShelf('收藏主题', favorite, favorite.length ? '被轻轻标记过喜欢的小世界。' : '还没有特别偏爱的小世界。'),
-    themeShelf('AI 创造的主题', madeByAI.length ? madeByAI : versions, versions.length ? '和 AI 一起捏出来的外观房间。' : '去 AI 主题工作室开始第一颗灵感。'),
+    themeShelf('AI 创造的主题', madeByAI.length ? madeByAI : versions, versions.length ? '和 AI 一起捏出来的外观房间。' : '去聊天里描述想要的风格，保存后会住到这里。'),
     importShelf()
   );
   return grid;
@@ -159,7 +159,7 @@ function themeCard(theme) {
   );
   card.append(cover, body, actionRow([
     miniButton('换上它', () => handleWearTheme(theme)),
-    miniButton('继续调整', () => openStudio(theme)),
+    miniButton('编辑信息', () => handleEditThemeInfo(theme)),
     miniButton(isThemeFavorite(cfg.themeId) ? '取消珍藏' : '放进珍藏', () => handleToggleFavorite(cfg.themeId)),
     miniButton('查看成长记录', () => toggleLog(cfg.themeId)),
     miniButton('分享', () => handleShareTheme(cfg.themeId)),
@@ -223,12 +223,21 @@ async function handleWearTheme(theme) {
   setStatus(result.ok ? `已经换上：${result.theme.themeConfig.themeName}` : `还没换好：${(result.errors || []).join('、')}`);
 }
 
-function openStudio(theme = null) {
-  appContext.openApp?.('theme-studio', theme ? {
-    editingThemeId: theme.themeConfig?.themeId || '',
-    editingTheme: theme,
-    themePrompt: `继续打磨「${theme.themeConfig?.themeName || '这个小世界'}」`
-  } : { themePrompt: '帮我捏一个新的小世界' });
+async function handleEditThemeInfo(theme) {
+  const cfg = theme?.themeConfig || {};
+  const nextName = prompt('给这个小世界取个温柔名字吧', cfg.themeName || '未命名小世界');
+  if (nextName === null) return;
+  const nextDesc = prompt('给它留一句小介绍吧', cfg.description || '');
+  if (nextDesc === null) return;
+  const result = await saveThemeVersionAsync({
+    ...theme,
+    themeConfig: {
+      ...cfg,
+      themeName: String(nextName || '').trim() || cfg.themeName || '未命名小世界',
+      description: String(nextDesc || '').trim()
+    }
+  });
+  setStatus(result.ok ? '小世界信息已经收好。' : `这次还没写好：${(result.errors || []).join('、')}`);
 }
 
 function toggleLog(themeId) {
