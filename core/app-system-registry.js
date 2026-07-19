@@ -12,7 +12,8 @@ export const APP_DATA_REGISTRY = Object.freeze({
       'chat_active_thread',
       'chat_draft_map',
       'chat_pinned_threads',
-      'chat_archived_threads'
+      'chat_archived_threads',
+      'app_grudge_settings'
     ],
     dynamicKeyPrefixes: ['chat_', 'app_bg_chat_opacity_', 'push_msg_watermark_'],
     backup: true
@@ -43,13 +44,15 @@ export const APP_DATA_REGISTRY = Object.freeze({
     backup: true
   },
   memo: {
-    localStorageKeys: ['memos', 'app_memo_visuals'],
+    localStorageKeys: ['memos', 'app_memo_visuals', 'app_memo_memory_syncs'],
     dynamicKeyPrefixes: [],
     backup: true
   },
   anniversary: {
     localStorageKeys: [
       'anniversaries',
+      'anniversary_items',
+      'app_anniversary',
       'app_anniversaries',
       'anniversary_list',
       'app_anniversary_visuals',
@@ -86,6 +89,7 @@ export const APP_DATA_REGISTRY = Object.freeze({
   settings: {
     localStorageKeys: [
       'app_settings',
+      'app_user',
       'app_theme',
       'app_theme_preset',
       'app_theme_mode',
@@ -100,7 +104,8 @@ export const APP_DATA_REGISTRY = Object.freeze({
       'app_wallpaper_opacity',
       'app_focus_widget',
       'app_first_open_seed',
-      'app_api_pool_groups'
+      'app_api_pool_groups',
+      'cloud_models'
     ],
     dynamicKeyPrefixes: [],
     backup: true
@@ -174,6 +179,12 @@ export const APP_EVENT_SPECS = Object.freeze([
     eventName: 'memo:memory-synced',
     sourceApp: 'memo',
     payload: ['memoId', 'characterId', 'title', 'category', 'memoryId'],
+    consumers: []
+  },
+  {
+    eventName: 'worldbook:updated',
+    sourceApp: 'worldbook',
+    payload: ['entryId', 'deleted', 'saved', 'isEdit'],
     consumers: []
   },
   {

@@ -6,14 +6,20 @@ import { getBackupLocalKeys, isBackupLocalKey } from '../core/storage-manager.js
 const requiredBackupKeys = [
   'memos',
   'app_memo_visuals',
+  'app_memo_memory_syncs',
+  'app_grudge_settings',
   'wallet',
   'app_ai_wallets',
   'app_wallet_profile',
+  'app_user',
+  'cloud_models',
   'shop_items',
   'user_profiles',
   'app_user_profiles',
   'active_user_profile_id',
   'app_worldbook_visuals',
+  'anniversary_items',
+  'app_anniversary',
   'app_draw_guess_settings',
   'app_draw_guess_state',
   'app_liars_tavern_settings',
@@ -32,13 +38,15 @@ assert.ok(collectBackupDynamicKeyPrefixes().includes('chat_'), 'existing chat dy
 assert.equal(isBackupLocalKey('app_lock_unlocked'), false, 'lock session state remains excluded');
 assert.equal(isBackupLocalKey('github_tool_token'), false, 'sensitive tool token remains excluded');
 
-const fakeStorageKeys = ['memos', 'last_moment_char-a', 'github_tool_token', 'app_lock_unlocked'];
+const fakeStorageKeys = ['memos', 'app_user', 'cloud_models', 'last_moment_char-a', 'github_tool_token', 'app_lock_unlocked'];
 const fakeStorage = {
   get length() { return fakeStorageKeys.length; },
   key(index) { return fakeStorageKeys[index] || null; }
 };
 const liveKeys = getBackupLocalKeys(fakeStorage);
 assert.ok(liveKeys.includes('memos'), 'static app registry key appears in backup local keys');
+assert.ok(liveKeys.includes('app_user'), 'legacy app user fallback appears in backup local keys');
+assert.ok(liveKeys.includes('cloud_models'), 'legacy cloud model settings appear in backup local keys');
 assert.ok(liveKeys.includes('last_moment_char-a'), 'registered dynamic app key appears in backup local keys');
 assert.equal(liveKeys.includes('github_tool_token'), false, 'unregistered sensitive key is not collected');
 assert.equal(liveKeys.includes('app_lock_unlocked'), false, 'excluded lock state is not collected');
@@ -58,7 +66,7 @@ for (const appId of ['memo', 'wallet', 'shop', 'characters', 'worldbook', 'games
 }
 
 const eventNames = APP_EVENT_SPECS.map((item) => item.eventName);
-for (const name of ['moments:published', 'dream:created', 'memo:memory-synced', 'games:unread-updated']) {
+for (const name of ['moments:published', 'dream:created', 'memo:memory-synced', 'worldbook:updated', 'games:unread-updated']) {
   assert.ok(eventNames.includes(name), `${name} has an event spec`);
 }
 
