@@ -327,18 +327,32 @@ async function loadWallpaperCache() {
   state.wallpaperImage = '';
   state.wallpaperOpacity = 1;
 
-  if (!state.characterId) return;
+  if (!state.characterId) {
+    await loadDefaultWallpaperCache();
+    return;
+  }
 
   const blobKey = `app_bg_chat_${state.characterId}`;
   try {
     const record = await getDB('blobs', blobKey);
-    if (!record) return;
+    if (!record) { await loadDefaultWallpaperCache(); return; }
     const image = record.value || record.image || '';
-    if (!image) return;
+    if (!image) { await loadDefaultWallpaperCache(); return; }
     const opacityKey = `app_bg_chat_opacity_${state.characterId}`;
     const raw = Number(getData(opacityKey) ?? record.opacity ?? 100);
     state.wallpaperImage = image;
     state.wallpaperOpacity = Math.max(0, Math.min(100, raw)) / 100;
+  } catch {
+    await loadDefaultWallpaperCache();
+  }
+}
+
+async function loadDefaultWallpaperCache() {
+  try {
+    const value = await window.AppImages?.readImageValue?.('app_bg_chat');
+    if (!value) return;
+    state.wallpaperImage = value;
+    state.wallpaperOpacity = 1;
   } catch {
   }
 }
@@ -1252,7 +1266,10 @@ function injectStyle() {
       display:flex;
       flex-direction:column;
       overflow:hidden;
-      background:var(--bg-primary);
+      background:
+        radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--accent-light) 28%, transparent) 0 2px, transparent 3px),
+        linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 86%, var(--decor-blue)));
+      background-size:28px 28px, 100% 100%;
       color:var(--text-primary);
       transition:height 200ms ease, max-height 200ms ease;
     }
@@ -1265,6 +1282,7 @@ function injectStyle() {
       background-position:center;
       background-repeat:no-repeat;
       pointer-events:none;
+      filter:saturate(.9);
     }
 
     .chat-thread-page > :not(.chat-thread-wallpaper){
@@ -1280,7 +1298,8 @@ function injectStyle() {
       align-items:center;
       gap:12px;
       padding:12px 20px 10px;
-      background:color-mix(in srgb, var(--bg-primary) 92%, transparent);
+      border-bottom:1px solid color-mix(in srgb, var(--border-soft) 52%, transparent);
+      background:color-mix(in srgb, var(--bg-card) 78%, transparent);
       backdrop-filter:blur(18px);
       z-index:3;
     }

@@ -1165,6 +1165,7 @@ function createQuoteCancelButton(state, pageEl) {
 function createEmptyThread() {
   const empty = el('section', 'chat-empty');
   empty.append(
+    el('div', 'chat-empty-illust'),
     el('div', 'chat-empty-title', '这里还安安静静的'),
     el('div', 'chat-empty-desc', '先递一句话过去，TA 会接住你。')
   );
@@ -1527,6 +1528,13 @@ function injectStyle() {
   const style = document.createElement('style');
   style.id = RENDER_STYLE_ID;
   style.textContent = `
+    .chat-empty{margin:auto;max-width:260px;min-height:220px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:24px;border-radius:28px;background:color-mix(in srgb,var(--bg-card) 82%,transparent);border:1px dashed color-mix(in srgb,var(--border-soft) 72%,transparent);color:var(--text-secondary);text-align:center;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+    .chat-empty-illust{width:82px;height:58px;border-radius:24px 24px 18px 18px;background:linear-gradient(135deg,color-mix(in srgb,var(--accent-light) 62%,var(--bg-card)),color-mix(in srgb,var(--decor-blue) 44%,var(--bg-card)));position:relative}
+    .chat-empty-illust::before{content:'';position:absolute;left:16px;right:16px;top:18px;height:1px;background:color-mix(in srgb,var(--accent-dark) 34%,transparent);box-shadow:0 10px 0 color-mix(in srgb,var(--accent-dark) 20%,transparent)}
+    .chat-empty-illust::after{content:'';position:absolute;right:-8px;top:-8px;width:22px;height:22px;border-radius:999px;background:color-mix(in srgb,var(--decor-yellow) 58%,var(--bg-card))}
+    .chat-empty-title{color:var(--text-primary);font-weight:600}
+    .chat-empty-desc{font-size:13px;color:var(--text-secondary)}
+
     /* ── 时间分隔线 ── */
 
     .chat-time-divider {

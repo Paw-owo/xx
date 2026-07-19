@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="月亮云海星尘梦境森林绘本背景">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f4f0fb"/><stop offset=".56" stop-color="#f8f6fb"/><stop offset="1" stop-color="#fff7ee"/></linearGradient>
+    <radialGradient id="moon" cx="50%" cy="50%" r="50%"><stop stop-color="#fff5c9"/><stop offset="1" stop-color="#efdca2" stop-opacity=".42"/></radialGradient>
+  </defs>
+  <rect width="390" height="844" fill="url(#sky)"/>
+  <circle cx="300" cy="116" r="54" fill="url(#moon)" opacity=".78"/><path d="M315 80c-22 12-28 38-14 58 8 12 20 18 34 18-9 9-23 15-39 15-30 0-55-25-55-55 0-27 20-50 46-54 11-2 22 0 28 18Z" fill="#f4f0fb" opacity=".44"/>
+  <g opacity=".45" fill="#ffffff"><path d="M38 250c16-27 54-29 72-2 15-14 42-13 57 3 23-13 56-5 68 18H34c-6 0-9-10 4-19Z"/><path d="M198 388c18-25 54-25 72 0 18-13 48-10 62 10 16-6 34-1 44 11H178c-4-8 2-16 20-21Z"/></g>
+  <g opacity=".38">
+    <path d="M0 690c44-62 89-80 135-55 34 18 63 15 96-16 48-45 103-32 159 38v187H0Z" fill="#d8e2d2"/>
+    <path d="M30 694c20-50 43-50 64 0M116 690c24-64 51-64 76 0M238 684c24-58 51-58 76 0" fill="none" stroke="#a8bca8" stroke-width="5" stroke-linecap="round" opacity=".44"/>
+  </g>
+  <g opacity=".46">
+    <circle cx="120" cy="508" r="28" fill="#efe4f8" stroke="#cbb8de" stroke-width="3"/><circle cx="145" cy="468" r="15" fill="#f8edf4" stroke="#d9b9ca" stroke-width="2"/><circle cx="90" cy="462" r="10" fill="#e7f1f4" stroke="#abc7d0" stroke-width="2"/>
+    <path d="M112 512c8 6 17 6 25 0" fill="none" stroke="#9f8fad" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+  <g fill="#c7b5df" opacity=".48"><circle cx="76" cy="142" r="2.2"/><circle cx="116" cy="190" r="1.8"/><circle cx="330" cy="270" r="2.1"/><circle cx="284" cy="342" r="1.8"/><circle cx="54" cy="376" r="1.7"/></g>
+  <g fill="none" stroke="#e4c26f" stroke-width="2.4" stroke-linecap="round" opacity=".44"><path d="M76 142l6 6M82 142l-6 6M330 270l7 7M337 270l-7 7"/></g>
+</svg>

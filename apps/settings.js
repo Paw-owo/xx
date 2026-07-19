@@ -176,8 +176,9 @@ async function render(nextRoute = route) {
   rootEl.classList.add('settings-app-shell');
 
   const screen = el('section', 'settings-app app-screen');
+  screen.dataset.imageKey = 'app_bg_settings';
   const body = await renderBody();
-  screen.append(renderHeader(), body);
+  screen.append(el('div', 'settings-soft-layer'), renderHeader(), body);
   rootEl.append(screen);
 }
 
@@ -2811,11 +2812,38 @@ function injectStyle() {
     }
 
     .settings-app {
+      position: relative;
       width: 100%;
       height: 100%;
       overflow: hidden;
       background: var(--bg-primary);
       color: var(--text-primary);
+    }
+
+    .settings-app.has-image {
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .settings-soft-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, color-mix(in srgb, var(--bg-primary) 72%, transparent), color-mix(in srgb, var(--bg-primary) 94%, transparent));
+    }
+
+    .settings-app > :not(.settings-soft-layer) {
+      position: relative;
+      z-index: 1;
+    }
+
+    .settings-app.has-image .settings-nav,
+    .settings-app.has-image .settings-card {
+      background: color-mix(in srgb, var(--bg-card) 82%, transparent);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
     }
 
     .settings-nav {
