@@ -105,7 +105,11 @@ export const APP_DATA_REGISTRY = Object.freeze({
       'app_focus_widget',
       'app_first_open_seed',
       'app_api_pool_groups',
-      'cloud_models'
+      'cloud_models',
+      'app_weather_config',
+      'app_weather_settings',
+      'weather_config',
+      'weather_settings'
     ],
     dynamicKeyPrefixes: [],
     backup: true
@@ -204,6 +208,30 @@ export const APP_EVENT_SPECS = Object.freeze([
     sourceApp: 'wallet',
     payload: ['characterId', 'direction', 'amount', 'note', 'characterName'],
     consumers: ['core/chat-event-bridge.js']
+  },
+  {
+    eventName: 'wallet:balance-updated',
+    sourceApp: 'wallet',
+    payload: ['balance', 'type', 'amount', 'description'],
+    consumers: []
+  },
+  {
+    eventName: 'music:favorite',
+    sourceApp: 'music',
+    payload: ['source', 'songId', 'title', 'artist', 'favorite'],
+    consumers: []
+  },
+  {
+    eventName: 'music:playlist',
+    sourceApp: 'music',
+    payload: ['action', 'playlistId', 'songId', 'name', 'songCount'],
+    consumers: []
+  },
+  {
+    eventName: 'music:import',
+    sourceApp: 'music',
+    payload: ['songId', 'title', 'artist', 'fileName', 'duration'],
+    consumers: []
   },
   {
     eventName: 'chat:ai-reply-finished',
