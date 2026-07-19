@@ -1397,6 +1397,7 @@
     import { createDefaultAppIcon } from './core/default-app-icons.js';
     import { initViewportManager } from './core/viewport.js';
     import { buildOpenMeteoForecastUrl, buildOpenMeteoGeocodingUrl, normalizeOpenMeteoWeather, weatherCodeLabel } from './core/weather.js';
+    import { buildUnreadMapFromData, getRegisteredUnreadSources } from './core/app-system-registry.js';
 
     const LOCK_PASSWORD = '0326';
     const CUSTOM_FONT_KEY = 'app_custom_font';
@@ -2877,6 +2878,7 @@
     function setupAppEvents() {
       window.addEventListener('app-close', () => closeCurrentApp());
       window.addEventListener('app-lock', () => { setData('app_lock_unlocked', false); updateLockState(); });
+      busOn('games:unread-updated', () => refreshBadges());
     }
 
     function refreshBadges() {
@@ -2902,18 +2904,11 @@
     }
 
     function getUnreadMap() {
-      const map = {};
-      let chatTotal = 0;
-      const chatUnreadCounts = getData('chat_unread_counts');
-      if (chatUnreadCounts && typeof chatUnreadCounts === 'object') { chatTotal += Object.values(chatUnreadCounts).reduce((sum, value) => sum + Number(value || 0), 0); }
-      const chatGroupUnreadCounts = getData('chat_group_unread_counts');
-      if (chatGroupUnreadCounts && typeof chatGroupUnreadCounts === 'object') { chatTotal += Object.values(chatGroupUnreadCounts).reduce((sum, value) => sum + Number(value || 0), 0); }
-      if (chatTotal > 0) map.chat = chatTotal;
-      const momentsUnread = getData('moments_unread_count');
-      if (Number(momentsUnread) > 0) map.moments = Number(momentsUnread);
-      const gamesUnread = getData('games_unread_count');
-      if (Number(gamesUnread) > 0) map.games = Number(gamesUnread);
-      return map;
+      const data = {};
+      getRegisteredUnreadSources().forEach((source) => {
+        source.keys.forEach((key) => { data[key] = getData(key); });
+      });
+      return buildUnreadMapFromData(data);
     }
   </script>
 </body>
