@@ -23,6 +23,12 @@ export const APP_DATA_REGISTRY = Object.freeze({
     dynamicKeyPrefixes: ['last_moment_'],
     backup: true
   },
+  gallery: {
+    localStorageKeys: [],
+    dynamicKeyPrefixes: [],
+    indexedDBStores: ['grudges', 'punishments', 'relationship_locks'],
+    backup: true
+  },
   characters: {
     localStorageKeys: ['user_profiles', 'app_user_profiles', 'active_user_profile_id'],
     dynamicKeyPrefixes: [],
