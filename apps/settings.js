@@ -2183,6 +2183,7 @@ async function clearAllData() {
     CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY, API_POOL_GROUPS_KEY,
     'app_theme', 'app_theme_preset', 'app_theme_mode', ...CHAT_LOCAL_KEYS,
     'moments_unread_count', 'games_unread_count',
+    'music_app_settings', 'music_current_song',
     // GitHub 工具配置和 Token：清空全部时一并清理，避免敏感凭据残留
     ...GITHUB_TOOL_STORAGE_KEYS
   ].forEach(removeData);
