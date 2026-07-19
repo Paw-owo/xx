@@ -12,9 +12,7 @@ globalThis.document = {
 globalThis.window = { addEventListener() {}, removeEventListener() {} };
 
 const app = APPS.find((item) => item.id === 'theme-studio');
-assert.ok(app, 'theme-studio app must be registered');
-assert.equal(app.module, './apps/theme-studio.js');
-assert.equal(app.ready, true);
+assert.equal(app, undefined, 'theme-studio is now an internal service, not a desktop app');
 
 const module = await import('../apps/theme-studio.js');
 assert.equal(typeof module.mount, 'function');

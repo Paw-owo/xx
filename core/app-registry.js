@@ -12,6 +12,5 @@ export const APPS = [
   { id: 'games', name: '游戏', module: './apps/games.js', icon: 'play', dock: false, page: 0, ready: true },
   { id: 'music', name: '音乐', module: './apps/music.js', icon: 'music', dock: false, page: 0, ready: true },
   { id: 'dream', name: '梦境', module: './apps/dream.js', icon: 'dream', dock: false, page: 0, ready: true },
-  { id: 'theme-studio', name: 'AI 主题工作室', module: './apps/theme-studio.js', icon: 'star', dock: false, page: 1, ready: true },
-  { id: 'theme-center', name: '主题中心', module: './apps/theme-center.js', icon: 'star', dock: false, page: 1, ready: true }
+  { id: 'theme-center', name: '主题', module: './apps/theme-center.js', icon: 'star', dock: false, page: 1, ready: true }
 ];

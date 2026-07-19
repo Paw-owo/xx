@@ -42,7 +42,10 @@ const ICON_DRAWINGS = {
     <path class="accent" d="M66 20v43c0 7-5 12-12 12-6 0-10-4-10-9s4-9 10-9c3 0 5 1 7 2V28l24-6v33c0 7-5 12-12 12-6 0-10-4-10-9s4-9 10-9c3 0 5 1 7 2V17Z"/>`,
   dream: `
     <path class="soft" d="M75 13c-10 3-17 12-17 23 0 14 11 25 25 25 2 0 4 0 6-1-6 14-20 24-37 24-22 0-40-18-40-40S30 4 52 4c9 0 17 3 23 9Z"/>
-    <path class="fur" d="M19 53V35l12 8c5-4 11-6 18-6s13 2 18 6l11-8v19c0 15-12 26-29 26S19 69 19 53Z"/><path d="M32 55c3 4 7 4 10 0m14 0c3 4 7 4 10 0M44 63c2 2 5 2 7 0"/><path class="accent" d="m20 22 3 7 7 3-7 3-3 7-3-7-7-3 7-3Zm27-12 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/>`
+    <path class="fur" d="M19 53V35l12 8c5-4 11-6 18-6s13 2 18 6l11-8v19c0 15-12 26-29 26S19 69 19 53Z"/><path d="M32 55c3 4 7 4 10 0m14 0c3 4 7 4 10 0M44 63c2 2 5 2 7 0"/><path class="accent" d="m20 22 3 7 7 3-7 3-3 7-3-7-7-3 7-3Zm27-12 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/>`,
+  'theme-center': `
+    <path class="fur" d="M17 48V29l12 8c5-4 11-6 19-6s14 2 19 6l12-8v20c0 16-13 27-31 27S17 65 17 48Z"/><circle class="face" cx="39" cy="50" r="2.5"/><circle class="face" cx="57" cy="50" r="2.5"/><path d="M44 57c2 2 6 2 8 0"/>
+    <path class="soft" d="M18 65h60v19H18Z"/><path class="accent" d="M27 62h42l8 12H19Z"/><path d="M31 72h34M36 80h24"/><path class="accent" d="m48 12 5 12 13 1-10 8 3 13-11-7-11 7 3-13-10-8 13-1Z"/>`
 };
 
 export function createDefaultAppIcon(app, size = 28, documentRef = document) {

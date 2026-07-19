@@ -16,7 +16,7 @@ class FakeElement {
 const fakeDocument = { createElementNS: (_namespace, tagName) => new FakeElement(tagName) };
 const registryIds = APPS.map(({ id }) => id);
 
-assert.equal(APPS.length, 13, 'the sole registry still contains 13 apps');
+assert.equal(APPS.length, 14, 'the sole registry still contains 14 apps');
 assert.deepEqual(DEFAULT_APP_ICON_IDS, registryIds, 'the factory covers registry apps in registry order');
 
 const drawings = APPS.map((app) => {
