@@ -122,6 +122,17 @@ export async function maybeCreateAutoMoment(characterId, sourceText = '') {
   await syncMomentsUnreadCount();
   window.refreshDesktopBadges?.();
 
+  try {
+    window.AppBus?.emit?.('moments:published', {
+      id: post.id,
+      content: post.content,
+      authorId: post.authorId,
+      authorName: character.name || '',
+      timestamp: post.timestamp,
+      auto: true
+    });
+  } catch (_) {}
+
   return post;
 }
 

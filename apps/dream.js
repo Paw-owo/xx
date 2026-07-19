@@ -914,22 +914,25 @@ ${recentText || '（还没有对话记录）'}
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
       }
+      const content = String(parsed.content || '').trim();
+      if (!content) throw new Error('dream-content-empty');
       dream = {
         id: generateId('dream'), characterId: ch.id,
-        content: String(parsed.content || '').slice(0, 800),
+        content: content.slice(0, 800),
         summary: String(parsed.summary || '').slice(0, 50),
         mood: MOODS.some(m => m.id === parsed.mood) ? parsed.mood : 'sweet',
         keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 6).map(String) : [],
-        createdAt: getNow(), seen: false, repliedAt: null
+        createdAt: getNow(), seen: false, repliedAt: null, generationStatus: 'created'
       };
     } catch (_) {
       const raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
+      const fallbackContent = raw.slice(0, 800) || '一个记不清的梦...';
       dream = {
         id: generateId('dream'), characterId: ch.id,
-        content: raw.slice(0, 800) || '一个记不清的梦...',
+        content: fallbackContent,
         summary: raw.slice(0, 15) || '一个梦',
         mood: MOODS[Math.floor(Math.random() * MOODS.length)].id,
-        keywords: [], createdAt: getNow(), seen: false, repliedAt: null
+        keywords: [], createdAt: getNow(), seen: false, repliedAt: null, generationStatus: 'parse_failed'
       };
     }
 
@@ -946,7 +949,7 @@ ${recentText || '（还没有对话记录）'}
         importance: 3,
         mood: dream.mood || ''
       });
-      window.AppBus?.emit?.('dream:created', { dreamId: dream.id, characterId: ch.id, mood: dream.mood, summary: dream.summary, createdAt: dream.createdAt });
+      window.AppBus?.emit?.('dream:created', { dreamId: dream.id, characterId: ch.id, mood: dream.mood, summary: dream.summary, createdAt: dream.createdAt, generationStatus: dream.generationStatus || 'created' });
     } catch (_) {}
   } catch (err) {
     console.warn('[梦境] 生成失败:', err);

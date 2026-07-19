@@ -82,6 +82,7 @@ export async function pushMoment(post) {
     summary: truncate(data.content, 160),
     author_id: data.authorId || data.characterId || 'user',
     author_name: data.authorName || data.author_name || data.authorId || '',
+    auto: data.auto === true,
     timestamp: data.timestamp || data.createdAt || Date.now()
   };
   await sendPush('/push/moment', payload);
@@ -95,6 +96,7 @@ export async function pushDream(dreamOrEvent) {
     summary: truncate(data.summary || data.content, 200),
     character_id: data.characterId || data.character_id || '',
     mood: data.mood || '',
+    generation_status: data.generationStatus || data.generation_status || '',
     timestamp: data.createdAt || data.timestamp || Date.now()
   };
   await sendPush('/push/dream', payload);
