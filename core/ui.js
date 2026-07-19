@@ -17,6 +17,7 @@ const CLOSE_ANIMATION_DELAY = 220;
 const ICON_PATHS = {
   back: [["path", { d: "M15 18l-6-6 6-6" }]],
   forward: [["path", { d: "M9 6l6 6-6 6" }]],
+  "arrow-right": [["path", { d: "M9 6l6 6-6 6" }]],
   "chevron-left": [["path", { d: "M15 18l-6-6 6-6" }]],
   next: [["path", { d: "M9 6l6 6-6 6" }]],
   close: [

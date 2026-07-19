@@ -349,7 +349,8 @@ function openPublishSheet() {
         content: post.content,
         authorId: post.authorId,
         authorName: author?.name || '',
-        timestamp: post.timestamp
+        timestamp: post.timestamp,
+        auto: false
       });
     } catch (_) {}
 

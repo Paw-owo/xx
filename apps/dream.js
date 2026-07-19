@@ -920,7 +920,8 @@ ${recentText || '（还没有对话记录）'}
         summary: String(parsed.summary || '').slice(0, 50),
         mood: MOODS.some(m => m.id === parsed.mood) ? parsed.mood : 'sweet',
         keywords: Array.isArray(parsed.keywords) ? parsed.keywords.slice(0, 6).map(String) : [],
-        createdAt: getNow(), seen: false, repliedAt: null
+        createdAt: getNow(), seen: false, repliedAt: null,
+        generationStatus: 'generated'
       };
     } catch (_) {
       const raw = typeof result === 'string' ? result : (result?.content || result?.text || '');
@@ -929,12 +930,14 @@ ${recentText || '（还没有对话记录）'}
         content: raw.slice(0, 800) || '一个记不清的梦...',
         summary: raw.slice(0, 15) || '一个梦',
         mood: MOODS[Math.floor(Math.random() * MOODS.length)].id,
-        keywords: [], createdAt: getNow(), seen: false, repliedAt: null
+        keywords: [], createdAt: getNow(), seen: false, repliedAt: null,
+        generationStatus: 'parse_failed'
       };
     }
 
     await saveDream(dream);
     if (pageView === 'list') renderPage();
+    if (dream.generationStatus === 'parse_failed') return;
     // 写入角色记忆 + 通知其他 APP
     try {
       const summaryText = dream.summary || dream.content.slice(0, 30);

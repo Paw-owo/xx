@@ -11,9 +11,11 @@ import {
   showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 } from '../core/ui.js';
 import { promptForRemoteImage } from '../core/image-url.js';
+import { editMemory } from '../core/memory.js';
 
 const MEMO_KEY = 'memos';
 const VISUALS_KEY = 'app_memo_visuals';
+const MEMORY_SYNCS_KEY = 'app_memo_memory_syncs';
 const STYLE_ID = 'memo-styles';
 const BG_KEY = 'app_bg_memo';
 const COVER_PREFIX = 'app_memo_cover_';
@@ -130,6 +132,31 @@ function readMemos() {
 
 function saveMemos(list) {
   setData(MEMO_KEY, Array.isArray(list) ? list.map(normalizeMemo) : []);
+}
+
+function readMemorySyncs() {
+  const saved = getData(MEMORY_SYNCS_KEY, {});
+  return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+}
+
+function saveMemorySyncs(syncs) {
+  setData(MEMORY_SYNCS_KEY, syncs && typeof syncs === 'object' ? syncs : {});
+}
+
+function getMemoSync(syncs, memoId, characterId) {
+  const byMemo = syncs?.[memoId];
+  if (!byMemo || typeof byMemo !== 'object') return null;
+  const item = byMemo[characterId];
+  return item && typeof item === 'object' ? item : null;
+}
+
+function setMemoSync(syncs, memoId, characterId, memoryId) {
+  if (!memoId || !characterId || !memoryId) return syncs;
+  const next = { ...syncs };
+  const byMemo = next[memoId] && typeof next[memoId] === 'object' ? { ...next[memoId] } : {};
+  byMemo[characterId] = { memoryId: String(memoryId), updatedAt: getNow() };
+  next[memoId] = byMemo;
+  return next;
 }
 
 function getVisuals() {
@@ -638,13 +665,26 @@ async function openEditor(memo) {
     // 同步到角色记忆
     if (syncEnabled && syncCharacterId) {
       try {
-        const memory = await window.AppBus.recordExternalInteraction({
-          characterId: syncCharacterId,
-          role: 'assistant',
-          content: `我在备忘录里记下了：${nextTitle || '未命名'}。${nextContent}`.trim(),
-          source: '备忘录',
-          importance: selectedCategory === 'todo' ? 4 : 3
-        });
+        const syncs = readMemorySyncs();
+        const previousSync = getMemoSync(syncs, memoId, syncCharacterId);
+        const memoryContent = `我在备忘录里记下了：${nextTitle || '未命名'}。${nextContent}`.trim();
+        let memory = null;
+        if (previousSync?.memoryId) {
+          memory = await editMemory(syncCharacterId, previousSync.memoryId, memoryContent, {
+            source: '备忘录',
+            importance: selectedCategory === 'todo' ? 4 : 3
+          });
+        }
+        if (!memory) {
+          memory = await window.AppBus.recordExternalInteraction({
+            characterId: syncCharacterId,
+            role: 'assistant',
+            content: memoryContent,
+            source: '备忘录',
+            importance: selectedCategory === 'todo' ? 4 : 3
+          });
+        }
+        if (memory?.id) saveMemorySyncs(setMemoSync(syncs, memoId, syncCharacterId, memory.id));
         window.AppBus?.emit?.('memo:memory-synced', {
           memoId,
           characterId: syncCharacterId,
