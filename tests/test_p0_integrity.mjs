@@ -36,6 +36,11 @@ assert(backupKeys.includes('music_current_song'), '音乐播放状态进入备�
 assert(!backupKeys.includes('github_tool_token'), 'GitHub Token 不进入备份');
 assert(!isBackupLocalKey('unknown_key'), '未知键不能导入');
 
+const settingsSource = await fs.readFile(new URL('../apps/settings.js', import.meta.url), 'utf8');
+const clearAllMatch = settingsSource.match(/async function clearAllData\(\) \{[\s\S]*?\n\}/);
+assert(clearAllMatch, '清空全部数据流程存在');
+assert(clearAllMatch[0].includes("'music_app_settings'") && clearAllMatch[0].includes("'music_current_song'"), '清空全部后音乐状态键不存在');
+
 console.log('[2] provider 多模态请求体');
 const dataUrl = 'data:image/png;base64,QUJD';
 const messages = [{ role: 'user', content: [
