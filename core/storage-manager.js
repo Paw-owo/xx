@@ -13,6 +13,7 @@ import {
   generateId,
   getNow
 } from './storage.js';
+import { collectBackupDynamicKeyPrefixes, collectBackupLocalStorageKeys } from './app-system-registry.js';
 
 // ═══════════════════════════════════════
 // 【常量】存储 key、超时、版本
@@ -25,49 +26,7 @@ const DEVICE_ID_KEY = 'app_device_id';
 const SNAPSHOT_VERSION = 1;
 const CLOUD_TIMEOUT_MS = 10000;
 
-const LOCAL_STORAGE_KEYS = [
-  'app_settings',
-  'app_theme',
-  'app_theme_preset',
-  'app_theme_mode',
-  'app_cloud_server',
-  'app_icons',
-  'app_hidden_icons',
-  'app_icon_positions',
-  'app_widget_positions',
-  'app_widget_backgrounds',
-  'desktop_layout_scale',
-  'app_custom_font_meta',
-  'app_custom_widgets',
-  'app_wallpaper_opacity',
-  'app_weather_cache',
-  'weather_cache',
-  'app_focus_widget',
-  'chat_unread_counts',
-  'chat_group_unread_counts',
-  'chat_hidden_private_threads',
-  'chat_last_route',
-  'chat_active_thread',
-  'chat_draft_map',
-  'chat_pinned_threads',
-  'chat_archived_threads',
-  'moments_unread_count',
-  'games_unread_count',
-  'music_app_settings',
-  'music_current_song',
-  'app_first_open_seed',
-  'anniversaries',
-  'app_anniversaries',
-  'anniversary_list',
-  'app_dream_last_gen',
-  'app_dream_config',
-  'app_api_pool_groups',
-  'app_anniversary_visuals',
-  'app_anniversary_profile',
-  'app_game_hub_visual',
-  'app_game_visuals',
-  'app_anniversary_greeted'
-];
+const LOCAL_STORAGE_KEYS = collectBackupLocalStorageKeys();
 
 const BACKUP_EXCLUDED_LOCAL_KEYS = new Set([
   'app_lock_unlocked',
@@ -78,11 +37,7 @@ const BACKUP_EXCLUDED_LOCAL_KEYS = new Set([
 // 动态前缀键：按角色/群聊/会话隔离的配置，无法静态列举，需在 buildLocalSnapshot 时前缀扫描收集。
 // 漏掉会导致换设备/导入后角色配置（主动消息、TTS、可见条数、壁纸透明度）丢失，
 // 以及 app_anniversary_greeted 丢失导致当天纪念日重复问候+重复落库。
-const DYNAMIC_KEY_PREFIXES = [
-  'chat_',              // chat_<id>_config / chat_<id>_quick_replies / chat_ask_user_state_<tid>_<mid> / chat_group_<id>_visible_count 等
-  'app_bg_chat_opacity_', // 聊天壁纸透明度（按角色）
-  'push_msg_watermark_'   // 推送水位（按角色）
-];
+const DYNAMIC_KEY_PREFIXES = collectBackupDynamicKeyPrefixes();
 
 const MEMORY_SUMMARY_CHECKPOINT_PREFIX = 'mem_sum_';
 

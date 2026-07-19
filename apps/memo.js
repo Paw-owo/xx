@@ -638,12 +638,19 @@ async function openEditor(memo) {
     // 同步到角色记忆
     if (syncEnabled && syncCharacterId) {
       try {
-        await window.AppBus.recordExternalInteraction({
+        const memory = await window.AppBus.recordExternalInteraction({
           characterId: syncCharacterId,
           role: 'assistant',
           content: `我在备忘录里记下了：${nextTitle || '未命名'}。${nextContent}`.trim(),
           source: '备忘录',
           importance: selectedCategory === 'todo' ? 4 : 3
+        });
+        window.AppBus?.emit?.('memo:memory-synced', {
+          memoId,
+          characterId: syncCharacterId,
+          title: nextTitle || '未命名',
+          category: selectedCategory,
+          memoryId: memory?.id || ''
         });
       } catch (_) {}
     }
