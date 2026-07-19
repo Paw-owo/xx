@@ -386,6 +386,14 @@ export function getCurrentTheme() {
   return readCurrentTheme();
 }
 
+export function getThemeVariableKeys() {
+  return Object.keys(BASE_VARIABLES);
+}
+
+export function getBaseThemeVariables() {
+  return { ...BASE_VARIABLES };
+}
+
 // ═══════════════════════════════════════
 // 【内部工具】读写、归一化、DOM操作
 // ═══════════════════════════════════════
