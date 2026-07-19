@@ -419,6 +419,11 @@ async function openGame(gameId) {
     return;
   }
 
+  if (game.status === 'planned') {
+    showToast('这个小世界还在搭建');
+    return;
+  }
+
   try {
     const module = await import(game.module);
 

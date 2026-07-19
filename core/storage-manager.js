@@ -53,6 +53,8 @@ const LOCAL_STORAGE_KEYS = [
   'chat_archived_threads',
   'moments_unread_count',
   'games_unread_count',
+  'music_app_settings',
+  'music_current_song',
   'app_first_open_seed',
   'anniversaries',
   'app_anniversaries',
