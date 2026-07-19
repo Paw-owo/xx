@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="手账桌文件夹小工具设置小窝背景">
+  <defs>
+    <linearGradient id="desk" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff7f8"/><stop offset="1" stop-color="#f8efe7"/></linearGradient>
+    <pattern id="tiny" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M0 29.5h30" stroke="#eadcd0" stroke-width=".8" opacity=".18"/><circle cx="22" cy="9" r="1" fill="#d3a2ac" opacity=".16"/></pattern>
+  </defs>
+  <rect width="390" height="844" fill="url(#desk)"/><rect width="390" height="844" fill="url(#tiny)"/>
+  <path d="M0 0h390v236H0Z" fill="#f3dfe7" opacity=".54"/><path d="M0 222c45 15 93 12 143-5 48-16 93-13 136 7 38 18 75 20 111 8v612H0Z" fill="#fffaf4" opacity=".28"/>
+  <g opacity=".48">
+    <path d="M48 74h116l18 22h118c13 0 24 11 24 24v94H36V86c0-7 5-12 12-12Z" fill="#f4dfb8" stroke="#d8b982" stroke-width="3"/>
+    <path d="M36 132h288v98H36z" rx="22" fill="#fff8ec" stroke="#d8b982" stroke-width="3"/>
+    <path d="M72 166h102M72 190h68" stroke="#b79870" stroke-width="5" stroke-linecap="round" opacity=".42"/>
+    <path d="M246 156l22 22 38-46" fill="none" stroke="#c79aa5" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
+  </g>
+  <g opacity=".42">
+    <path d="M60 520h116c11 0 20 9 20 20v76H40v-76c0-11 9-20 20-20Z" fill="#fffdf8" stroke="#dcc7bf" stroke-width="3"/>
+    <path d="M68 554h82M68 578h58" stroke="#b58e8f" stroke-width="4" stroke-linecap="round" opacity=".4"/>
+    <path d="M246 514h72c9 0 16 7 16 16v72h-88z" rx="16" fill="#e5eef0" stroke="#abc3cb" stroke-width="3"/>
+    <path d="M264 548h52M264 570h34" stroke="#7fa5af" stroke-width="4" stroke-linecap="round" opacity=".34"/>
+    <path d="M244 646c18-16 46-16 64 0" fill="none" stroke="#e8c5d0" stroke-width="8" stroke-linecap="round"/>
+  </g>
+  <g opacity=".36" fill="none" stroke-linecap="round"><path d="M54 318c22 11 44 11 66 0 22-11 44-11 66 0" stroke="#d7a5b0" stroke-width="3"/><path d="M232 336c16 9 32 9 48 0 16-9 32-9 48 0" stroke="#a8c3cc" stroke-width="2.5"/></g>
+</svg>

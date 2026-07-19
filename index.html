@@ -135,6 +135,20 @@
       transition: all 200ms ease;
     }
 
+    .desktop-journal-layer {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 12% 14%, color-mix(in srgb, var(--accent-light) 44%, transparent) 0 2px, transparent 3px),
+        radial-gradient(circle at 84% 18%, color-mix(in srgb, var(--decor-blue) 38%, transparent) 0 2px, transparent 3px),
+        linear-gradient(90deg, transparent 0 28px, color-mix(in srgb, var(--border-soft) 34%, transparent) 29px 30px, transparent 31px),
+        linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 36%, transparent), transparent 18%);
+      background-size: 26px 26px, 34px 34px, 100% 100%, 100% 100%;
+      opacity: .72;
+    }
+
     .status-bar {
       position: fixed;
       top: 0;
@@ -240,7 +254,9 @@
       z-index: 0;
       height: calc(424px * var(--desktop-widget-scale));
       pointer-events: none;
-      border-radius: 0 0 30px 30px;
+      border-radius: 0 0 34px 34px;
+      background-color: color-mix(in srgb, var(--bg-card) 24%, transparent);
+      box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--border-soft) 48%, transparent);
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -479,8 +495,9 @@
       justify-content: space-between;
       padding: calc(15px * var(--desktop-widget-scale));
       overflow: hidden;
-      border-radius: calc(26px * var(--desktop-widget-scale));
-      background-color: color-mix(in srgb, var(--bg-card) 82%, transparent);
+      border-radius: calc(28px * var(--desktop-widget-scale)) calc(28px * var(--desktop-widget-scale)) calc(18px * var(--desktop-widget-scale)) calc(28px * var(--desktop-widget-scale));
+      border: 1px solid color-mix(in srgb, var(--border-soft) 62%, transparent);
+      background-color: color-mix(in srgb, var(--bg-card) 86%, transparent);
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
@@ -1307,6 +1324,7 @@
 <body>
   <main id="desktop" class="phone-desktop" data-image-key="app_wallpaper">
     <div class="desktop-soft-layer"></div>
+    <div class="desktop-journal-layer" aria-hidden="true"></div>
 
     <div class="status-bar" aria-hidden="true">
       <div class="status-cute-pill">
@@ -1425,6 +1443,14 @@
     };
 
     const IMAGE_VALUE_FIELDS = ['value','data','image','iconImage','backgroundImage','imageBase64','avatar','avatarUrl','imageUrl','url','src','base64','file','source'];
+
+    const DEFAULT_IMAGE_RECORDS = {
+      app_wallpaper: { value: './assets/ui-skins/default-desktop-wallpaper.svg', opacity: 100, name: '内置手账桌面' },
+      app_widget_area_bg: { value: './assets/ui-skins/default-widget-area.svg', opacity: 100, name: '内置小组件手账底纹' },
+      app_bg_chat: { value: './assets/ui-skins/default-chat-bg.svg', opacity: 100, name: '内置信纸聊天背景' },
+      app_bg_dream: { value: './assets/ui-skins/default-dream-bg.svg', opacity: 100, name: '内置梦境绘本背景' },
+      app_bg_settings: { value: './assets/ui-skins/default-settings-bg.svg', opacity: 100, name: '内置设置小窝背景' }
+    };
 
     const IMAGE_ALIAS_KEYS = {
       app_wallpaper: ['wallpaper', 'desktop_wallpaper'],
@@ -1595,6 +1621,14 @@
         if (widgetBackground) return normalizeImageRecord(widgetBackground, itemKey);
         const localRecord = getData(itemKey);
         if (localRecord) return normalizeImageRecord(localRecord, itemKey);
+      }
+      const fallback = getDefaultImageRecord(key);
+      return fallback ? normalizeImageRecord(fallback, key) : null;
+    }
+
+    function getDefaultImageRecord(key) {
+      for (const itemKey of getImageKeys(key)) {
+        if (DEFAULT_IMAGE_RECORDS[itemKey]) return { ...DEFAULT_IMAGE_RECORDS[itemKey], key: itemKey, isDefault: true };
       }
       return null;
     }
@@ -1791,7 +1825,7 @@
     async function applyWallpaperImage() {
       const record = await readImageRecord('app_wallpaper');
       const value = getImageFromRecord(record);
-      document.documentElement.style.setProperty('--desktop-wallpaper-soft', value ? '0' : '0.10');
+      document.documentElement.style.setProperty('--desktop-wallpaper-soft', record?.isDefault ? '0.06' : value ? '0' : '0.10');
       if (value) { desktopEl.classList.add('has-image'); desktopEl.style.backgroundImage = `url("${cssUrl(value)}")`; desktopEl.style.backgroundSize = 'cover'; desktopEl.style.backgroundPosition = 'center'; desktopEl.style.backgroundRepeat = 'no-repeat'; desktopEl.style.opacity = ''; }
       else { desktopEl.classList.remove('has-image'); desktopEl.style.backgroundImage = ''; desktopEl.style.opacity = ''; }
     }

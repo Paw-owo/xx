@@ -270,9 +270,24 @@ function injectStyle() {
   style.textContent = `
     .chat-thread-tools-sheet,
     .chat-settings-sheet{
-      padding:4px 18px 16px;
+      position:relative;
+      overflow:hidden;
+      padding:8px 18px 16px;
       color:var(--text-primary);
     }
+
+    .chat-thread-tools-sheet::before{
+      content:'';
+      position:absolute;
+      inset:0 0 auto 0;
+      height:86px;
+      pointer-events:none;
+      background:radial-gradient(circle at 16% 32%,color-mix(in srgb,var(--decor-yellow) 48%,transparent),transparent 16%),radial-gradient(circle at 86% 26%,color-mix(in srgb,var(--decor-blue) 42%,transparent),transparent 18%),linear-gradient(180deg,color-mix(in srgb,var(--accent-light) 34%,transparent),transparent);
+      opacity:.82;
+    }
+
+    .chat-thread-tools-sheet > *,
+    .chat-settings-sheet > *{position:relative;z-index:1}
 
     .chat-thread-tools-head,
     .chat-settings-sheet-top{

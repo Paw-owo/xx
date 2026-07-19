@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="奶油粉色窗边小房间手账壁纸">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#fff8f4"/><stop offset="1" stop-color="#f8edf0"/></linearGradient>
+    <pattern id="paper" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="7" cy="8" r="1.2" fill="#d9a6b0" opacity=".18"/><circle cx="24" cy="23" r=".9" fill="#a9c5cf" opacity=".18"/><path d="M0 33.5h34" stroke="#e8d8cf" stroke-width=".8" opacity=".16"/></pattern>
+    <filter id="soft"><feGaussianBlur stdDeviation=".35"/></filter>
+  </defs>
+  <rect width="390" height="844" fill="url(#wall)"/><rect width="390" height="844" fill="url(#paper)"/>
+  <path d="M0 0h390v106c-33 13-69 16-111 5-63-17-96-22-158-1-43 15-84 12-121 0Z" fill="#f4dfe5" opacity=".62"/>
+  <path d="M0 764c42-13 80-12 123 4 57 20 110 18 164-3 34-13 68-14 103-2v81H0Z" fill="#f2e4bd" opacity=".52"/>
+  <g opacity=".64" filter="url(#soft)">
+    <path d="M54 140h126c9 0 16 7 16 16v134H38V156c0-9 7-16 16-16Z" fill="#fffdf8" stroke="#e3c5cd" stroke-width="3"/>
+    <path d="M58 162h118v94H58Z" fill="#edf6f8" opacity=".76"/><path d="M117 145v111M58 198h118" stroke="#e9cfd4" stroke-width="3" opacity=".82"/>
+    <path d="M45 270h145" stroke="#cf9faa" stroke-width="5" stroke-linecap="round" opacity=".38"/>
+    <path d="M73 213c12-13 24-13 36 0 11-10 23-10 36 0" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" opacity=".8"/>
+  </g>
+  <g opacity=".5">
+    <path d="M214 536h118c10 0 18 8 18 18v63H196v-63c0-10 8-18 18-18Z" fill="#fffaf4" stroke="#e5cec5" stroke-width="3"/>
+    <path d="M218 618h110M232 618v52M312 618v52" stroke="#caa9a1" stroke-width="5" stroke-linecap="round" opacity=".45"/>
+    <path d="M230 516c0-18 11-30 28-30s29 12 29 30" fill="none" stroke="#f0c6cf" stroke-width="7" stroke-linecap="round"/>
+    <ellipse cx="257" cy="521" rx="34" ry="12" fill="#f4d8df" opacity=".72"/>
+    <path d="M301 508c9-17 28-17 36 0-4 10-13 17-18 22-6-5-15-12-18-22Z" fill="#d9b7c6" opacity=".58"/>
+  </g>
+  <g opacity=".48">
+    <path d="M70 642c13-17 38-17 51 0 10-9 27-9 37 1-5 22-23 37-48 37s-42-15-40-38Z" fill="#f7eee5" stroke="#d4a7a1" stroke-width="3"/>
+    <circle cx="93" cy="653" r="2.4" fill="#9a7573"/><circle cx="130" cy="653" r="2.4" fill="#9a7573"/><path d="M107 662c4 3 9 3 13 0" fill="none" stroke="#9a7573" stroke-width="2" stroke-linecap="round"/>
+    <path d="M78 633l-10-17M148 633l12-16" stroke="#d4a7a1" stroke-width="5" stroke-linecap="round"/>
+  </g>
+  <g fill="none" stroke-linecap="round" opacity=".36">
+    <path d="M278 138c14 8 27 8 41 0 14-8 27-8 41 0" stroke="#d2a1ad" stroke-width="3"/>
+    <path d="M42 370c20 10 40 10 60 0 20-10 40-10 60 0" stroke="#c7b0d5" stroke-width="2.5"/>
+    <path d="M274 352c8-11 22-11 30 0 8-11 22-11 30 0" stroke="#e2c26e" stroke-width="3"/>
+  </g>
+</svg>

@@ -50,13 +50,14 @@ function injectStyles() {
   s.textContent = `
     .dream-screen{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;overflow:hidden;background:var(--bg-primary);color:var(--text-primary)}
     .dream-screen.has-bg{background-size:cover;background-position:center;background-repeat:no-repeat}
-    .dream-soft{position:absolute;inset:0;z-index:0;pointer-events:none;background:color-mix(in srgb,var(--bg-primary) 82%,transparent)}
+    .dream-soft{position:absolute;inset:0;z-index:0;pointer-events:none;background:linear-gradient(180deg,color-mix(in srgb,var(--bg-primary) 70%,transparent),color-mix(in srgb,var(--bg-primary) 88%,transparent)),radial-gradient(circle at 18% 20%,color-mix(in srgb,var(--accent-light) 36%,transparent),transparent 24%)}
     .dream-nav{position:fixed;top:0;left:0;right:0;z-index:100;height:calc(56px + env(safe-area-inset-top));display:flex;align-items:center;gap:8px;padding:env(safe-area-inset-top) 20px 0;background:var(--bg-primary);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
     .dream-nav-title{flex:1;min-width:0;color:var(--text-primary);font-size:17px;font-weight:600;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .dream-nav-btn{width:38px;height:38px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:var(--bg-card);color:var(--text-primary);box-shadow:var(--shadow-sm);transition:all 200ms ease;border:none;outline:none}
     .dream-nav-btn:active{transform:scale(.94)}
     .dream-body{position:relative;z-index:1;flex:1;overflow-x:hidden;overflow-y:auto;padding:calc(56px + env(safe-area-inset-top) + 18px) 20px calc(88px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
-    .dream-hero{padding:22px;border-radius:28px;background:var(--bg-card);box-shadow:var(--shadow-md)}
+    .dream-hero{position:relative;overflow:hidden;padding:22px;border-radius:30px 30px 22px 30px;background:color-mix(in srgb,var(--bg-card) 84%,transparent);box-shadow:var(--shadow-sm);border:1px solid color-mix(in srgb,var(--border-soft) 62%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+    .dream-hero::before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 84% 18%,color-mix(in srgb,var(--decor-yellow) 38%,transparent),transparent 18%),linear-gradient(90deg,transparent 0 24px,color-mix(in srgb,var(--border-soft) 36%,transparent) 25px 26px,transparent 27px);opacity:.72}
     .dream-hero-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
     .dream-hero-title{color:var(--text-primary);font-size:24px;font-weight:600;line-height:1.25;letter-spacing:-.02em}
     .dream-hero-text{margin-top:8px;color:var(--text-secondary);font-size:13px;line-height:1.6}
@@ -99,7 +100,8 @@ function injectStyles() {
     .dream-tag{display:inline-flex;align-items:center;padding:3px 10px;border-radius:999px;background:var(--surface-muted);color:var(--text-secondary);font-size:12px;font-weight:500;line-height:1.4}
     .dream-tag.mood{background:color-mix(in srgb,var(--accent-light) 60%,transparent);color:var(--accent-dark)}
     .dream-unread{width:8px;height:8px;border-radius:50%;background:var(--accent);position:absolute;top:12px;right:12px}
-    .dream-empty{min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:24px;border-radius:24px;background:var(--bg-card);box-shadow:var(--shadow-sm);color:var(--text-secondary);text-align:center}
+    .dream-empty{position:relative;overflow:hidden;min-height:240px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:24px;border-radius:24px;background:var(--bg-card);box-shadow:var(--shadow-sm);color:var(--text-secondary);text-align:center}
+    .dream-empty::before{content:'';width:84px;height:52px;border-radius:999px 999px 26px 26px;background:color-mix(in srgb,var(--decor-blue) 34%,var(--bg-card));box-shadow:28px -12px 0 color-mix(in srgb,var(--accent-light) 30%,transparent);opacity:.68}
     .dream-empty-icon{width:58px;height:58px;display:flex;align-items:center;justify-content:center;border-radius:22px;background:var(--accent-light);color:var(--accent-dark)}
     .dream-empty-title{color:var(--text-primary);font-size:17px;font-weight:600;line-height:1.35}
     .dream-empty-text{max-width:260px;color:var(--text-secondary);font-size:13px;line-height:1.6}
@@ -237,8 +239,8 @@ export function unmount() {
 
 async function applyBg(screen) {
   try {
-    const r = await getDB('blobs', BG_KEY);
-    const v = r?.value || '';
+    const r = await (window.AppImages?.readImageRecord?.(BG_KEY) || getDB('blobs', BG_KEY));
+    const v = window.AppImages?.getImageFromRecord?.(r) || r?.value || '';
     if (v) { screen.classList.add('has-bg'); screen.style.backgroundImage = `url("${v}")`; }
     else { screen.classList.remove('has-bg'); screen.style.backgroundImage = ''; }
   } catch (_) { screen.classList.remove('has-bg'); screen.style.backgroundImage = ''; }
