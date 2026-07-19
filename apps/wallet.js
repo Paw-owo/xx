@@ -22,6 +22,7 @@ import {
   showConfirm,
   createIcon
 } from '../core/ui.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 const WALLET_KEY = 'wallet';
 const AI_WALLETS_KEY = 'app_ai_wallets';
@@ -2168,6 +2169,7 @@ function createCustomSection(titleText, subText) {
 }
 
 function createUploadButton(label, key, afterSave) {
+  const actions = document.createDocumentFragment();
   const button = document.createElement('button');
   button.className = 'wallet-mini-btn primary';
   button.type = 'button';
@@ -2177,7 +2179,9 @@ function createUploadButton(label, key, afterSave) {
     await setDB('blobs', key, {
       key,
       value,
-      source: value,
+      source: file.name,
+      sourceType: 'local',
+      url: '',
       opacity: 100,
       updatedAt: getNow()
     });
@@ -2185,7 +2189,19 @@ function createUploadButton(label, key, afterSave) {
     hideBottomSheet();
     showToast('已保存 ˶>ᗜ<˶');
   }));
-  return button;
+  const urlButton = document.createElement('button');
+  urlButton.className = 'wallet-mini-btn';
+  urlButton.type = 'button';
+  urlButton.append(createIcon('image', 15), document.createTextNode('图片 URL'));
+  urlButton.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    await setDB('blobs', key, { key, value: result.url, url: result.url, source: result.url, sourceType: 'url', opacity: 100, updatedAt: getNow() });
+    await afterSave?.(); hideBottomSheet(); showToast('已保存 ˶>ᗜ<˶');
+  });
+  actions.append(button, urlButton);
+  return actions;
 }
 
 function createClearBlobButton(label, key, afterClear) {

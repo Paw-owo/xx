@@ -29,6 +29,7 @@ import {
 import { silentRequest } from '../../core/api.js';
 
 import { recordExternalInteraction } from '../../core/app-bus.js';
+import { promptForRemoteImage } from '../../core/image-url.js';
 
 // ═══════════════════════════════════════
 // 【常量】配置项、随机AI池、本地题词库
@@ -950,6 +951,7 @@ function openCustomSheet() {
         <span>上传背景</span>
         <input type="file" accept="image/*" data-role="bg-file">
       </label>
+      <button class="dg-btn-soft" data-action="url-bg">图片 URL</button>
       <button class="dg-btn-soft" data-action="clear-bg">清除背景</button>
     </div>
     <label class="dg-range-row">
@@ -976,17 +978,23 @@ function openCustomSheet() {
       await setDB('blobs', {
         key: BG_KEY,
         value: image,
-        source: image,
+        source: file.name || '', sourceType: 'local', url: '',
         opacity: state.settings.bgOpacity,
         updatedAt: getNow()
       });
-      state.bgRecord = { key: BG_KEY, value: image, source: image, opacity: state.settings.bgOpacity };
+      state.bgRecord = { key: BG_KEY, value: image, source: file.name || '', sourceType: 'local', url: '', opacity: state.settings.bgOpacity };
       showToast('画室背景换好啦。');
       hideBottomSheet();
       applyBackground();
     } catch (_) {
       showToast('背景上传失败了。');
     }
+  });
+
+  sheet.querySelector('[data-action="url-bg"]')?.addEventListener('click', async () => {
+    const result = await promptForRemoteImage(); if (result.error) { showToast(result.error); return; } if (!result.url) return;
+    const record = { key: BG_KEY, value: result.url, url: result.url, source: result.url, sourceType: 'url', opacity: state.settings.bgOpacity, updatedAt: getNow() };
+    await setDB('blobs', record); state.bgRecord = record; hideBottomSheet(); applyBackground(); showToast('画室背景换好啦。');
   });
 
   sheet.querySelector('[data-action="clear-bg"]')?.addEventListener('click', async () => {

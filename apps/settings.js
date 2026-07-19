@@ -45,6 +45,7 @@ import {
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
 import { APPS } from '../core/app-registry.js';
+import { PUBLIC_IMAGE_HOST, normalizeHttpImageUrl, promptForRemoteImage } from '../core/image-url.js';
 
 // ═══════════════════════════════════════
 // 【常量】存储 key 和默认配置
@@ -95,7 +96,7 @@ const DEFAULT_SETTINGS = {
   bubbleMode: 'bubble',
   fontSize: 15,
   user: { name: '', avatar: '', avatarSource: '', avatarOpacity: 100 },
-  widgets: { time: true, weather: true, anniversary: true, focus: true },
+  widgets: { time: true, weather: true, anniversary: true, focus: false },
   chatSettings: {
     autoTTS: false,
     showThinking: true,
@@ -119,15 +120,13 @@ const THEME_COLOR_FIELDS = [
 
 const WIDGET_BG_LIST = [
   ['app_widget_area_bg', '小组件区域'], ['app_widget_bg_time', '时间小卡片'],
-  ['app_widget_bg_weather', '天气小卡片'], ['app_widget_bg_anniversary', '纪念日小卡片'],
-  ['app_widget_bg_focus', '焦点小卡片']
+  ['app_widget_bg_weather', '天气小卡片'], ['app_widget_bg_anniversary', '纪念日小卡片']
 ];
 
 const DESKTOP_WIDGET_LIST = [
   ['time', '时间小卡片', '显示日期、时间这些桌面信息'],
   ['weather', '天气小卡片', '显示天气和温度'],
-  ['anniversary', '纪念日小卡片', '显示最近的重要日子'],
-  ['focus', '焦点小卡片', '显示桌面上的小提醒']
+  ['anniversary', '纪念日小卡片', '显示最近的重要日子']
 ];
 
 let rootEl = null;
@@ -1407,10 +1406,15 @@ function renderDesktopPage() {
   fillBlobPreview(preview, WALLPAPER_KEY);
   wallpaper.append(labelBlock('壁纸透明度', rangeBlock(wallpaperOpacity, 15, 100, 1, (value, live) => saveWallpaperOpacity(value, live))));
   wallpaper.append(actionRow([
-    actionBtn('upload', '上传壁纸', () => uploadBlobImage(WALLPAPER_KEY, WALLPAPER_OPACITY_KEY, '壁纸换好啦')),
+    actionBtn('upload', '本地选择', () => uploadBlobImage(WALLPAPER_KEY, WALLPAPER_OPACITY_KEY, '壁纸换好啦')),
+    actionBtn('image', '图片 URL', () => setBlobImageUrl(WALLPAPER_KEY, WALLPAPER_OPACITY_KEY, '壁纸换好啦')),
     actionBtn('delete', '清除壁纸', () => clearBlobImage(WALLPAPER_KEY, WALLPAPER_OPACITY_KEY))
   ]));
   wrap.append(wallpaper);
+
+  const host = card('免费图床', '上传后复制“图片直链”，再粘贴到图片 URL 输入框。外部工具的可用性与保存期限由服务方决定。');
+  host.append(actionBtn('upload', `打开 ${PUBLIC_IMAGE_HOST.name}`, openPublicImageHost));
+  wrap.append(host);
 
   return wrap;
 }
@@ -1446,7 +1450,8 @@ async function renderWidgetsPage() {
     previewEl.dataset.previewKey = key;
 
     box.append(listAction('image', name, hasImage ? '已换背景' : '还没换背景', [
-      actionBtn('upload', '上传', () => uploadWidgetBg(key)),
+      actionBtn('upload', '本地选择', () => uploadWidgetBg(key)),
+      actionBtn('image', '图片 URL', () => setWidgetBgUrl(key)),
       actionBtn('delete', '清除', () => clearWidgetBg(key))
     ], previewEl));
 
@@ -1508,7 +1513,9 @@ async function renderIconsPage() {
 
     box.append(listAction(isHidden ? 'settings' : 'star', custom.name || name, isHidden ? '已隐藏' : image ? '已换图' : '默认图标', [
       actionBtn('edit', '改名', () => renameIcon(id, name)),
-      actionBtn('upload', '换图', () => uploadIcon(id)),
+      actionBtn('upload', '本地选择', () => uploadIcon(id)),
+      actionBtn('image', '图片 URL', () => setIconUrl(id)),
+      actionBtn('delete', '清除图片', () => clearIconImage(id)),
       actionBtn(isHidden ? 'settings' : 'delete', isHidden ? '恢复' : '隐藏', () => toggleIconHidden(id)),
       clearBackgroundButton
     ], previewEl));
@@ -1721,11 +1728,29 @@ async function uploadBlobImage(key, opacityKey, msg) {
   if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
 
   const opacity = Number(getData(opacityKey) ?? 100);
-  const saved = await setDB('blobs', key, { key, value: dataUrl, source: file.name, opacity, updatedAt: getNow() });
+  const saved = await setDB('blobs', key, { key, value: dataUrl, source: file.name, sourceType: 'local', url: '', opacity, updatedAt: getNow() });
   if (!saved) { showToast('图片保存失败，可能图片太大或存储已满'); return; }
 
   if (opacityKey && getData(opacityKey) == null) setData(opacityKey, opacity);
   showToast(msg || '图片上传好啦');
+  emitRefresh();
+  render(route);
+}
+
+async function askForImageUrl() {
+  const result = await promptForRemoteImage();
+  if (result.error) showToast(result.error);
+  return result.url || null;
+}
+
+async function setBlobImageUrl(key, opacityKey, msg) {
+  const url = await askForImageUrl();
+  if (!url) return;
+  const opacity = Number(getData(opacityKey) ?? 100);
+  const saved = await setDB('blobs', key, { key, value: url, url, source: url, sourceType: 'url', opacity, updatedAt: getNow() });
+  if (!saved) { showToast('图片保存失败，请稍后重试'); return; }
+  if (opacityKey && getData(opacityKey) == null) setData(opacityKey, opacity);
+  showToast(msg || '图片 URL 保存好啦');
   emitRefresh();
   render(route);
 }
@@ -1739,8 +1764,6 @@ async function clearBlobImage(key, opacityKey) {
     await deleteDB('blobs', key);
     removeData(key);
   }
-  if (opacityKey) removeData(opacityKey);
-
   showToast('图片清掉啦');
   emitRefresh();
   render(route);
@@ -1759,7 +1782,7 @@ async function uploadWidgetBg(key) {
 
   const all = getData(WIDGET_BACKGROUNDS_KEY) || {};
   const old = all[key] || {};
-  const record = { key, value: dataUrl, source: file.name, opacity: Number(old.opacity ?? 100), updatedAt: getNow() };
+  const record = { key, value: dataUrl, source: file.name, sourceType: 'local', url: '', opacity: Number(old.opacity ?? 100), updatedAt: getNow() };
 
   all[key] = record;
   setData(WIDGET_BACKGROUNDS_KEY, all);
@@ -1771,12 +1794,24 @@ async function uploadWidgetBg(key) {
   render('widgets');
 }
 
+async function setWidgetBgUrl(key) {
+  const url = await askForImageUrl();
+  if (!url) return;
+  const all = getData(WIDGET_BACKGROUNDS_KEY) || {};
+  const record = { key, value: url, url, source: url, sourceType: 'url', opacity: Number(all[key]?.opacity ?? 100), updatedAt: getNow() };
+  if (!await setDB('blobs', key, record)) { showToast('图片保存失败，请稍后重试'); return; }
+  all[key] = record;
+  setData(WIDGET_BACKGROUNDS_KEY, all);
+  showToast('小卡片背景换好啦'); emitRefresh(); render('widgets');
+}
+
 async function clearWidgetBg(key) {
   const ok = await showConfirm('要清掉这个小卡片背景吗？');
   if (!ok) return;
 
   const all = getData(WIDGET_BACKGROUNDS_KEY) || {};
-  delete all[key];
+  const opacity = Number(all[key]?.opacity ?? 100);
+  all[key] = { key, value: '', source: '', sourceType: '', url: '', opacity, updatedAt: getNow() };
   setData(WIDGET_BACKGROUNDS_KEY, all);
 
   await deleteDB('blobs', key).catch(() => {});
@@ -1812,12 +1847,24 @@ async function openWidgetEditor(widget) {
 
   sheet.body.append(name.wrap, text.wrap, shape.wrap);
   sheet.actions.append(
-    actionBtn('upload', '上传图', async () => {
+    actionBtn('upload', '本地选择', async () => {
       const file = await pickFile('image/*');
       if (!file) return;
       image = await readFileAsDataUrl(file);
-      await setDB('blobs', `custom_widget_${current.id}`, { key: `custom_widget_${current.id}`, value: image, source: file.name, opacity: Number(current.opacity ?? 100), updatedAt: getNow() });
+      await setDB('blobs', `custom_widget_${current.id}`, { key: `custom_widget_${current.id}`, value: image, source: file.name, sourceType: 'local', url: '', opacity: Number(current.opacity ?? 100), updatedAt: getNow() });
       showToast('小组件图上传啦');
+    }),
+    actionBtn('image', '图片 URL', async () => {
+      const url = await askForImageUrl();
+      if (!url) return;
+      image = url;
+      await setDB('blobs', `custom_widget_${current.id}`, { key: `custom_widget_${current.id}`, value: url, url, source: url, sourceType: 'url', opacity: Number(current.opacity ?? 100), updatedAt: getNow() });
+      showToast('小组件图片换好啦');
+    }),
+    actionBtn('delete', '清除图片', async () => {
+      image = '';
+      await deleteDB('blobs', `custom_widget_${current.id}`);
+      showToast('小组件图片清掉啦');
     }),
     actionBtn('check', '保存', () => {
       const list = getData(CUSTOM_WIDGETS_KEY) || [];
@@ -1827,7 +1874,7 @@ async function openWidgetEditor(widget) {
         name: name.input.value.trim(),
         shape: shape.input.value,
         image,
-        imageSource: image ? 'upload' : '',
+        imageSource: image ? (normalizeHttpImageUrl(image) ? 'url' : 'local') : '',
         text: text.input.value.trim(),
         opacity: Number(old?.opacity ?? current.opacity ?? 100),
         createdAt: current.createdAt || getNow(),
@@ -1896,7 +1943,7 @@ async function uploadIcon(id) {
   const blobKey = `app_icon_${id}`;
   const opacity = Number(current.opacity ?? 100);
 
-  const blobRecord = { key: blobKey, value: dataUrl, source: file.name, opacity, updatedAt: getNow() };
+  const blobRecord = { key: blobKey, value: dataUrl, source: file.name, sourceType: 'local', url: '', opacity, updatedAt: getNow() };
   const saved = await setDB('blobs', blobKey, blobRecord);
   if (!saved) { showToast('图标保存失败，可能图片太大或存储已满'); return; }
 
@@ -1906,6 +1953,10 @@ async function uploadIcon(id) {
     iconImage: dataUrl,
     backgroundImage: dataUrl,
     imageBase64: dataUrl,
+    imageUrl: '',
+    imageSource: 'local',
+    url: '',
+    sourceType: 'local',
     blobKey,
     opacity,
     updatedAt: getNow()
@@ -1915,6 +1966,37 @@ async function uploadIcon(id) {
   showToast('图标换好啦');
   emitRefresh();
   render('icons');
+}
+
+async function setIconUrl(id) {
+  const url = await askForImageUrl();
+  if (!url) return;
+  const icons = getData(ICONS_KEY) || {};
+  const current = icons[id] || {};
+  const blobKey = `app_icon_${id}`;
+  const opacity = Number(current.opacity ?? 100);
+  if (!await setDB('blobs', blobKey, { key: blobKey, value: url, url, source: url, sourceType: 'url', opacity, updatedAt: getNow() })) {
+    showToast('图标保存失败，请稍后重试'); return;
+  }
+  icons[id] = { ...current, image: url, iconImage: url, backgroundImage: url, imageBase64: '', imageUrl: url, imageSource: 'url', blobKey, opacity, updatedAt: getNow() };
+  setData(ICONS_KEY, icons); showToast('图标换好啦'); emitRefresh(); render('icons');
+}
+
+async function clearIconImage(id) {
+  const ok = await showConfirm('要清掉这张图吗？');
+  if (!ok) return;
+  if (window.AppImages?.removeAppIconImage) await window.AppImages.removeAppIconImage(id);
+  else await deleteDB('blobs', `app_icon_${id}`);
+  const icons = getData(ICONS_KEY) || {};
+  const current = icons[id] || {};
+  const { image, iconImage, backgroundImage, imageBase64, imageUrl, imageSource, url, sourceType, blobKey, ...preserved } = current;
+  icons[id] = preserved;
+  setData(ICONS_KEY, icons); showToast('图标图片清掉啦'); emitRefresh(); render('icons');
+}
+
+function openPublicImageHost() {
+  const opened = window.open(PUBLIC_IMAGE_HOST.url, '_blank', 'noopener,noreferrer');
+  if (!opened) showToast('外部图床被浏览器拦截了，请允许打开新标签页后重试');
 }
 
 async function clearIconBackground(id) {

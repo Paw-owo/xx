@@ -30,6 +30,7 @@ import { addMemory, editMemory, deleteMemory } from '../core/memory.js';
 import { deleteCharacterPrivateData } from '../core/character-deletion.js';
 
 import { getApiEndpointMetas } from '../core/api.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 const STYLE_ID = 'characters-style';
 const USER_PROFILES_KEY = 'user_profiles';
@@ -524,6 +525,8 @@ async function openEditor(characterId = '') {
       if (!saved) { showToast('头像保存失败，可能图片太大'); return; }
       draft.avatar = image;
       draft.avatarSource = image;
+      draft.avatarUrl = '';
+      draft.avatarSourceType = 'local';
       draft.avatarKey = getCharacterAvatarKey(draft.id);
       renderAvatarButton(avatarButton, draft.avatar);
       showToast('头像换好啦');
@@ -533,6 +536,8 @@ async function openEditor(characterId = '') {
       avatarInput.value = '';
     }
   });
+  const avatarUrlButton = createAvatarUrlButton(draft, getCharacterAvatarKey(draft.id), avatarButton);
+  const avatarClearButton = createAvatarClearButton(draft, getCharacterAvatarKey(draft.id), avatarButton);
 
   const nameInput = input('角色名字', draft.name);
   const promptInput = textarea('写下角色的人设、说话方式、关系背景', draft.systemPrompt);
@@ -559,7 +564,7 @@ async function openEditor(characterId = '') {
   });
 
   core.append(
-    customRow('头像', wrapActions(avatarButton, avatarInput)),
+    customRow('头像', wrapActions(avatarButton, avatarUrlButton, avatarClearButton, avatarInput)),
     field('名字', nameInput),
     field('人设', promptInput),
     field('绑定我的小档案', profileSelect)
@@ -691,6 +696,8 @@ async function openProfileEditor(profileId = '') {
       if (!saved) { showToast('头像保存失败，可能图片太大'); return; }
       draft.avatar = image;
       draft.avatarSource = image;
+      draft.avatarUrl = '';
+      draft.avatarSourceType = 'local';
       draft.avatarKey = getProfileAvatarKey(draft.id);
       renderAvatarButton(avatarButton, draft.avatar);
       showToast('头像换好啦');
@@ -700,6 +707,8 @@ async function openProfileEditor(profileId = '') {
       avatarInput.value = '';
     }
   });
+  const avatarUrlButton = createAvatarUrlButton(draft, getProfileAvatarKey(draft.id), avatarButton);
+  const avatarClearButton = createAvatarClearButton(draft, getProfileAvatarKey(draft.id), avatarButton);
 
   const nameInput = input('你怎么称呼自己', draft.name);
   const contentInput = textarea('写一下你的性格、爱好、说话习惯、想让 TA 怎么理解你', draft.content);
@@ -708,7 +717,7 @@ async function openProfileEditor(profileId = '') {
   });
 
   core.append(
-    customRow('头像', wrapActions(avatarButton, avatarInput)),
+    customRow('头像', wrapActions(avatarButton, avatarUrlButton, avatarClearButton, avatarInput)),
     field('昵称 / 称呼', nameInput),
     field('小档案内容', contentInput),
     customRow('设为默认小档案', defaultSwitch),
@@ -742,6 +751,32 @@ async function openProfileEditor(profileId = '') {
 
 function renderAvatarButton(buttonEl, avatar) {
   renderImageOrIcon(buttonEl, avatar, 'camera', 26);
+}
+
+function createAvatarUrlButton(draft, key, previewButton) {
+  const urlButton = button('图片 URL', 'ghost', 'image');
+  urlButton.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (!result.url) return;
+    const saved = await saveBlobImage(key, result.url, null, 100, 'url');
+    if (!saved) { showToast('头像保存失败，请稍后重试'); return; }
+    draft.avatar = result.url; draft.avatarSource = result.url; draft.avatarUrl = result.url;
+    draft.avatarSourceType = 'url'; draft.avatarKey = key;
+    renderAvatarButton(previewButton, result.url); showToast('头像换好啦');
+  });
+  return urlButton;
+}
+
+function createAvatarClearButton(draft, key, previewButton) {
+  const clearButton = button('清除图片', 'ghost', 'clear');
+  clearButton.addEventListener('click', async () => {
+    await deleteDB('blobs', key).catch(() => {});
+    draft.avatar = ''; draft.avatarSource = ''; draft.avatarUrl = '';
+    draft.avatarSourceType = ''; draft.avatarKey = '';
+    renderAvatarButton(previewButton, ''); showToast('头像已清除');
+  });
+  return clearButton;
 }
 
 function renderBackgroundEditor(draft) {
@@ -809,6 +844,8 @@ function renderBackgroundEditor(draft) {
         draft.chatBackground.type = 'image';
         draft.chatBackground.value = image;
         draft.chatBackground.blobKey = getCharacterBgKey(draft.id);
+        draft.chatBackground.imageSource = 'local';
+        draft.chatBackground.url = '';
         draft.chatBackground.opacity = draft.chatBackground.opacity ?? 100;
         showToast('聊天背景换好啦');
         renderPanelAgain(box, () => renderBackgroundEditor(draft));
@@ -819,6 +856,18 @@ function renderBackgroundEditor(draft) {
       }
     });
 
+    const urlButton = button('图片 URL', 'ghost', 'image');
+    urlButton.addEventListener('click', async () => {
+      const result = await promptForRemoteImage();
+      if (result.error) { showToast(result.error); return; }
+      if (!result.url) return;
+      const key = getCharacterBgKey(draft.id);
+      const saved = await saveBlobImage(key, result.url, null, draft.chatBackground.opacity ?? 100, 'url');
+      if (!saved) { showToast('背景保存失败，请稍后重试'); return; }
+      draft.chatBackground = { ...draft.chatBackground, type: 'image', value: result.url, blobKey: key, imageSource: 'url', url: result.url };
+      showToast('聊天背景换好啦'); renderPanelAgain(box, () => renderBackgroundEditor(draft));
+    });
+
     const clearButton = button('清除图片', 'ghost', 'clear');
     clearButton.addEventListener('click', async () => {
       if (draft.chatBackground.blobKey) {
@@ -827,10 +876,12 @@ function renderBackgroundEditor(draft) {
 
       draft.chatBackground.value = '';
       draft.chatBackground.blobKey = '';
+      draft.chatBackground.imageSource = '';
+      draft.chatBackground.url = '';
       renderPanelAgain(box, () => renderBackgroundEditor(draft));
     });
 
-    box.append(preview, field('透明度', opacity), wrapActions(uploadButton, clearButton, imageInput));
+    box.append(preview, field('透明度', opacity), wrapActions(uploadButton, urlButton, clearButton, imageInput));
   }
 
   return box;
@@ -1489,6 +1540,8 @@ async function saveUserProfile(profile) {
       key: next.avatarKey,
       value: next.avatar,
       source: next.avatarSource || next.avatar,
+      sourceType: next.avatarSourceType || (next.avatarUrl ? 'url' : 'local'),
+      url: next.avatarUrl || '',
       opacity: 100,
       updatedAt: now
     });
@@ -1968,13 +2021,15 @@ function getProfileAvatarKey(profileId) {
   return `app_user_profile_avatar_${profileId}`;
 }
 
-async function saveBlobImage(key, value, file = null, opacity = 100) {
+async function saveBlobImage(key, value, file = null, opacity = 100, sourceType = 'local') {
   if (!key || !value) return null;
 
   const saved = await setDB('blobs', key, {
     key,
     value,
-    source: value,
+    source: sourceType === 'url' ? value : file?.name || 'upload',
+    sourceType,
+    url: sourceType === 'url' ? value : '',
     name: file?.name || '',
     type: file?.type || '',
     opacity: Number(opacity) || 100,

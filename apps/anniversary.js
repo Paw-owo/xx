@@ -10,6 +10,7 @@ import {
 import {
   showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 } from '../core/ui.js';
+import { promptForRemoteImage } from '../core/image-url.js';
 
 const KEY = 'anniversaries';
 const VISUALS_KEY = 'app_anniversary_visuals';
@@ -226,11 +227,13 @@ function getVisualBlobKey(id) {
   return `${VISUAL_BLOB_PREFIX}${id}`;
 }
 
-async function setAnnVisualImage(id, value, name = '') {
+async function setAnnVisualImage(id, value, name = '', sourceType = 'local', sourceName = '') {
   await setDB('blobs', getVisualBlobKey(id), {
     key: getVisualBlobKey(id),
     value,
-    source: value,
+    source: sourceType === 'url' ? value : sourceName || 'upload',
+    sourceType,
+    url: sourceType === 'url' ? value : '',
     opacity: 100,
     updatedAt: getNow()
   });
@@ -243,10 +246,10 @@ async function setAnnVisualImage(id, value, name = '') {
   });
 }
 
-async function removeAnnVisualImage(id) {
+async function removeAnnVisualImage(id, preserveMeta = true) {
   await deleteDB('blobs', getVisualBlobKey(id));
   visualCache.delete(id);
-  removeAnnVisualMeta(id);
+  if (!preserveMeta) removeAnnVisualMeta(id);
 }
 
 async function loadVisualCache(list) {
@@ -954,10 +957,21 @@ function openEditor(item, presetDate = '') {
   imageButton.className = 'ann-mini-btn';
   imageButton.type = 'button';
   imageButton.append(createIcon('image', 15), document.createTextNode(isEdit ? '更换小图' : '选择小图'));
+  let pendingImageSource = '';
   imageButton.addEventListener('click', () => chooseImage(async (file) => {
     pendingImage = await compressImage(file, 900, 0.86);
+    pendingImageSource = 'local';
     showToast('图片选好啦，记得保存');
   }));
+  const imageUrlButton = createImageUrlButton(async (url) => { pendingImage = url; pendingImageSource = 'url'; showToast('图片选好啦，记得保存'); });
+  const clearPendingImage = document.createElement('button');
+  clearPendingImage.className = 'ann-mini-btn'; clearPendingImage.type = 'button';
+  clearPendingImage.append(createIcon('clear', 15), document.createTextNode('清除图片'));
+  clearPendingImage.addEventListener('click', async () => {
+    pendingImage = ''; pendingImageSource = '';
+    if (item?.id) await removeAnnVisualImage(item.id);
+    showToast('图片已清除');
+  });
 
   const switchRow = createSwitchRow(item?.aiReminder !== false);
 
@@ -1021,7 +1035,7 @@ function openEditor(item, presetDate = '') {
     }
 
     if (pendingImage) {
-      await setAnnVisualImage(savedId, pendingImage, name);
+      await setAnnVisualImage(savedId, pendingImage, name, pendingImageSource || 'local');
     }
 
     hideBottomSheet();
@@ -1030,7 +1044,7 @@ function openEditor(item, presetDate = '') {
   });
 
   actions.append(cancelButton, saveButton);
-  sheet.append(title, nameField, dateField, markerField, imageButton, noteField, switchRow, actions);
+  sheet.append(title, nameField, dateField, markerField, imageButton, imageUrlButton, clearPendingImage, noteField, switchRow, actions);
 
   if (isEdit) {
     const deleteButton = document.createElement('button');
@@ -1090,7 +1104,9 @@ function openCustomizeSheet() {
     await setDB('blobs', BG_KEY, {
       key: BG_KEY,
       value,
-      source: value,
+      source: file.name,
+      sourceType: 'local',
+      url: '',
       opacity: 100,
       updatedAt: getNow()
     });
@@ -1099,6 +1115,13 @@ function openCustomizeSheet() {
     hideBottomSheet();
     showToast('壁纸换好啦');
   }));
+
+  const urlBg = createImageUrlButton(async (url) => {
+    await setDB('blobs', BG_KEY, { key: BG_KEY, value: url, url, source: url, sourceType: 'url', opacity: 100, updatedAt: getNow() });
+    const screen = container?.querySelector('.ann-screen');
+    if (screen) await applyAnniversaryBackground(screen);
+    hideBottomSheet(); showToast('壁纸换好啦');
+  });
 
   const clearBg = document.createElement('button');
   clearBg.className = 'ann-mini-btn';
@@ -1112,7 +1135,7 @@ function openCustomizeSheet() {
     showToast('已恢复默认背景');
   });
 
-  bgSection.querySelector('.ann-custom-actions').append(uploadBg, clearBg);
+  bgSection.querySelector('.ann-custom-actions').append(uploadBg, urlBg, clearBg);
 
   const itemSection = createCustomSection('小图管理', '每个纪念日都能换成自己的小图片，还能调透明度。');
   const list = document.createElement('div');
@@ -1258,6 +1281,11 @@ function openImageSettingSheet(item) {
   upload.append(createIcon('upload', 15), document.createTextNode('上传新图'));
   upload.addEventListener('click', () => changeAnnImage(item));
 
+  const urlButton = createImageUrlButton(async (url) => {
+    await setAnnVisualImage(item.id, url, item.name, 'url');
+    hideBottomSheet(); showToast('小图换好啦'); await render();
+  });
+
   const clear = document.createElement('button');
   clear.className = 'ann-mini-btn';
   clear.type = 'button';
@@ -1270,7 +1298,7 @@ function openImageSettingSheet(item) {
   });
 
   section.append(label, range);
-  section.querySelector('.ann-custom-actions').append(upload, clear);
+  section.querySelector('.ann-custom-actions').append(upload, urlButton, clear);
   sheet.append(title, section);
   showBottomSheet(sheet);
 }
@@ -1278,7 +1306,7 @@ function openImageSettingSheet(item) {
 async function changeAnnImage(item) {
   chooseImage(async (file) => {
     const value = await compressImage(file, 900, 0.86);
-    await setAnnVisualImage(item.id, value, item.name);
+    await setAnnVisualImage(item.id, value, item.name, 'local', file.name);
     hideBottomSheet();
     showToast('小图换好啦');
     await render();
@@ -1299,6 +1327,19 @@ function chooseImage(onPicked) {
     }
   });
   input.click();
+}
+
+function createImageUrlButton(onPicked) {
+  const button = document.createElement('button');
+  button.className = 'ann-mini-btn';
+  button.type = 'button';
+  button.append(createIcon('image', 15), document.createTextNode('图片 URL'));
+  button.addEventListener('click', async () => {
+    const result = await promptForRemoteImage();
+    if (result.error) { showToast(result.error); return; }
+    if (result.url) await onPicked(result.url);
+  });
+  return button;
 }
 
 function createMarkerField(activeMarker, onChange) {
@@ -1396,7 +1437,7 @@ async function deleteItem(item) {
   if (!ok) return;
 
   saveList(readList().filter((record) => record.id !== item.id));
-  await removeAnnVisualImage(item.id);
+  await removeAnnVisualImage(item.id, false);
   showToast('已删除');
   await render();
 }

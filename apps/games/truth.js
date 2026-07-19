@@ -29,6 +29,7 @@ import {
 } from '../../core/api.js';
 
 import { recordExternalInteraction } from '../../core/app-bus.js';
+import { promptForRemoteImage } from '../../core/image-url.js';
 
 const STYLE_ID = 'truth-game-style';
 const STATE_KEY = 'truth_game_state';
@@ -724,6 +725,7 @@ function openSettingsSheet() {
 
     <div class="truth-sheet-actions">
       <button class="btn-ghost" data-action="upload-bg"></button>
+      <button class="btn-ghost" data-action="url-bg"></button>
       <button class="btn-ghost" data-action="clear-bg"></button>
     </div>
 
@@ -734,6 +736,7 @@ function openSettingsSheet() {
   select.value = mode;
 
   sheet.querySelector('[data-action="upload-bg"]').append(createIcon('upload', 17), document.createTextNode('换背景'));
+  sheet.querySelector('[data-action="url-bg"]').append(createIcon('image', 17), document.createTextNode('图片 URL'));
   sheet.querySelector('[data-action="clear-bg"]').append(createIcon('clear', 17), document.createTextNode('清背景'));
 
   sheet.querySelector('[data-action="upload-bg"]').addEventListener('click', async () => {
@@ -745,7 +748,7 @@ function openSettingsSheet() {
       await setDB('blobs', BG_KEY, {
         key: BG_KEY,
         value,
-        source: value,
+        source: file.name || '', sourceType: 'local', url: '',
         name: file.name || '',
         updatedAt: getNow()
       });
@@ -755,6 +758,12 @@ function openSettingsSheet() {
     } catch (_) {
       showToast('背景没有处理好');
     }
+  });
+
+  sheet.querySelector('[data-action="url-bg"]').addEventListener('click', async () => {
+    const result = await promptForRemoteImage(); if (result.error) { showToast(result.error); return; } if (!result.url) return;
+    await setDB('blobs', BG_KEY, { key: BG_KEY, value: result.url, url: result.url, source: result.url, sourceType: 'url', updatedAt: getNow() });
+    await applyBackground(); showToast('背景换好了');
   });
 
   sheet.querySelector('[data-action="clear-bg"]').addEventListener('click', async () => {

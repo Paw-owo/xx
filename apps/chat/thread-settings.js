@@ -19,6 +19,7 @@ import {
 
 import { createIcon, showToast } from '../../core/ui.js';
 import { getApiPoolItems, getMergedPoolModels, getPoolGroups } from '../../core/api.js';
+import { promptForRemoteImage } from '../../core/image-url.js';
 
 // ═══════════════════════════════════════
 // 【基础状态】保存设置页运行时状态
@@ -333,18 +334,27 @@ function createWallpaperSection() {
       const valid = await verifyImageDataUrl(dataUrl);
       if (!valid) { showToast('图片格式不支持或已损坏，换一张试试'); return; }
       const op = resolveOpacity(getData(opacityKey));
-      const saved = await setDB('blobs', blobKey, { key: blobKey, value: dataUrl, source: file.name, opacity: op, updatedAt: getNow() });
+      const saved = await setDB('blobs', blobKey, { key: blobKey, value: dataUrl, source: file.name, sourceType: 'local', url: '', opacity: op, updatedAt: getNow() });
       if (!saved) { showToast('壁纸保存失败，可能图片太大'); return; }
       setData(opacityKey, op);
       showToast('聊天壁纸换好啦');
       window.AppEvents?.emit?.('chat-wallpaper-updated', { characterId: state?.characterId, groupId: state?.groupId });
       render();
     }),
+    actionBtn('image', '图片 URL', async () => {
+      const result = await promptForRemoteImage();
+      if (result.error) { showToast(result.error); return; }
+      if (!result.url) return;
+      const op = resolveOpacity(getData(opacityKey));
+      const saved = await setDB('blobs', blobKey, { key: blobKey, value: result.url, url: result.url, source: result.url, sourceType: 'url', opacity: op, updatedAt: getNow() });
+      if (!saved) { showToast('壁纸保存失败，请稍后重试'); return; }
+      setData(opacityKey, op); showToast('聊天壁纸换好啦');
+      window.AppEvents?.emit?.('chat-wallpaper-updated', { characterId: state?.characterId, groupId: state?.groupId }); render();
+    }),
     actionBtn('delete', '清除壁纸', async () => {
       const ok = await showSimpleConfirm('要清掉这张壁纸吗？');
       if (!ok) return;
       await deleteDB('blobs', blobKey).catch(() => {});
-      removeData(opacityKey);
       showToast('壁纸清掉啦');
       window.AppEvents?.emit?.('chat-wallpaper-updated', { characterId: state?.characterId, groupId: state?.groupId });
       render();
