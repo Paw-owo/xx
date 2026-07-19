@@ -341,14 +341,30 @@ function bindHubEvents() {
   });
 
   rootEl.querySelector('[data-action="clear-badge"]')?.addEventListener('click', () => {
-    setData(BADGE_KEY, 0);
-    window.refreshDesktopBadges?.();
+    updateGamesUnreadCount(0, { source: 'game-hub', action: 'clear' });
     showToast('提醒清掉啦');
   });
 
   rootEl.querySelector('.hub-hero-art')?.addEventListener('click', () => {
     openGame('liars-tavern');
   });
+}
+
+
+function updateGamesUnreadCount(count, { source = 'games', action = 'update' } = {}) {
+  const previousCount = Math.max(0, Number(getData(BADGE_KEY) || 0));
+  const next = Math.max(0, Number(count || 0));
+  setData(BADGE_KEY, next);
+  try {
+    window.AppBus?.emit?.('games:unread-updated', {
+      source,
+      count: next,
+      previousCount,
+      action,
+      updatedAt: getNow()
+    });
+  } catch (_) {}
+  window.refreshDesktopBadges?.();
 }
 
 function getHeroTitle() {

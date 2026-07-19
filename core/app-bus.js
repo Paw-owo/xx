@@ -5,6 +5,7 @@
 
 import { recordExternalInteraction as memoryRecordExternalInteraction } from './memory.js';
 import { getData, setData } from './storage.js';
+import { getAppEventSpecs } from './app-system-registry.js';
 
 // ═══════════════════════════════════════
 // 【APP 注册表】每个 APP mount 时注册对外 API
@@ -89,6 +90,10 @@ function safeForLog(value) {
 
 export function getEventLog() {
   return Array.isArray(getData(EVENT_LOG_KEY)) ? getData(EVENT_LOG_KEY) : [];
+}
+
+export function getRegisteredEventSpecs() {
+  return getAppEventSpecs();
 }
 
 // ═══════════════════════════════════════

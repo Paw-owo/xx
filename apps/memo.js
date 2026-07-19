@@ -14,6 +14,7 @@ import { promptForRemoteImage } from '../core/image-url.js';
 
 const MEMO_KEY = 'memos';
 const VISUALS_KEY = 'app_memo_visuals';
+const MEMORY_SYNC_KEY = 'app_memo_memory_syncs';
 const STYLE_ID = 'memo-styles';
 const BG_KEY = 'app_bg_memo';
 const COVER_PREFIX = 'app_memo_cover_';
@@ -130,6 +131,58 @@ function readMemos() {
 
 function saveMemos(list) {
   setData(MEMO_KEY, Array.isArray(list) ? list.map(normalizeMemo) : []);
+}
+
+function readMemoMemorySyncs() {
+  const saved = getData(MEMORY_SYNC_KEY, {});
+  return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+}
+
+function saveMemoMemorySyncs(syncs) {
+  setData(MEMORY_SYNC_KEY, syncs && typeof syncs === 'object' && !Array.isArray(syncs) ? syncs : {});
+}
+
+function buildMemoMemorySyncKey(memoId, characterId) {
+  const memoKey = String(memoId || '').trim();
+  const characterKey = String(characterId || '').trim();
+  return memoKey && characterKey ? `${memoKey}::${characterKey}` : '';
+}
+
+function buildMemoMemoryContent(title, content) {
+  return `我在备忘录里记下了：${title || '未命名'}。${content || ''}`.trim();
+}
+
+function buildMemoMemorySignature({ characterId, title, content, category }) {
+  return JSON.stringify({
+    characterId: String(characterId || ''),
+    title: String(title || '未命名'),
+    content: String(content || ''),
+    category: String(category || '')
+  });
+}
+
+function getMemoMemorySyncRecord(memoId, characterId) {
+  const key = buildMemoMemorySyncKey(memoId, characterId);
+  if (!key) return null;
+  const syncs = readMemoMemorySyncs();
+  const record = syncs[key];
+  return record && typeof record === 'object' && !Array.isArray(record) ? record : null;
+}
+
+function saveMemoMemorySyncRecord(record) {
+  const key = buildMemoMemorySyncKey(record?.memoId, record?.characterId);
+  if (!key) return null;
+  const syncs = readMemoMemorySyncs();
+  const next = {
+    memoId: String(record.memoId || ''),
+    characterId: String(record.characterId || ''),
+    memoryId: String(record.memoryId || ''),
+    signature: String(record.signature || ''),
+    updatedAt: getNow()
+  };
+  syncs[key] = next;
+  saveMemoMemorySyncs(syncs);
+  return next;
 }
 
 function getVisuals() {
@@ -638,12 +691,38 @@ async function openEditor(memo) {
     // 同步到角色记忆
     if (syncEnabled && syncCharacterId) {
       try {
-        await window.AppBus.recordExternalInteraction({
+        const syncTitle = nextTitle || '未命名';
+        const memoryContent = buildMemoMemoryContent(syncTitle, nextContent);
+        const signature = buildMemoMemorySignature({
           characterId: syncCharacterId,
-          role: 'assistant',
-          content: `我在备忘录里记下了：${nextTitle || '未命名'}。${nextContent}`.trim(),
-          source: '备忘录',
-          importance: selectedCategory === 'todo' ? 4 : 3
+          title: syncTitle,
+          content: nextContent,
+          category: selectedCategory
+        });
+        const existingSync = getMemoMemorySyncRecord(memoId, syncCharacterId);
+        let memoryId = existingSync?.memoryId || '';
+        let action = 'unchanged';
+
+        if (!existingSync || existingSync.signature !== signature) {
+          const memory = await window.AppBus.recordExternalInteraction({
+            characterId: syncCharacterId,
+            role: 'assistant',
+            content: memoryContent,
+            source: '备忘录',
+            importance: selectedCategory === 'todo' ? 4 : 3
+          });
+          memoryId = memory?.id || '';
+          saveMemoMemorySyncRecord({ memoId, characterId: syncCharacterId, memoryId, signature });
+          action = existingSync ? 'updated' : 'created';
+        }
+
+        window.AppBus?.emit?.('memo:memory-synced', {
+          memoId,
+          characterId: syncCharacterId,
+          title: syncTitle,
+          category: selectedCategory,
+          memoryId,
+          action
         });
       } catch (_) {}
     }
