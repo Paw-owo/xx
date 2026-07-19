@@ -13,8 +13,16 @@ import { openRelationshipLockSheet } from './thread-relationship.js';
 import { sendDiceMessage, sendRpsMessage } from './thread-actions.js';
 import { openGithubToolSheet } from './github-tool.js';
 import { createChatIcon } from './icons.js';
+import { runSubAgent, SUB_AGENT_SCOPES } from '../../core/sub-agent-system.js';
+import { ensureDeveloperAgentRegistered } from './developer-agent.js';
+import { ensureThemeAgentRegistered } from './theme-agent.js';
+import { ensureReviewAgentRegistered } from './review-agent.js';
 
 const STYLE_ID = 'thread-tools-style-v2';
+
+ensureDeveloperAgentRegistered();
+ensureThemeAgentRegistered();
+ensureReviewAgentRegistered();
 
 // ═══════════════════════════════════════
 // 【工具分组】3 组 10 个工具
@@ -35,7 +43,7 @@ const TOOL_GROUPS = [
     tools: [
       { id: 'image', title: '图片', icon: 'image' },
       { id: 'quickReply', title: '快捷回复', icon: 'chat' },
-      { id: 'themeDesign', title: '做主题', icon: 'chat' },
+      { id: 'themeDesign', title: '做主题', icon: 'theme' },
       { id: 'transfer', title: '转账', icon: 'transfer' },
       { id: 'phone', title: '电话', icon: 'phone' },
     ]
@@ -62,6 +70,8 @@ const TOOL_ICONS = {
   image: '<rect x="2.4" y="3" width="11.2" height="10" rx="2.4" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.2" r="1.1" fill="var(--chat-icon-fill)"/><path d="M3 10.5L5.8 7.8C6.2 7.4 6.8 7.4 7.2 7.8L10 10.5" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 10.5L10.3 8.8C10.7 8.4 11.3 8.4 11.7 8.8L13 10.1" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   // 快捷回复：圆润小气泡，尾巴朝下
   chat: '<path d="M2.5 4.5C2.5 3.4 3.4 2.5 4.5 2.5H11.5C12.6 2.5 13.5 3.4 13.5 4.5V8.5C13.5 9.6 12.6 10.5 11.5 10.5H7L4.2 13C3.8 13.3 3.3 13 3.3 12.5V10.5C2.8 10.4 2.5 9.9 2.5 9.5V4.5Z" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6" cy="6.5" r="0.9" fill="var(--chat-icon-fill)"/><circle cx="8" cy="6.5" r="0.9" fill="var(--chat-icon-fill)"/><circle cx="10" cy="6.5" r="0.9" fill="var(--chat-icon-fill)"/>',
+  // 做主题：小铃铛 + 柔软闪光，不机器人化
+  theme: '<path d="M4.2 8.2C4.2 5.8 5.7 4.1 8 4.1C10.3 4.1 11.8 5.8 11.8 8.2V10.2L13.1 12.2H2.9L4.2 10.2V8.2Z" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.6 12.4C6.9 13.2 7.4 13.6 8 13.6C8.6 13.6 9.1 13.2 9.4 12.4" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round"/><path d="M8 2.5V3.8" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round"/><path d="M12.8 3.2L12.2 4.2" stroke="var(--chat-icon-line)" stroke-width="1.4" stroke-linecap="round"/><path d="M3.2 3.2L3.8 4.2" stroke="var(--chat-icon-line)" stroke-width="1.4" stroke-linecap="round"/>',
   // 小任务：剪贴板 + 勾选
   task: '<rect x="3" y="2.8" width="10" height="11.2" rx="2.6" fill="var(--chat-icon-fill)" opacity="0.16" stroke="var(--chat-icon-line)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><rect x="5.5" y="1.8" width="5" height="2.4" rx="1.2" fill="var(--chat-icon-fill)" opacity="0.3" stroke="var(--chat-icon-line)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 8.2L7 9.7L10.3 6.3" fill="none" stroke="var(--chat-icon-line)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
   // 默契问答：两个小气泡叠在一起 + 问号
@@ -109,9 +119,10 @@ function injectStyle() {
     .tools-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 4px}
     .tool-cell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:12px 4px 10px;border:none;outline:none;border-radius:var(--radius-lg);background:transparent;cursor:pointer;transition:all 0.2s cubic-bezier(0.34,1.56,0.64,1);-webkit-tap-highlight-color:transparent;user-select:none}
     .tool-cell:active{transform:scale(0.9)}
-    .tool-icon-wrap{width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--surface-muted);border-radius:var(--radius-md);padding:3px;transition:all 0.2s ease}
+    .tool-icon-wrap{--chat-icon-line:var(--accent-dark,var(--accent));--chat-icon-fill:var(--accent);width:42px;height:42px;display:flex;align-items:center;justify-content:center;color:var(--accent);background:color-mix(in srgb,var(--accent-light) 18%,var(--surface-muted));border-radius:var(--radius-md);padding:3px;transition:all 0.2s ease}
     .tool-cell:active .tool-icon-wrap{transform:scale(0.92)}
     .tool-icon-wrap svg{width:100%;height:100%}
+    .tool-icon-wrap svg *{vector-effect:non-scaling-stroke}
     .tool-name{font-size:11px;font-weight:500;color:var(--text-secondary);line-height:1.2;text-align:center;white-space:nowrap}
     .tools-detail-wrap{display:flex;flex-direction:column;gap:14px;padding:4px 4px 8px;animation:toolsFadeIn 200ms ease both}
     .tools-detail-header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;margin-bottom:4px}
@@ -339,7 +350,13 @@ async function handleToolClick(toolId, state, options, showDetail) {
       break;
     case 'themeDesign':
       closeToolsSheet(options);
-      sendMessageToChat('我想请你帮我设计一个小手机主题：', options);
+      await runToolboxSubAgent('theme-agent', { scope: SUB_AGENT_SCOPES.THEME, prompt: '从聊天工具箱发起主题设计' }, options);
+      await sendMessageToChat('我想请你帮我设计一个小手机主题：', options);
+      break;
+    case 'clearCtx':
+      closeToolsSheet(options);
+      await runToolboxSubAgent('review-agent', { scope: SUB_AGENT_SCOPES.REVIEW, prompt: '整理清上下文前的风险提示' }, options);
+      openClearContextSheet(state, options);
       break;
     case 'transfer':
       closeToolsSheet(options);
@@ -351,10 +368,6 @@ async function handleToolClick(toolId, state, options, showDetail) {
         options.onPick({ id: 'phone' });
       }
       break;
-    case 'clearCtx':
-      closeToolsSheet(options);
-      openClearContextSheet(state, options);
-      break;
     case 'relLock':
       closeToolsSheet(options);
       openRelationshipLockSheet(state, options);
@@ -365,6 +378,7 @@ async function handleToolClick(toolId, state, options, showDetail) {
       break;
     case 'github':
       closeToolsSheet(options);
+      await runToolboxSubAgent('developer-agent', { scope: SUB_AGENT_SCOPES.DEVELOPMENT, prompt: '准备打开 GitHub 开发工具' }, options);
       openGithubToolSheet();
       break;
     default:
@@ -388,6 +402,17 @@ async function sendMessageToChat(text, options) {
   if (typeof options?.onSend === 'function') {
     await options.onSend(text);
   }
+}
+
+async function runToolboxSubAgent(agentId, task, options) {
+  const result = await runSubAgent(agentId, task, { scope: task.scope, source: 'chat-toolbox' });
+  if (typeof options?.onSubAgentResult === 'function') {
+    await options.onSubAgentResult(result);
+  }
+  if (!result.ok) {
+    showToast('这个小伙伴刚刚没整理好，稍后再试试');
+  }
+  return result;
 }
 
 // ═══════════════════════════════════════

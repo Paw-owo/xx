@@ -17,6 +17,7 @@ import {
   copyThemeVersion,
   listThemeVersions,
   exportThemePackage,
+  exportThemePackageAsync,
   importThemePackageAsync,
   getActiveThemeVersion,
   recordThemeOptimization,
@@ -506,14 +507,15 @@ function handleExportActive() {
   handleShareTheme(id);
 }
 
-function handleShareTheme(themeId) {
-  const result = exportThemePackage(themeId);
+async function handleShareTheme(themeId) {
+  const result = await exportThemePackageAsync(themeId);
   if (!result.ok) {
-    setStatus(`导出失败：${(result.errors || []).join('、')}`);
+    setStatus(`小包还没打好：${(result.errors || []).join('、')}`);
     return;
   }
   downloadThemePackage(result.package);
-  setStatus(`已导出主题：${result.package.shareInfo.themeName}`);
+  const external = result.externalDependencies?.length ? `，还有 ${result.externalDependencies.length} 个外部素材需要朋友设备能访问` : '';
+  setStatus(`已导出主题：${result.package.shareInfo.themeName}${external}`);
 }
 
 function handleImportClick() {

@@ -68,6 +68,17 @@ function saveConfig(config) {
   });
 }
 
+export function getGithubDeveloperConfigSummary() {
+  const config = getConfig();
+  return {
+    configured: Boolean(config.owner && config.repo && config.branch),
+    hasToken: Boolean(config.token),
+    owner: config.owner,
+    repo: config.repo,
+    branch: config.branch
+  };
+}
+
 // ═══════════════════════════════════════
 // 【API 请求】GitHub REST API
 // ═══════════════════════════════════════
@@ -262,6 +273,240 @@ async function createPullRequest(config, params, signal) {
     ...(signal ? { signal } : {})
   });
   return data;
+}
+
+export async function runGithubDeveloperTask(task = {}, options = {}) {
+  const config = getConfig();
+  const status = createDeveloperStatus();
+  const prompt = String(task.prompt || task.query || '').trim();
+  const allowWrite = options.allowWrite === true || task.allowWrite === true;
+  if (!config.owner || !config.repo || !config.branch) {
+    return buildDeveloperResult({
+      ok: false,
+      status: 'failed',
+      task: prompt || '开发协作',
+      summary: '还没有选好仓库，先去 GitHub 工具里补一下 owner、repo 和 branch。',
+      processSummary: '读取 GitHub 配置时发现仓库信息还不完整。',
+      resultSummary: '没有读取或修改任何文件。',
+      decisionSummary: 'developer-agent 只能使用 development 权限域和现有 GitHub 工具，不能绕过配置直接访问仓库。',
+      risks: ['需要先保存 GitHub 仓库配置。'],
+      statusTimeline: status.push('failed', '仓库配置不完整')
+    });
+  }
+
+  try {
+    status.push('analyzing', '正在分析代码');
+    const tree = await fetchTree(config, options.signal);
+    const codeFiles = tree.filter((item) => item?.path && !isBinaryPath(item.path));
+    const selected = selectDeveloperFiles(codeFiles, task);
+    status.push('reading', `读取 ${selected.length} 个文件`);
+    const fileReads = [];
+    for (const file of selected) {
+      const data = await fetchFile(config, file, options.signal);
+      const content = data?.encoding === 'base64' ? decodeBase64Utf8(data.content || '') : String(data?.content || '');
+      if (content === null) continue;
+      fileReads.push({ path: file.path, sha: data?.sha || file.sha || '', content: String(content || '') });
+    }
+
+    const analysis = analyzeDeveloperFiles(fileReads, prompt);
+    const writePlan = normalizeDeveloperChanges(task.changes, fileReads);
+    const modifiedFiles = [];
+    let prUrl = '';
+    let branchName = '';
+
+    if (writePlan.length && allowWrite) {
+      status.push('modifying', `准备修改 ${writePlan.length} 个文件`);
+      const baseSha = await fetchBaseBranchSha(config, options.signal);
+      branchName = buildBranchName(writePlan[0].path || 'developer-agent');
+      await createBranch(config, branchName, baseSha, options.signal);
+      for (const change of writePlan) {
+        const source = fileReads.find((item) => item.path === change.path);
+        const nextText = applyDeveloperChange(source?.content || '', change);
+        await putFileContent(config, change.path, {
+          message: String(task.commitMessage || `developer-agent: update ${change.path}`),
+          content: encodeBase64Utf8(nextText),
+          branch: branchName,
+          sha: source?.sha || change.sha || ''
+        }, options.signal);
+        modifiedFiles.push(change.path);
+      }
+      const pr = await createPullRequest(config, {
+        title: String(task.prTitle || task.commitMessage || 'developer-agent 开发协作'),
+        head: branchName,
+        base: config.branch,
+        body: String(task.prBody || buildDeveloperPrBody(prompt, analysis, modifiedFiles))
+      }, options.signal);
+      prUrl = pr?.html_url || '';
+    } else if (writePlan.length && !allowWrite) {
+      status.push('modifying', '已生成修改方案，等待明确授权后再写入');
+    }
+
+    status.push('testing', '整理可执行检查');
+    const tests = buildDeveloperTestSummary(task, fileReads, modifiedFiles);
+    status.push('completed', modifiedFiles.length ? '修复完成' : `发现${analysis.issues.length}个问题`);
+    return buildDeveloperResult({
+      ok: true,
+      status: 'completed',
+      task: prompt || '开发协作',
+      summary: modifiedFiles.length ? '修复完成' : `发现${analysis.issues.length}个问题`,
+      processSummary: `已读取 ${fileReads.length} 个文件，梳理了相关导入/调用线索。`,
+      resultSummary: analysis.summary,
+      decisionSummary: writePlan.length
+        ? (allowWrite ? '用户已授权开发写入，修改通过 GitHub 工具提交到新分支并创建 PR。' : '检测到修改意图，但没有明确写入授权，所以只生成方案不写文件。')
+        : '当前任务以读取和分析为主，没有执行文件写入。',
+      filesRead: fileReads.map((item) => item.path),
+      modifiedFiles,
+      tests,
+      risks: analysis.risks,
+      prUrl,
+      branchName,
+      statusTimeline: status.items
+    });
+  } catch (error) {
+    status.push('failed', String(error?.message || error));
+    return buildDeveloperResult({
+      ok: false,
+      status: 'failed',
+      task: prompt || '开发协作',
+      summary: '开发小伙伴刚刚没跑顺。',
+      processSummary: '已经通过 GitHub 工具发起开发任务，但中途遇到阻碍。',
+      resultSummary: String(error?.message || error),
+      decisionSummary: '失败后没有继续扩大权限，也没有绕过 GitHub 工具重试写入。',
+      risks: [String(error?.message || error)],
+      statusTimeline: status.items
+    });
+  }
+}
+
+function createDeveloperStatus() {
+  const items = [];
+  return {
+    items,
+    push(status, label) {
+      const item = { status, label: String(label || ''), at: new Date().toISOString() };
+      items.push(item);
+      return items;
+    }
+  };
+}
+
+function selectDeveloperFiles(files = [], task = {}) {
+  const requested = Array.isArray(task.files) ? task.files.map(String).filter(Boolean) : [];
+  if (requested.length) {
+    const wanted = new Set(requested);
+    return files.filter((item) => wanted.has(item.path)).slice(0, 8);
+  }
+  const prompt = String(task.prompt || '').toLowerCase();
+  const preferred = files
+    .map((item) => ({ item, score: scoreDeveloperPath(item.path, prompt) }))
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.item);
+  return (preferred.length ? preferred : files.filter((item) => /(^|\/)(package\.json|README\.md|index\.html|src\/|apps\/|core\/)/i.test(item.path))).slice(0, 8);
+}
+
+function scoreDeveloperPath(path, prompt) {
+  const lower = String(path || '').toLowerCase();
+  let score = 0;
+  if (/\.(js|mjs|ts|tsx|jsx|json|html|css|md)$/i.test(lower)) score += 2;
+  String(prompt || '').split(/[\s,，。:：/\\_-]+/).filter((word) => word.length >= 2).forEach((word) => {
+    if (lower.includes(word)) score += 3;
+  });
+  if (/bug|fix|修复|问题/.test(prompt) && /(test|spec|thread|api|core|app)/.test(lower)) score += 1;
+  return score;
+}
+
+function analyzeDeveloperFiles(files = [], prompt = '') {
+  const issues = [];
+  const imports = [];
+  const risks = [];
+  for (const file of files) {
+    const lines = String(file.content || '').split('\n');
+    lines.forEach((line, index) => {
+      if (/TODO|FIXME|console\.error|throw new Error\(['"]请求失败|unknown|未知错误/.test(line)) {
+        issues.push(`${file.path}:${index + 1} 需要留意 ${line.trim().slice(0, 80)}`);
+      }
+      const m = line.match(/import\s+.*?from\s+['"](.+?)['"]/);
+      if (m) imports.push(`${file.path} -> ${m[1]}`);
+    });
+    if (file.content.length > 60000) risks.push(`${file.path} 文件较大，建议分段审查。`);
+  }
+  if (!issues.length && files.length) issues.push('没有发现明显的 TODO/FIXME 或错误占位，建议继续结合具体复现步骤检查。');
+  return {
+    issues,
+    imports: imports.slice(0, 12),
+    risks,
+    summary: `读取 ${files.length} 个文件，发现 ${issues.length} 个需要确认的点。${imports.length ? `梳理到 ${imports.length} 条导入关系。` : ''}`
+  };
+}
+
+function normalizeDeveloperChanges(changes, files = []) {
+  if (!Array.isArray(changes)) return [];
+  return changes
+    .filter((change) => change && typeof change === 'object' && change.path)
+    .filter((change) => !isBinaryPath(change.path))
+    .map((change) => {
+      const source = files.find((item) => item.path === change.path);
+      return {
+        path: String(change.path),
+        sha: String(change.sha || source?.sha || ''),
+        content: typeof change.content === 'string' ? change.content : undefined,
+        search: typeof change.search === 'string' ? change.search : '',
+        replace: typeof change.replace === 'string' ? change.replace : ''
+      };
+    });
+}
+
+function applyDeveloperChange(currentText, change) {
+  if (typeof change.content === 'string') return change.content;
+  if (change.search) return String(currentText || '').replace(change.search, change.replace || '');
+  return String(currentText || '');
+}
+
+function buildDeveloperTestSummary(task, files, modifiedFiles) {
+  const checks = [];
+  checks.push({ command: 'GitHub contents/read', status: files.length ? 'passed' : 'warning', summary: files.length ? `已读取 ${files.length} 个文件。` : '没有读取到可分析文件。' });
+  checks.push({ command: 'static-import-scan', status: 'passed', summary: '已基于读取到的文件做静态导入和风险扫描。' });
+  if (modifiedFiles.length) checks.push({ command: 'GitHub contents/write + pull request', status: 'passed', summary: `已提交 ${modifiedFiles.length} 个文件到新分支。` });
+  else checks.push({ command: String(task.testCommand || 'remote-tests'), status: 'warning', summary: 'GitHub REST 工具没有远程测试运行器，未执行项目测试命令。' });
+  return checks;
+}
+
+function buildDeveloperPrBody(prompt, analysis, modifiedFiles) {
+  return [
+    '由小手机 developer-agent 通过 GitHub 工具创建。',
+    '',
+    '任务：',
+    prompt || '开发协作',
+    '',
+    '修改文件：',
+    modifiedFiles.length ? modifiedFiles.map((file) => '- ' + file).join('\n') : '- 无',
+    '',
+    '分析摘要：',
+    analysis.summary
+  ].join('\n');
+}
+
+function buildDeveloperResult(input) {
+  return {
+    ok: input.ok !== false,
+    userSummary: input.summary || (input.ok === false ? '开发任务没有跑顺' : '开发任务完成'),
+    internalResult: {
+      kind: 'developer',
+      task: input.task || '开发协作',
+      status: input.status || 'completed',
+      processSummary: input.processSummary || '',
+      resultSummary: input.resultSummary || input.summary || '',
+      decisionSummary: input.decisionSummary || '',
+      filesRead: input.filesRead || [],
+      modifiedFiles: input.modifiedFiles || [],
+      tests: input.tests || [],
+      risks: input.risks || [],
+      prUrl: input.prUrl || '',
+      branchName: input.branchName || '',
+      statusTimeline: input.statusTimeline || []
+    }
+  };
 }
 
 // ═══════════════════════════════════════

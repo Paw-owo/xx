@@ -190,6 +190,18 @@ export function clearThemeResourceCache() {
   resourceCache = new Map();
 }
 
+export async function readThemeImageResource(slot) {
+  const key = normalizeImageSlotKey(slot);
+  if (!key) return null;
+  const images = getAppImages();
+  try {
+    const record = images?.readImageRecord ? await images.readImageRecord(key) : null;
+    return cloneImageRecord(record);
+  } catch (_) {
+    return null;
+  }
+}
+
 async function writeThemeImageResource(slot, resource = {}, options = {}) {
   const key = normalizeImageSlotKey(slot);
   const normalized = normalizeImageResource(resource);
@@ -385,7 +397,10 @@ function inferResourceKind(value) {
 
 function cloneImageRecord(record) {
   if (!record || typeof record !== 'object') return null;
-  try { return JSON.parse(JSON.stringify(record)); } catch (_) { return { ...record }; }
+  const blobEntries = typeof Blob !== 'undefined'
+    ? Object.fromEntries(Object.entries(record).filter(([, value]) => value instanceof Blob))
+    : {};
+  try { return { ...JSON.parse(JSON.stringify(record)), ...blobEntries }; } catch (_) { return { ...record }; }
 }
 
 function clonePreview(preview) {
