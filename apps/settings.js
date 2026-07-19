@@ -230,6 +230,7 @@ function renderHome() {
     hero('设置小窝', '慢慢调成你喜欢的样子 ˶>ᗜ<˶'),
     group('常用小开关', [
       navItem('star', '外观主题', '颜色、夜间、主题文件都在这里', 'theme'),
+      appNavItem('star', '主题中心', '收纳、试穿和分享你的小世界', 'theme-center'),
       navItem('edit', '字体与显示', '字号、字体、聊天样子轻轻调', 'display')
     ]),
     group('模型与服务', [
@@ -2444,6 +2445,16 @@ function group(title, items) {
   const node = el('div', 'settings-group');
   node.append(el('div', 'settings-group-title', title), ...items);
   return node;
+}
+
+function appNavItem(icon, title, desc, appId) {
+  const item = navItem(icon, title, desc, 'home');
+  item.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    window.openApp?.(appId);
+  }, { capture: true });
+  return item;
 }
 
 function navItem(icon, title, desc, nextRoute) {

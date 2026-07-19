@@ -92,6 +92,11 @@ export const APP_DATA_REGISTRY = Object.freeze({
     dynamicKeyPrefixes: [],
     backup: true
   },
+  themeCenter: {
+    localStorageKeys: ['theme_center_favorites'],
+    dynamicKeyPrefixes: [],
+    backup: true
+  },
   settings: {
     localStorageKeys: [
       'app_settings',
