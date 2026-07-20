@@ -35,6 +35,10 @@ const AI_DAILY_LIMIT = 5;
 const INTERACTION_STATE_KEY = 'moment_interaction_state';
 const MOMENTS_UNREAD_KEY = 'moments_unread_count';
 
+function isDBWriteOk(result) {
+  return result !== null && result !== false && result !== undefined;
+}
+
 let rootEl = null;
 let mountedContainer = null;
 let moments = [];
@@ -112,12 +116,23 @@ export async function maybeCreateAutoMoment(characterId, sourceText = '') {
     isRead: false
   };
 
-  await setDB('moments', post.id, post);
+  const postSaved = await setDB('moments', post.id, post);
+  if (!isDBWriteOk(postSaved)) {
+    console.warn('[moments] 自动朋友圈没有存进去，先不更新状态');
+    return null;
+  }
 
-  character.lastMomentTime = Date.now();
-  if (result.mood) character.mood = result.mood;
-  await setDB('characters', character.id, character);
-  setData(`last_moment_${characterId}`, Date.now());
+  const nextCharacter = {
+    ...character,
+    lastMomentTime: Date.now(),
+    ...(result.mood ? { mood: result.mood } : {})
+  };
+  const characterSaved = await setDB('characters', nextCharacter.id, nextCharacter);
+  if (!isDBWriteOk(characterSaved)) {
+    console.warn('[moments] 角色朋友圈时间没有存进去，先不更新缓存');
+    return null;
+  }
+  setData(`last_moment_${characterId}`, nextCharacter.lastMomentTime);
 
   await syncMomentsUnreadCount();
   window.refreshDesktopBadges?.();
@@ -155,11 +170,17 @@ async function markAllRead() {
   const unread = moments.filter((item) => item.isRead === false);
   if (!unread.length) return;
 
-  await Promise.all(unread.map((item) => {
-    item.isRead = true;
-    return setDB('moments', item.id, item);
-  }));
+  const updates = unread.map((item) => ({ ...item, isRead: true }));
+  const results = await Promise.all(updates.map((item) => setDB('moments', item.id, item)));
+  if (results.some((result) => !isDBWriteOk(result))) {
+    showToast('有些动态还没标好，先保留未读状态啦');
+    return;
+  }
 
+  moments = moments.map((item) => {
+    const updated = updates.find((next) => next.id === item.id);
+    return updated || item;
+  });
   writeMomentsUnreadCount(moments);
   window.refreshDesktopBadges?.();
 }
@@ -335,7 +356,11 @@ function openPublishSheet() {
       isRead: true
     };
 
-    await setDB('moments', post.id, post);
+    const saved = await setDB('moments', post.id, post);
+    if (!isDBWriteOk(saved)) {
+      showToast('这条动态还没发出去，再试一次吧');
+      return;
+    }
     hideBottomSheet();
 
     await loadData();
@@ -417,8 +442,12 @@ async function toggleLike(post) {
   if (set.has('user')) set.delete('user');
   else set.add('user');
 
-  post.likes = [...set];
-  await setDB('moments', post.id, post);
+  const nextPost = { ...post, likes: [...set] };
+  const saved = await setDB('moments', nextPost.id, nextPost);
+  if (!isDBWriteOk(saved)) {
+    showToast('这个赞还没点稳，再试一次吧');
+    return;
+  }
   await loadData();
   render();
 
@@ -454,8 +483,12 @@ function openCommentSheet(post) {
       timestamp: getNow()
     };
 
-    post.comments.push(comment);
-    await setDB('moments', post.id, post);
+      const nextPost = { ...post, comments: [...(post.comments || []), comment] };
+    const saved = await setDB('moments', nextPost.id, nextPost);
+    if (!isDBWriteOk(saved)) {
+      showToast('这条评论还没发出去，再试一次吧');
+      return;
+    }
 
     hideBottomSheet();
     await loadData();
@@ -466,9 +499,9 @@ function openCommentSheet(post) {
       try {
         window.AppBus?.emit('moments:interaction', { type: 'comment', characterId: post.authorId, postId: post.id, content });
       } catch (_) {}
-      await aiReplyToUserComment(post, content);
+      await aiReplyToUserComment(nextPost, content);
     } else {
-      await maybeAiInteract(post);
+      await maybeAiInteract(nextPost);
     }
   });
 
@@ -494,20 +527,29 @@ async function aiReplyToUserComment(post, userComment) {
   const latest = await getDB('moments', post.id);
   if (!latest) return;
 
-  latest.comments = Array.isArray(latest.comments) ? latest.comments : [];
-  latest.comments.push({
-    id: generateId(),
-    authorId: character.id,
-    content: reply.slice(0, 180),
-    timestamp: getNow()
-  });
-  latest.isRead = false;
+  const nextLatest = {
+    ...latest,
+    comments: [
+      ...(Array.isArray(latest.comments) ? latest.comments : []),
+      {
+        id: generateId(),
+        authorId: character.id,
+        content: reply.slice(0, 180),
+        timestamp: getNow()
+      }
+    ],
+    isRead: false
+  };
 
-  await setDB('moments', latest.id, latest);
+  const saved = await setDB('moments', nextLatest.id, nextLatest);
+  if (!isDBWriteOk(saved)) {
+    console.warn('[moments] AI 回复评论没有存进去，先不广播互动');
+    return;
+  }
   await recordToChat(character.id, 'assistant', `我回复了你在朋友圈的评论：${reply}`, '朋友圈回复');
 
   try {
-    window.AppBus?.emit('moments:interaction', { type: 'reply', characterId: character.id, postId: latest.id, content: reply });
+    window.AppBus?.emit('moments:interaction', { type: 'reply', characterId: character.id, postId: nextLatest.id, content: reply });
   } catch (_) {}
 
   await syncMomentsUnreadCount();
@@ -524,6 +566,7 @@ async function maybeAiInteract(post) {
   if (!latest) return;
 
   const targetPost = normalizeMoment(latest);
+  const pendingInteractions = [];
 
   const candidates = shuffle(characters)
     .filter((character) => character.id !== targetPost.authorId)
@@ -537,7 +580,7 @@ async function maybeAiInteract(post) {
 
     if (action === 'like') {
       targetPost.likes = [...new Set([...(targetPost.likes || []), character.id])];
-      touchCharacterInteract(character.id, targetPost.id);
+      pendingInteractions.push({ characterId: character.id, postId: targetPost.id, type: 'like' });
       continue;
     }
 
@@ -559,15 +602,25 @@ async function maybeAiInteract(post) {
       timestamp: getNow()
     });
 
-    touchCharacterInteract(character.id, targetPost.id);
-    await recordToChat(character.id, 'assistant', `我评论了朋友圈：${content}`, '朋友圈互动');
-    try {
-      window.AppBus?.emit('moments:interaction', { type: 'ai-interaction', characterId: character.id, postId: targetPost.id, content });
-    } catch (_) {}
+    pendingInteractions.push({ characterId: character.id, postId: targetPost.id, type: 'ai-interaction', content });
   }
 
   targetPost.isRead = targetPost.authorId === 'user' ? false : targetPost.isRead;
-  await setDB('moments', targetPost.id, targetPost);
+  const saved = await setDB('moments', targetPost.id, targetPost);
+  if (!isDBWriteOk(saved)) {
+    console.warn('[moments] AI 朋友圈互动没有存进去，先不更新互动缓存');
+    return;
+  }
+
+  for (const interaction of pendingInteractions) {
+    touchCharacterInteract(interaction.characterId, interaction.postId);
+    if (interaction.type === 'ai-interaction') {
+      await recordToChat(interaction.characterId, 'assistant', `我评论了朋友圈：${interaction.content}`, '朋友圈互动');
+      try {
+        window.AppBus?.emit('moments:interaction', { type: 'ai-interaction', characterId: interaction.characterId, postId: interaction.postId, content: interaction.content });
+      } catch (_) {}
+    }
+  }
 
   if (targetPost.authorId === 'user' && (targetPost.likes.length || targetPost.comments.length)) {
     await syncMomentsUnreadCount();

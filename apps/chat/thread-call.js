@@ -221,6 +221,11 @@ function createCallInput() {
   textarea.addEventListener('input', () => {
     textarea.style.height = 'auto';
     textarea.style.height = `${Math.min(120, textarea.scrollHeight)}px`;
+    keepCallInputVisible(textarea);
+  });
+
+  textarea.addEventListener('focus', () => {
+    window.setTimeout(() => keepCallInputVisible(textarea), 80);
   });
 
   textarea.addEventListener('keydown', async (event) => {
@@ -242,6 +247,15 @@ function createCallInput() {
 
   form.append(textarea, send);
   return form;
+}
+
+function keepCallInputVisible(textarea) {
+  if (!textarea || !callState.hostEl) return;
+  const form = textarea.closest('.chat-call-input-wrap');
+  if (!form) return;
+  form.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  const log = callState.hostEl.querySelector('.chat-call-log');
+  if (log) log.scrollTop = log.scrollHeight;
 }
 
 function createIncomingControls() {
@@ -734,7 +748,13 @@ function injectStyle() {
   style.textContent = `
     .chat-call-screen {
       position: fixed;
-      inset: 0;
+      top: var(--app-viewport-top, 0px);
+      right: 0;
+      bottom: auto;
+      left: 0;
+      height: 100vh;
+      height: 100dvh;
+      height: var(--app-viewport-height, 100dvh);
       z-index: 999;
       display: flex;
       flex-direction: column;
@@ -893,7 +913,7 @@ function injectStyle() {
       grid-template-columns: 1fr auto;
       align-items: end;
       gap: 10px;
-      margin: 0 auto 12px;
+      margin: 0 auto max(12px, env(safe-area-inset-bottom));
     }
 
     .chat-call-input {

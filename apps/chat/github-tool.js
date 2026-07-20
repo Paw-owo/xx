@@ -3,7 +3,7 @@
 //   from '../../core/ui.js': showBottomSheet, hideBottomSheet, showToast
 //   from '../../core/storage.js': getData, setData
 
-import { showBottomSheet, hideBottomSheet, showToast, showConfirm } from '../../core/ui.js';
+import { showBottomSheet, hideBottomSheet, showToast, showConfirm, createIcon } from '../../core/ui.js';
 import { getData, setData } from '../../core/storage.js';
 
 // ═══════════════════════════════════════
@@ -668,7 +668,7 @@ function buildTreeView(config, onBack, session) {
   const backBtn = document.createElement('button');
   backBtn.type = 'button';
   backBtn.className = 'gh-back-btn';
-  backBtn.textContent = '← 配置';
+  backBtn.append(createIcon('back', 16), document.createTextNode('配置'));
   // 离开 tree view 时立即 abort 旧 tree 请求，避免返回后旧请求继续写 UI
   backBtn.addEventListener('click', function() {
     try { treeAbort.abort(); } catch (_) {}
@@ -781,7 +781,7 @@ function showFileViewer(config, fileItem, onBack, session) {
   const backBtn = document.createElement('button');
   backBtn.type = 'button';
   backBtn.className = 'gh-back-btn';
-  backBtn.textContent = '← 文件列表';
+  backBtn.append(createIcon('back', 16), document.createTextNode('文件列表'));
   backBtn.addEventListener('click', onBack);
   backRow.appendChild(backBtn);
   wrap.appendChild(backRow);

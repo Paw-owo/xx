@@ -105,7 +105,7 @@ function injectStyle() {
   var style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-    .tools-container{display:flex;flex-direction:column;min-height:0;max-height:min(52vh,420px);overflow:hidden}
+    .tools-container{display:flex;flex-direction:column;min-height:0;max-height:min(calc(var(--app-viewport-height, 100dvh) - 260px),420px);overflow:hidden}
     .tools-scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 4px 8px}
     .tools-pager-wrap{display:flex;flex-direction:column;min-height:0;flex:1;gap:4px}
     .tools-pager{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;flex:1;min-height:0;scrollbar-width:none}

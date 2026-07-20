@@ -6,7 +6,6 @@
 
 import { getData, setData } from './storage.js';
 import { emit } from './app-bus.js';
-import { showToast } from './ui.js';
 import { checkTodayAnniversaries } from '../apps/anniversary.js';
 import { appendExternalChatMessage } from './chat-event-bridge.js';
 
@@ -110,7 +109,7 @@ async function checkAnniversaryReminders() {
         });
       } catch (_) {}
 
-      // 写入对应私聊 messages store + chat_unread_counts（复用 bridge 的落库方法）
+      // 写入对应私聊 messages store；toast 由 chat:external-message 监听器统一负责，避免重复提醒
       try {
         await appendExternalChatMessage({
           characterId: String(item.characterId),
@@ -122,12 +121,12 @@ async function checkAnniversaryReminders() {
           note: item.note || '',
           direction: 'ai_to_user',
           sourceEventId: `anniversary_${item.id}_${today}`,
-          incrementUnread: true
+          incrementUnread: true,
+          sourceApp: 'anniversary',
+          sourceType: 'anniversary_reminder'
         });
       } catch (_) {}
     }
 
-    // toast 提醒（保留原有行为）
-    showToast(`今天是 ${item.name || '纪念日'}，要不要去聊聊？`);
   }
 }

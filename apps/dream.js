@@ -39,6 +39,10 @@ let currentDream = null;
 let wakeMessages = [];
 let generating = false;
 
+function isDBWriteOk(result) {
+  return result !== null && result !== false && result !== undefined;
+}
+
 // ============================================================
 // 样式注入
 // ============================================================
@@ -811,6 +815,7 @@ function wakeMsg(msg, ch) {
 async function doSend(input, body, ch) {
   const text = input.value.trim();
   if (!text || !ch) return;
+  const wakeStartLength = wakeMessages.length;
   wakeMessages.push({ role: 'user', content: text });
   body.appendChild(wakeMsg({ role: 'user', content: text }, ch));
   input.value = '';
@@ -841,10 +846,20 @@ async function doSend(input, body, ch) {
     wakeMessages.push({ role: 'assistant', content: replyText });
     body.appendChild(wakeMsg({ role: 'assistant', content: replyText }, ch));
     body.scrollTop = body.scrollHeight;
-    if (currentDream && !currentDream.repliedAt) { currentDream.repliedAt = getNow(); saveDream(currentDream); }
+    if (currentDream && !currentDream.repliedAt) {
+      const before = { ...currentDream };
+      currentDream = { ...currentDream, repliedAt: getNow() };
+      const saved = await saveDream(currentDream);
+      if (!saved) {
+        currentDream = before;
+        throw new Error('wake dream write failed');
+      }
+    }
   } catch (err) {
     typing.remove();
-    showToast('AI好像还没睡醒，再试试？');
+    wakeMessages = wakeMessages.slice(0, wakeStartLength);
+    renderPage();
+    showToast('刚才这句没留住，再轻轻说一次吧');
     console.warn('[梦境] 叫醒失败:', err);
   }
 }
@@ -860,19 +875,23 @@ async function checkAndGenerate() {
   const now = Date.now();
   if (now - last < TRIGGER_MS) return;
 
+  let generatedCount = 0;
   for (const ch of charactersCache) {
     const chDreams = (await getByIndexDB('dreams', 'characterId', ch.id)).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     const lastDream = chDreams[0];
     if (!lastDream || (now - new Date(lastDream.createdAt).getTime()) > TRIGGER_MS) {
       const msgs = await getByIndexDB('messages', 'characterId', ch.id);
-      if (msgs.length > 0) await doGenerate(ch);
+      if (msgs.length > 0) {
+        const generated = await doGenerate(ch);
+        if (generated) generatedCount += 1;
+      }
     }
   }
-  setData('app_dream_last_gen', now);
+  if (generatedCount > 0) setData('app_dream_last_gen', now);
 }
 
 async function doGenerate(ch) {
-  if (generating) return;
+  if (generating) return false;
   generating = true;
   try {
     const msgs = (await getByIndexDB('messages', 'characterId', ch.id))
@@ -937,9 +956,13 @@ ${recentText || '（还没有对话记录）'}
       };
     }
 
-    await saveDream(dream);
+    const saved = await saveDream(dream);
+    if (!saved) {
+      console.warn('[梦境] 梦境没有存进去，先不继续广播和推送');
+      return false;
+    }
     if (pageView === 'list') renderPage();
-    if (dream.generationStatus === 'parse_failed') return;
+    if (dream.generationStatus === 'parse_failed') return true;
     // 写入角色记忆 + 通知其他 APP
     try {
       const summaryText = dream.summary || dream.content.slice(0, 30);
@@ -953,8 +976,10 @@ ${recentText || '（还没有对话记录）'}
       });
       window.AppBus?.emit?.('dream:created', { dreamId: dream.id, characterId: ch.id, mood: dream.mood, summary: dream.summary, createdAt: dream.createdAt });
     } catch (_) {}
+    return true;
   } catch (err) {
     console.warn('[梦境] 生成失败:', err);
+    return false;
   } finally {
     generating = false;
   }
@@ -965,9 +990,11 @@ ${recentText || '（还没有对话记录）'}
 // ============================================================
 
 async function saveDream(dream) {
-  await setDB('dreams', dream.id, dream);
+  const saved = await setDB('dreams', dream.id, dream);
+  if (!isDBWriteOk(saved)) return false;
   const i = dreamsCache.findIndex(d => d.id === dream.id);
   if (i >= 0) dreamsCache[i] = dream; else dreamsCache.push(dream);
+  return true;
 }
 
 async function delDream(id) {

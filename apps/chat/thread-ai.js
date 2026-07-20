@@ -74,6 +74,17 @@ const GRUDGE_STORE = 'grudges';
 const PUNISHMENT_STORE = 'punishments';
 const LOCK_STORE = 'relationship_locks';
 
+function isDBWriteOk(result) {
+  return result !== null && result !== false && result !== undefined;
+}
+
+async function setDBChecked(store, keyOrValue, maybeValue) {
+  const result = arguments.length >= 3
+    ? await setDB(store, keyOrValue, maybeValue)
+    : await setDB(store, keyOrValue);
+  return isDBWriteOk(result);
+}
+
 const AI_CONTEXT_LIMIT = 28;
 const GROUP_REPLY_MAX = 3;
 const GRUDGE_TRIGGER_SCORE = 5;
@@ -897,7 +908,11 @@ async function requestPrivateReply(state, options = {}) {
       updatedAt: getNow()
     });
 
-    await safeSetMessage(PRIVATE_STORE, finalMessage);
+    const savedFinalMessage = await safeSetMessage(PRIVATE_STORE, finalMessage);
+    if (!savedFinalMessage) {
+      console.error('[thread-ai] AI 回复没有存进去，先不继续更新记忆、未读和推送');
+      return null;
+    }
 
     // 修复问题 E：finalMessage 正文落库后，立即 syncState + renderOnly，
     // 让用户先看到回复、释放输入框；记忆/记仇判定改为后台执行，完成后再安全回写
@@ -1218,7 +1233,11 @@ async function requestGroupReply(state, options = {}) {
           updatedAt: getNow()
         });
 
-        await safeSetMessage(GROUP_STORE, finalMessage);
+        const savedFinalMessage = await safeSetMessage(GROUP_STORE, finalMessage);
+        if (!savedFinalMessage) {
+          console.error('[thread-ai] 群聊 AI 回复没有存进去，先不继续更新记忆、未读和推送');
+          continue;
+        }
 
         // 群聊收到非当前用户（角色 AI）的新消息：若该群聊未打开则未读 +1
         incrementGroupUnreadIfClosed(groupId, state);
@@ -1248,7 +1267,8 @@ async function requestGroupReply(state, options = {}) {
 
         if (groupNeedsUpdate) {
           finalMessage.updatedAt = getNow();
-          await safeSetMessage(GROUP_STORE, finalMessage);
+          const savedPatch = await safeSetMessage(GROUP_STORE, finalMessage);
+          if (!savedPatch) groupNeedsUpdate = false;
         }
 
         scheduleGroupMemoryFinalization({
@@ -1390,7 +1410,11 @@ async function generateInnerMonologue({
       updatedAt: getNow()
     });
 
-    await setDB(store, updated);
+    const saved = await setDBChecked(store, updated);
+    if (!saved) {
+      console.warn('[thread-ai] 内心补写没有存进去，先保留原消息');
+      return;
+    }
 
     if (state) {
       if (store === PRIVATE_STORE && state.characterId) {
@@ -1535,7 +1559,11 @@ function enrichToolCallsBackground(toolCalls, options = {}) {
       updatedAt: getNow()
     });
 
-    await setDB(store, updated);
+    const saved = await setDBChecked(store, updated);
+    if (!saved) {
+      console.warn('[thread-ai] 工具详情补写没有存进去，先保留原消息');
+      return;
+    }
 
     if (state) {
       if (state.mounted === false) return;
@@ -2721,7 +2749,8 @@ async function finalizeMemoryAndGrudge(params) {
 
   // 合并更新（不覆盖其他字段）
   const merged = { ...latest, ...updates, updatedAt: getNow() };
-  await safeSetMessage(store, merged);
+  const saved = await safeSetMessage(store, merged);
+  if (!saved) return;
 
   // 仅当用户仍在该会话时刷新 UI，避免打扰其他会话
   if (isStateForThisJob(state, job)) {
@@ -2893,8 +2922,8 @@ async function markMessageStopped(store, id, content) {
     updatedAt: getNow()
   });
 
-  await setDB(store, next);
-  return next;
+  const saved = await setDBChecked(store, next);
+  return saved ? next : null;
 }
 
 // ═══════════════════════════════════════
@@ -2920,8 +2949,8 @@ async function markMessageError(store, id, content) {
     updatedAt: getNow()
   });
 
-  await setDB(store, next);
-  return next;
+  const saved = await setDBChecked(store, next);
+  return saved ? next : null;
 }
 
 async function getMessageByIdFromStore(store, id) {
@@ -2970,7 +2999,11 @@ async function maybeWriteGrudge({ character, sourceMessage, aiText, activeLock }
     updatedAt: now
   });
 
-  await setDB(GRUDGE_STORE, grudge);
+  const savedGrudge = await setDBChecked(GRUDGE_STORE, grudge);
+  if (!savedGrudge) {
+    console.warn('[thread-ai] 记仇没有存进去，先不继续触发惩罚');
+    return null;
+  }
   await maybeTriggerPunishment(character, grudge);
   return grudge;
 }
@@ -3039,7 +3072,11 @@ async function maybeTriggerPunishment(character, latestGrudge) {
     updatedAt: now
   });
 
-  await setDB(PUNISHMENT_STORE, punishment);
+  const punishmentSaved = await setDBChecked(PUNISHMENT_STORE, punishment);
+  if (!punishmentSaved) {
+    console.warn('[thread-ai] 惩罚记录没有存进去，先不创建关系锁');
+    return null;
+  }
 
   const lock = cleanForDB({
     id: generateId('lock'),
@@ -3057,10 +3094,18 @@ async function maybeTriggerPunishment(character, latestGrudge) {
     updatedAt: now
   });
 
-  await setDB(LOCK_STORE, lock);
+  const lockSaved = await setDBChecked(LOCK_STORE, lock);
+  if (!lockSaved) {
+    console.warn('[thread-ai] 关系锁没有存进去，先不广播惩罚事件');
+    return null;
+  }
 
   const updated = active.map((item) => ({ ...item, punishmentId: punishment.id, updatedAt: now }));
-  await Promise.all(updated.map((item) => setDB(GRUDGE_STORE, item)));
+  const grudgeResults = await Promise.all(updated.map((item) => setDBChecked(GRUDGE_STORE, item)));
+  if (grudgeResults.some((saved) => !saved)) {
+    console.warn('[thread-ai] 记仇关联惩罚没有全部存进去，先不广播惩罚事件');
+    return null;
+  }
 
   window.AppEvents?.emit?.('grudge:punishment', { characterId, punishment, lock });
 
@@ -3340,8 +3385,9 @@ async function safeSetMessage(store, message) {
   const clean = cleanForDB(message);
 
   try {
-    await setDB(store, clean);
-    return clean;
+    const saved = await setDBChecked(store, clean);
+    if (saved) return clean;
+    throw new Error('setDB returned empty result');
   } catch (error) {
     console.error('AI message write failed', error);
 
@@ -3352,8 +3398,14 @@ async function safeSetMessage(store, message) {
       toolCalls: []
     });
 
-    await setDB(store, fallback);
-    return fallback;
+    try {
+      const fallbackSaved = await setDBChecked(store, fallback);
+      if (fallbackSaved) return fallback;
+      console.error('AI message fallback write returned empty result', { store, id: clean?.id });
+    } catch (fallbackError) {
+      console.error('AI message fallback write failed', fallbackError);
+    }
+    return null;
   }
 }
 
