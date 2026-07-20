@@ -24,7 +24,7 @@
       --desktop-icon-scale: 1;
       --desktop-widget-scale: 1;
       --desktop-dock-scale: 1;
-      --desktop-wallpaper-soft: 0.10;
+      --desktop-wallpaper-soft: 0;
       --desktop-card-blur: 20px;
       --desktop-soft-shadow: var(--shadow-sm);
       --desktop-icon-art-size: 68px;
@@ -140,13 +140,8 @@
       inset: 0;
       z-index: 0;
       pointer-events: none;
-      background:
-        radial-gradient(circle at 12% 14%, color-mix(in srgb, var(--accent-light) 44%, transparent) 0 2px, transparent 3px),
-        radial-gradient(circle at 84% 18%, color-mix(in srgb, var(--decor-blue) 38%, transparent) 0 2px, transparent 3px),
-        linear-gradient(90deg, transparent 0 28px, color-mix(in srgb, var(--border-soft) 34%, transparent) 29px 30px, transparent 31px),
-        linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 36%, transparent), transparent 18%);
-      background-size: 26px 26px, 34px 34px, 100% 100%, 100% 100%;
-      opacity: .72;
+      background: var(--bg-primary);
+      opacity: 1;
     }
 
     .status-bar {
@@ -1498,9 +1493,9 @@
     const IMAGE_VALUE_FIELDS = ['value','data','image','iconImage','backgroundImage','imageBase64','avatar','avatarUrl','imageUrl','url','src','base64','file','source'];
 
     const DEFAULT_IMAGE_RECORDS = {
-      app_wallpaper: { value: './assets/ui-skins/default-desktop-wallpaper.svg', opacity: 100, name: '内置手账桌面' },
+      app_wallpaper: { value: '', opacity: 100, name: '主题纯色桌面' },
       app_widget_area_bg: { value: './assets/ui-skins/default-widget-area.svg', opacity: 100, name: '内置小组件手账底纹' },
-      app_bg_chat: { value: './assets/ui-skins/default-chat-bg.svg', opacity: 100, name: '内置信纸聊天背景' },
+      app_bg_chat: { value: '', opacity: 100, name: '主题纯色聊天背景' },
       app_bg_dream: { value: './assets/ui-skins/default-dream-bg.svg', opacity: 100, name: '内置梦境绘本背景' },
       app_bg_settings: { value: './assets/ui-skins/default-settings-bg.svg', opacity: 100, name: '内置设置小窝背景' }
     };
@@ -1878,7 +1873,7 @@
     async function applyWallpaperImage() {
       const record = await readImageRecord('app_wallpaper');
       const value = getImageFromRecord(record);
-      document.documentElement.style.setProperty('--desktop-wallpaper-soft', record?.isDefault ? '0.06' : value ? '0' : '0.10');
+      document.documentElement.style.setProperty('--desktop-wallpaper-soft', '0');
       if (value) { desktopEl.classList.add('has-image'); desktopEl.style.backgroundImage = `url("${cssUrl(value)}")`; desktopEl.style.backgroundSize = 'cover'; desktopEl.style.backgroundPosition = 'center'; desktopEl.style.backgroundRepeat = 'no-repeat'; desktopEl.style.opacity = ''; }
       else { desktopEl.classList.remove('has-image'); desktopEl.style.backgroundImage = ''; desktopEl.style.opacity = ''; }
     }
