@@ -1,25 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="淡蓝粉色窗边写信小房间聊天背景">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f7fbfc"/><stop offset="1" stop-color="#fff7f2"/></linearGradient>
-    <pattern id="letter" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M0 31.5h32" stroke="#eaded5" stroke-width=".8" opacity=".18"/><circle cx="9" cy="10" r="1" fill="#adc9d2" opacity=".16"/></pattern>
-  </defs>
-  <rect width="390" height="844" fill="url(#bg)"/><rect width="390" height="844" fill="url(#letter)"/>
-  <g opacity=".32">
-    <path d="M218 74h112c10 0 18 8 18 18v112H200V92c0-10 8-18 18-18Z" fill="#fffefa" stroke="#d7c5cf" stroke-width="3"/>
-    <path d="M222 96h104v74H222Z" fill="#dfeff4"/><path d="M274 78v92M222 132h104" stroke="#ead7df" stroke-width="3"/>
-    <path d="M234 150c11-10 21-10 32 0 9-8 20-8 30 0" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round"/>
-  </g>
-  <g opacity=".28">
-    <path d="M48 610h134c12 0 22 10 22 22v48H26v-48c0-12 10-22 22-22Z" fill="#fffaf4" stroke="#dfc7bf" stroke-width="3"/>
-    <path d="M68 590h64c8 0 14 6 14 14v6H54v-6c0-8 6-14 14-14Z" fill="#f5dfe5"/>
-    <path d="M86 566c0-20 13-34 31-34s31 14 31 34" fill="none" stroke="#e9c3ce" stroke-width="7" stroke-linecap="round"/>
-    <path d="M72 638h80M72 656h54" stroke="#b99293" stroke-width="4" stroke-linecap="round" opacity=".45"/>
-  </g>
-  <g opacity=".28" fill="none" stroke-linecap="round">
-    <path d="M42 132h78l-39 30Z" fill="#fffdf8" stroke="#d9c5c2" stroke-width="3"/>
-    <path d="M42 132l39 35 39-35" stroke="#d9c5c2" stroke-width="3"/>
-    <path d="M290 504c7-12 22-12 29 0 7-12 22-12 29 0" stroke="#d6a7b2" stroke-width="3"/>
-    <path d="M62 426c17 9 34 9 51 0 17-9 34-9 51 0" stroke="#9fbfc9" stroke-width="2.5"/>
-  </g>
-  <g fill="#d9c4ee" opacity=".24"><circle cx="320" cy="276" r="2.2"/><circle cx="344" cy="326" r="1.8"/><circle cx="54" cy="318" r="1.8"/><circle cx="236" cy="724" r="2"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="主题变量信纸聊天背景">
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop stop-color="Canvas"/><stop offset="1" stop-color="ButtonFace"/></linearGradient><pattern id="paper" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M0 29.5h30" stroke="currentColor" stroke-width=".8" opacity=".16"/><circle cx="9" cy="10" r="1" fill="currentColor" opacity=".12"/></pattern></defs>
+  <rect width="390" height="844" fill="url(#bg)"/><rect width="390" height="844" fill="url(#paper)"/>
+  <path d="M42 104h112l-56 42Z" fill="Canvas" stroke="currentColor" stroke-width="3" opacity=".42"/><path d="M42 104l56 49 56-49" fill="none" stroke="currentColor" stroke-width="3" opacity=".42"/>
+  <g opacity=".32"><path d="M216 84h112c10 0 18 8 18 18v104H198V102c0-10 8-18 18-18Z" fill="Canvas" stroke="currentColor" stroke-width="3"/><path d="M220 106h104v68H220z" fill="currentColor" opacity=".14"/><path d="M272 88v86M220 140h104" stroke="currentColor" stroke-width="3"/></g>
+  <g opacity=".30"><circle cx="296" cy="580" r="38" fill="currentColor"/><circle cx="278" cy="558" r="11" fill="CanvasText" opacity=".24"/><circle cx="316" cy="558" r="11" fill="CanvasText" opacity=".24"/><circle cx="286" cy="582" r="3" fill="CanvasText"/><circle cx="306" cy="582" r="3" fill="CanvasText"/><path d="M291 595c4 3 8 3 12 0" stroke="CanvasText" stroke-width="3" fill="none" stroke-linecap="round"/></g>
+  <g opacity=".30" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M56 428c18 9 36 9 54 0 18-9 36-9 54 0" stroke-width="3"/><path d="M284 360c8-12 22-12 30 0 8-12 22-12 30 0" stroke-width="3"/><path d="m72 672 4 9 9 4-9 4-4 9-4-9-9-4 9-4z" fill="Canvas" stroke-width="2"/></g>
 </svg>

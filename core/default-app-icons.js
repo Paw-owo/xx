@@ -51,53 +51,57 @@ const ICON_DRAWINGS = {
 
 const CREAM_BELL_DRAWINGS = {
   chat: `
-    <path class="accent" d="M20 38h55c5 0 9 4 9 9v28c0 5-4 9-9 9H34l-13 8 3-9h-4c-5 0-9-4-9-9V47c0-5 4-9 9-9Z"/>
-    <path class="soft" d="M24 46h47l-23 17Z"/><path d="m24 77 17-16m31 16L55 61"/>
-    <path class="fur" d="M18 34c-3-10 5-17 14-10l6 5 6-5c9-7 17 0 14 10-3 10-13 14-20 8-7 6-17 2-20-8Z"/>
-    <circle class="face" cx="32" cy="36" r="2.6"/><circle class="face" cx="45" cy="36" r="2.6"/><path d="M36 42c2 2 5 2 7 0"/>
-    <path class="bell" d="M70 25c0-6 4-10 9-10s9 4 9 10v9l4 7H66l4-7Z"/><path d="M76 42c1 3 5 3 6 0"/>`,
+    <path class="soft" d="M16 34c0-6 5-10 11-9h39c9 0 16 7 16 16v24c0 9-7 16-16 16H35l-15 9 4-11c-5-2-8-7-8-13Z"/>
+    <path class="accent" d="M25 45h46M25 57h30"/>
+    <path class="fur" d="M18 34V22l9 7c4-3 9-5 15-5s11 2 15 5l9-7v13c0 13-10 21-24 21S18 47 18 34Z"/>
+    <circle class="face" cx="35" cy="38" r="2.5"/><circle class="face" cx="49" cy="38" r="2.5"/><path d="M39 44c2 2 5 2 7 0"/><path class="sparkle" d="m74 22 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/>`,
+  moments: `
+    <path class="soft" d="M18 28h60c5 0 9 4 9 9v38c0 5-4 9-9 9H18c-5 0-9-4-9-9V37c0-5 4-9 9-9Z"/>
+    <path class="accent" d="M20 70 38 52l12 10 12-16 18 24"/><circle class="bell" cx="29" cy="44" r="7"/>
+    <path class="fur" d="M57 49V37l8 6c3-2 6-3 10-3s7 1 10 3l7-6v13c0 10-7 17-17 17s-18-7-18-18Z"/><circle class="face" cx="70" cy="52" r="2"/><circle class="face" cx="80" cy="52" r="2"/>`,
   settings: `
-    <path class="accent" d="M48 12 55 22l12-1 2 12 10 6-6 11 4 12-12 4-6 10-11-6-11 6-6-10-12-4 4-12-6-11 10-6 2-12 12 1Z"/>
-    <path class="soft" d="M30 44c0-12 8-21 18-21s18 9 18 21-8 22-18 22-18-10-18-22Z"/>
-    <path class="fur" d="M36 43V31l8 6c3-2 6-3 10-3s7 1 10 3l8-6v13c0 12-8 20-18 20s-18-8-18-21Z"/>
-    <circle class="face" cx="48" cy="47" r="2.4"/><circle class="face" cx="60" cy="47" r="2.4"/><path d="M52 53c2 2 4 2 6 0"/>`,
-  wallet: `
-    <path class="accent" d="M15 40h58c8 0 14 6 14 14v24c0 5-4 9-9 9H15c-5 0-9-4-9-9V49c0-5 4-9 9-9Z"/>
-    <path class="soft" d="M61 55h28v18H61c-5 0-9-4-9-9s4-9 9-9Z"/><circle class="face" cx="63" cy="64" r="2.5"/>
-    <path class="fur" d="M22 39V26l10 7c4-3 9-5 15-5s11 2 15 5l10-7v14c0 13-10 22-25 22S22 53 22 39Z"/>
-    <circle class="face" cx="39" cy="42" r="2.4"/><circle class="face" cx="55" cy="42" r="2.4"/><path d="M44 48c2 2 5 2 7 0"/>`,
-  shop: `
-    <path class="soft" d="M17 34h62l-5 52H22Z"/><path class="accent" d="M14 34h68l-8-18H22Z"/>
-    <path d="M34 34c0-11 5-18 14-18s14 7 14 18"/>
-    <path class="fur" d="M29 58V45l9 6c3-3 7-4 12-4s9 1 12 4l9-6v14c0 13-9 21-21 21S29 72 29 58Z"/>
-    <circle class="face" cx="43" cy="60" r="2.4"/><circle class="face" cx="57" cy="60" r="2.4"/><path d="M47 66c2 2 4 2 6 0"/>`,
+    <path class="accent" d="m48 12 7 9 11-2 4 11 10 5-5 10 5 10-10 5-4 11-11-2-7 9-7-9-11 2-4-11-10-5 5-10-5-10 10-5 4-11 11 2Z"/>
+    <path class="soft" d="M34 48a14 14 0 1 0 28 0 14 14 0 0 0-28 0Z"/>
+    <path class="fur" d="M40 48V38l6 4c2-1 5-2 8-2s6 1 8 2l6-4v11c0 8-6 14-14 14s-14-6-14-15Z"/><circle class="face" cx="50" cy="51" r="2"/><circle class="face" cx="58" cy="51" r="2"/>`,
+  gallery: `
+    <path class="accent" d="M15 24h66v58H15Z"/><path class="soft" d="M22 31h52v40H22Z"/>
+    <path d="m31 49 10 4m26-4-10 4"/>
+    <path class="fur" d="M32 57V45l8 6c3-2 6-3 10-3s7 1 10 3l8-6v13c0 10-8 17-18 17s-18-7-18-18Z"/><circle class="face" cx="45" cy="59" r="2"/><circle class="face" cx="55" cy="59" r="2"/>
+    <path class="bow" d="M18 75c7-5 12-3 13 3-5 4-10 4-13-3Zm65 0c-7-5-12-3-13 3 5 4 10 4 13-3Z"/>`,
+  characters: `
+    <path class="fur" d="M18 48V29l12 8c5-5 12-7 20-7s15 2 20 7l12-8v20c0 17-13 28-32 28S18 66 18 48Z"/>
+    <path class="soft" d="M31 65c4-8 11-12 19-12s15 4 19 12c-5 6-12 9-19 9s-14-3-19-9Z"/>
+    <circle class="face" cx="42" cy="50" r="2.5"/><circle class="face" cx="58" cy="50" r="2.5"/><path d="M47 57c2 2 4 2 6 0"/><path class="accent" d="M32 26c-6-8 2-16 10-9l6 5 6-5c8-7 16 1 10 9-6 8-25 8-32 0Z"/>`,
   worldbook: `
-    <path class="accent" d="M15 30c12-5 23-3 33 6 10-9 21-11 33-6v51c-12-5-23-3-33 6-10-9-21-11-33-6Z"/>
-    <path class="soft" d="M48 36v51M25 43h14M25 53h12M58 43h14M58 53h12"/>
-    <path class="fur" d="M28 30V19l8 6c3-2 7-3 12-3s9 1 12 3l8-6v12c0 11-8 18-20 18s-20-7-20-19Z"/>
-    <circle class="face" cx="42" cy="32" r="2.3"/><circle class="face" cx="54" cy="32" r="2.3"/>`,
+    <path class="accent" d="M14 28c12-5 24-2 34 7 10-9 22-12 34-7v52c-12-5-24-2-34 7-10-9-22-12-34-7Z"/>
+    <path class="soft" d="M48 35v52M25 45h13M25 56h11M59 45h13M59 56h11"/>
+    <path class="fur" d="M28 30V19l8 6c3-2 7-3 12-3s9 1 12 3l8-6v12c0 10-8 17-20 17s-20-7-20-18Z"/><circle class="face" cx="42" cy="32" r="2"/><circle class="face" cx="54" cy="32" r="2"/>`,
+  wallet: `
+    <path class="accent" d="M13 39h63c7 0 12 5 12 12v28c0 5-4 9-9 9H13c-5 0-9-4-9-9V48c0-5 4-9 9-9Z"/>
+    <path class="soft" d="M60 56h28v18H60c-5 0-9-4-9-9s4-9 9-9Z"/><circle class="face" cx="63" cy="65" r="2.4"/>
+    <path class="fur" d="M22 38V25l10 7c4-3 9-5 15-5s11 2 15 5l10-7v14c0 12-10 20-25 20S22 51 22 38Z"/><circle class="face" cx="39" cy="41" r="2"/><circle class="face" cx="55" cy="41" r="2"/>`,
+  shop: `
+    <path class="soft" d="M18 35h60l-5 50H23Z"/><path class="accent" d="M15 35h66l-8-18H23Z"/><path d="M34 35c0-11 5-18 14-18s14 7 14 18"/>
+    <path class="fur" d="M30 59V47l8 6c3-2 7-4 12-4s9 2 12 4l8-6v13c0 11-8 19-20 19s-20-8-20-20Z"/><circle class="face" cx="44" cy="61" r="2"/><circle class="face" cx="56" cy="61" r="2"/>`,
   memo: `
-    <path class="soft" d="M22 18h48l10 10v56H22Z"/><path class="accent" d="M70 18v12h10M34 42h28M34 53h24M34 64h18"/>
-    <path class="fur" d="M18 68c-5 1-8 6-5 10s9 4 14-1"/>
-    <path class="accent" d="m63 72 11-28 9 4-11 28-10 8Z"/>`,
+    <path class="soft" d="M21 16h49l10 10v58H21Z"/><path class="accent" d="M70 16v12h10M34 41h28M34 53h24M34 65h18"/>
+    <path class="fur" d="M18 69c-5 1-8 6-5 10s9 4 14-1"/><path class="accent" d="m63 72 11-28 9 4-11 28-10 8Z"/><path class="sparkle" d="m25 28 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z"/>`,
+  anniversary: `
+    <path class="soft" d="M16 32h64v52H16Z"/><path class="accent" d="M16 32h64v14H16Z"/><path d="M30 27v12m36-12v12"/>
+    <path class="fur" d="M29 62V50l8 6c3-2 7-4 12-4s9 2 12 4l8-6v13c0 10-8 18-20 18s-20-8-20-19Z"/><circle class="face" cx="44" cy="64" r="2"/><circle class="face" cx="56" cy="64" r="2"/><path class="bow" d="M33 22c-7-7 1-15 9-8l6 5 6-5c8-7 16 1 9 8-7 7-23 7-30 0Z"/>`,
   games: `
-    <path class="accent" d="M19 48h58c7 0 12 5 14 13l3 16c2 10-9 16-16 8L66 73H30L18 85C11 93 0 87 2 77l3-16c2-8 7-13 14-13Z"/>
-    <path class="fur" d="M24 39V26l9 6c4-3 9-5 15-5s11 2 15 5l9-6v14c0 12-10 20-24 20S24 52 24 39Z"/>
-    <circle class="face" cx="40" cy="42" r="2.3"/><circle class="face" cx="56" cy="42" r="2.3"/><path d="M25 64v12m-6-6h12"/><circle class="soft" cx="72" cy="65" r="4"/><circle class="soft" cx="81" cy="74" r="4"/>`,
+    <path class="accent" d="M18 49h60c7 0 12 5 14 13l3 15c2 10-9 16-16 8L66 74H30L17 85C10 93-1 87 1 77l3-15c2-8 7-13 14-13Z"/>
+    <path class="fur" d="M24 40V27l9 6c4-3 9-5 15-5s11 2 15 5l9-6v14c0 11-10 19-24 19S24 52 24 40Z"/><circle class="face" cx="40" cy="43" r="2"/><circle class="face" cx="56" cy="43" r="2"/><path d="M24 65v12m-6-6h12"/><circle class="soft" cx="73" cy="66" r="4"/><circle class="soft" cx="82" cy="75" r="4"/>`,
   music: `
-    <path class="fur" d="M16 48V31l12 8c5-5 12-7 20-7s15 2 20 7l12-8v18c0 16-13 27-32 27S16 65 16 48Z"/>
-    <path d="M33 50c3 4 7 4 10 0m10 0c3 4 7 4 10 0M43 60c3 3 7 3 10 0"/>
+    <path class="fur" d="M16 48V31l12 8c5-5 12-7 20-7s15 2 20 7l12-8v18c0 16-13 27-32 27S16 65 16 48Z"/><path d="M33 50c3 4 7 4 10 0m10 0c3 4 7 4 10 0M43 60c3 3 7 3 10 0"/>
     <path class="accent" d="M66 17v44c0 7-5 12-12 12-6 0-10-4-10-9s4-9 10-9c3 0 5 1 7 2V25l24-6v34c0 7-5 12-12 12-6 0-10-4-10-9s4-9 10-9c3 0 5 1 7 2V14Z"/>`,
   dream: `
     <path class="soft" d="M75 12c-10 3-17 12-17 23 0 14 11 25 25 25 2 0 4 0 6-1-6 14-20 24-37 24-22 0-40-18-40-40S30 3 52 3c9 0 17 3 23 9Z"/>
-    <path class="fur" d="M20 55V38l11 8c5-4 11-6 18-6s13 2 18 6l11-8v18c0 14-12 24-29 24S20 70 20 55Z"/>
-    <path d="M33 57c3 4 7 4 10 0m13 0c3 4 7 4 10 0M44 65c2 2 5 2 8 0"/><path class="accent" d="m22 20 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/>`,
+    <path class="fur" d="M20 55V38l11 8c5-4 11-6 18-6s13 2 18 6l11-8v18c0 14-12 24-29 24S20 70 20 55Z"/><path d="M33 57c3 4 7 4 10 0m13 0c3 4 7 4 10 0M44 65c2 2 5 2 8 0"/><path class="accent" d="m22 20 3 7 7 3-7 3-3 7-3-7-7-3 7-3Z"/>`,
   'theme-center': `
-    <path class="accent" d="M48 12 54 28l17 1-13 10 4 17-14-9-14 9 4-17-13-10 17-1Z"/>
-    <path class="soft" d="M20 60h56v22H20Z"/><path class="accent" d="M28 54h40l8 12H20Z"/>
+    <path class="accent" d="M48 12 54 28l17 1-13 10 4 17-14-9-14 9 4-17-13-10 17-1Z"/><path class="soft" d="M20 60h56v22H20Z"/><path class="accent" d="M28 54h40l8 12H20Z"/>
     <path class="bell" d="M38 38c0-7 4-12 10-12s10 5 10 12v8l4 7H34l4-7Z"/><path d="M45 54c1 3 5 3 6 0"/><circle class="fur" cx="72" cy="70" r="6"/>`
 };
-
 export function createDefaultAppIcon(app, size = 28, documentRef = document) {
   const drawing = CREAM_BELL_DRAWINGS[app?.id] || ICON_DRAWINGS[app?.id];
   if (!drawing) return null;
