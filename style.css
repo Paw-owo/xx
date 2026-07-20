@@ -6,36 +6,52 @@
 /* ═══════════════════════════════════════ */
 
 :root {
-  --bg-main: #FBF4F1;
-  --bg-light: #F7E8E8;
+  --bg-main: #FFF8E8;
+  --bg-light: #F6E8C9;
   --bg-primary: var(--bg-main);
   --bg-secondary: var(--bg-light);
-  --bg-card: #FFF9F5;
+  --bg-card: #FFFDF5;
   --surface: var(--bg-card);
-  --surface-soft: color-mix(in srgb, var(--bg-card) 82%, transparent);
-  --surface-glass: color-mix(in srgb, var(--bg-primary) 92%, transparent);
-  --surface-muted: color-mix(in srgb, var(--bg-card) 84%, var(--bg-secondary));
+  --surface-soft: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  --surface-glass: color-mix(in srgb, var(--bg-primary) 86%, transparent);
+  --surface-muted: #F9EFD7;
+  --surface-paper: #FFF9EA;
+  --surface-charm: #FFEFC2;
   --bg-overlay: color-mix(in srgb, var(--text-primary) 24%, transparent);
-  --accent: #C98F9C;
-  --accent-light: #F2DADD;
-  --accent-dark: #A86F7B;
+  --accent: #E8B850;
+  --accent-light: #FFE8A9;
+  --accent-dark: #9B6A2E;
+  --accent-strong: #D99A35;
   --color-accent: var(--accent);
-  --text-primary: #665052;
-  --text-secondary: #907779;
-  --text-hint: #B9A4A3;
-  --text-soft: color-mix(in srgb, var(--text-primary) 72%, var(--text-secondary));
+  --text-primary: #5F4631;
+  --text-secondary: #8F7358;
+  --text-hint: #B9A58D;
+  --text-soft: color-mix(in srgb, var(--text-primary) 68%, var(--text-secondary));
   --color-text: var(--text-primary);
-  --color-success: #91AA96;
-  --color-danger: #C68181;
-  --border-soft: #EBD9D6;
-  --icon-color: #9C747A;
-  --icon-tile-bg: var(--bg-card);
-  --icon-tile-alt-cool: color-mix(in srgb, var(--decor-blue) 38%, var(--bg-card));
-  --icon-tile-alt-warm: color-mix(in srgb, var(--decor-yellow) 36%, var(--bg-card));
-  --icon-detail: color-mix(in srgb, var(--accent-dark) 76%, var(--text-primary));
-  --decor-blue: #C7DCE0;
-  --decor-yellow: #EAD9A9;
-  --decor-pink: var(--accent-light);
+  --color-success: #85AA8C;
+  --color-danger: #C87C72;
+  --color-warning: #D99A35;
+  --border-soft: #E7C99E;
+  --border-charm: color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card));
+  --icon-color: #A5733B;
+  --icon-tile-bg: var(--surface-paper);
+  --icon-tile-alt-cool: color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card));
+  --icon-tile-alt-warm: color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card));
+  --icon-detail: #AD7440;
+  --button-primary-bg: linear-gradient(180deg, var(--accent-light), var(--accent));
+  --button-primary-text: var(--bubble-user-text);
+  --button-soft-bg: color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light));
+  --badge-bg: var(--accent-strong);
+  --badge-text: var(--bubble-user-text);
+  --decoration-spot: var(--accent-dark);
+  --illustration-line: var(--icon-detail);
+  --illustration-fill: var(--surface-paper);
+  --illustration-accent: var(--accent-light);
+  --decor-blue: #C8D7E3;
+  --decor-yellow: #F2CE72;
+  --decor-pink: #F6C8BC;
+  --decor-green: #C9D8BC;
+  --decor-lilac: #D8CBE0;
   --decor-cream: var(--bg-card);
   --media-ink: color-mix(in srgb, var(--text-primary) 76%, var(--bg-primary));
   --media-ink-deep: color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary));
@@ -43,12 +59,12 @@
   --media-highlight: color-mix(in srgb, var(--decor-yellow) 72%, var(--bg-card));
   --media-overlay-soft: color-mix(in srgb, var(--text-primary) 18%, transparent);
   --media-overlay: color-mix(in srgb, var(--text-primary) 36%, transparent);
-  --bubble-user-bg: #E9C4CA;
-  --bubble-user-text: var(--text-primary);
-  --bubble-ai-bg: var(--bg-card);
+  --bubble-user-bg: #FFE0A3;
+  --bubble-user-text: #5D422C;
+  --bubble-ai-bg: var(--surface-paper);
   --bubble-ai-text: var(--text-primary);
-  --bubble-radius: 23px;
-  --bubble-radius-tail: 9px;
+  --bubble-radius: 24px;
+  --bubble-radius-tail: 10px;
   --font-main: 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-size-base: 15px;
   --font-size-small: 13px;
@@ -57,22 +73,29 @@
   --spacing-sm: 8px;
   --spacing-md: 16px;
   --spacing-lg: 24px;
-  --radius-sm: 14px;
-  --radius-md: 21px;
-  --radius-lg: 29px;
-  --radius-xl: 36px;
+  --radius-sm: 15px;
+  --radius-md: 22px;
+  --radius-lg: 30px;
+  --radius-xl: 38px;
   --radius-full: 999px;
-  --shadow-sm: 0 3px 10px color-mix(in srgb, var(--text-primary) 6%, transparent);
-  --shadow-md: 0 7px 22px color-mix(in srgb, var(--text-primary) 7%, transparent);
-  --shadow-lg: 0 12px 34px color-mix(in srgb, var(--text-primary) 9%, transparent);
-  --shadow-card: 0 5px 18px color-mix(in srgb, var(--text-primary) 6%, transparent);
-  --shadow-float: 0 10px 30px color-mix(in srgb, var(--text-primary) 9%, transparent);
+  --shadow-color: #8A5A28;
+  --shadow-sm: 0 4px 12px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 8%, transparent);
+  --shadow-md: 0 9px 24px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 10%, transparent);
+  --shadow-lg: 0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent);
+  --shadow-card: 0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent);
+  --shadow-float: 0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent);
+  --inner-highlight: inset 0 1px 0 color-mix(in srgb, white 76%, transparent);
+  --toy-border: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
   --press-scale: .97;
   --motion: all 240ms cubic-bezier(.2,.8,.2,1);
-  --chat-fold-card-bg: var(--bg-card);
-  --chat-fold-card-open-bg: var(--accent-light);
-  --chat-fold-detail-bg: var(--bg-secondary);
-  --chat-fold-line: var(--accent);
+  --chat-icon-line: var(--icon-detail);
+  --chat-icon-paper: var(--surface-paper);
+  --chat-icon-fill: var(--accent-light);
+  --chat-icon-dot: var(--accent-dark);
+  --chat-fold-card-bg: var(--surface-paper);
+  --chat-fold-card-open-bg: color-mix(in srgb, var(--accent-light) 54%, var(--bg-card));
+  --chat-fold-detail-bg: color-mix(in srgb, var(--bg-card) 76%, var(--surface-muted));
+  --chat-fold-line: var(--accent-strong);
   --chat-fold-summary-color: var(--text-secondary);
   --chat-fold-title-color: var(--text-primary);
   --chat-fold-code-color: var(--text-secondary);
@@ -1609,6 +1632,193 @@ input:checked + .switch {
 }
 
 /* ═══════════════════════════════════════ */
+/* 【全局黄系小玩具视觉层】 */
+/* ═══════════════════════════════════════ */
+
+body {
+  background:
+    radial-gradient(circle at 12% 9%, color-mix(in srgb, var(--accent-light) 38%, transparent) 0 120px, transparent 260px),
+    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--decor-pink) 24%, transparent) 0 92px, transparent 240px),
+    linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 84%, var(--bg-secondary)));
+}
+
+.app-screen,
+.phone-desktop {
+  background:
+    radial-gradient(circle at 16% 10%, color-mix(in srgb, var(--accent-light) 28%, transparent) 0 82px, transparent 210px),
+    radial-gradient(circle at 86% 22%, color-mix(in srgb, var(--decor-blue) 18%, transparent) 0 80px, transparent 220px),
+    linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 78%, var(--bg-secondary)));
+}
+
+.nav-bar,
+.bottom-bar,
+.bottom-sheet,
+.card,
+.section-card,
+.form-card,
+.card-action,
+.empty-state,
+.chat-message-bubble,
+.message-bubble,
+.input-card,
+.textarea-card,
+.chat-thread-input,
+.chat-call-input,
+.chat-quote-preview,
+.chat-message-quote,
+.chat-message-code,
+.chat-game-card {
+  border: var(--toy-border);
+  box-shadow: var(--shadow-card), var(--inner-highlight);
+}
+
+.nav-bar,
+.bottom-bar,
+.chat-thread-header,
+.chat-thread-input-bar {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 88%, transparent), color-mix(in srgb, var(--bg-primary) 78%, transparent));
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 46%, transparent);
+}
+
+.bottom-bar,
+.chat-thread-input-bar {
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 54%, transparent);
+  border-bottom: 0;
+}
+
+.card,
+.section-card,
+.form-card,
+.bottom-sheet,
+.empty-state {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 96%, transparent), color-mix(in srgb, var(--surface-muted) 42%, var(--bg-card)));
+}
+
+.card-title,
+.section-title,
+.sheet-title,
+.nav-title {
+  letter-spacing: .01em;
+}
+
+.card::before,
+.section-card::before,
+.form-card::before,
+.empty-state::before,
+.chat-fold-card::before,
+.chat-sub-agent-card::before {
+  content: "";
+  position: absolute;
+  width: 28px;
+  height: 16px;
+  right: 16px;
+  top: 10px;
+  pointer-events: none;
+  opacity: .28;
+  background:
+    radial-gradient(circle at 4px 8px, var(--accent-dark) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 12px 4px, var(--accent-dark) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 20px 8px, var(--accent-dark) 0 2px, transparent 2.6px),
+    radial-gradient(ellipse at 12px 12px, var(--accent-dark) 0 5px, transparent 5.6px);
+}
+
+.card,
+.section-card,
+.form-card,
+.empty-state,
+.chat-fold-card,
+.chat-sub-agent-card {
+  position: relative;
+}
+
+.btn-primary,
+.icon-button.accent,
+.chat-edit-btn.primary,
+.chat-call-send,
+.chat-call-control.primary,
+.chat-call-control.danger {
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border: 1px solid color-mix(in srgb, var(--accent-dark) 24%, transparent);
+  box-shadow: var(--shadow-sm), var(--inner-highlight);
+}
+
+.btn-ghost,
+.icon-button,
+.icon-button.soft,
+.chat-action-sheet-item,
+.chat-edit-btn,
+.chat-thread-sheet-item,
+.chat-thread-tool-page-btn,
+.chat-message-action-btn,
+.chat-message-code-action,
+.chat-message-code-toggle,
+.segmented,
+.switch,
+.badge {
+  border: var(--toy-border);
+  box-shadow: var(--shadow-sm), var(--inner-highlight);
+}
+
+.btn-ghost,
+.icon-button.soft,
+.chat-action-sheet-item,
+.chat-edit-btn,
+.chat-thread-sheet-item,
+.chat-thread-tool-page-btn,
+.chat-message-action-btn,
+.chat-message-code-action,
+.chat-message-code-toggle {
+  background: var(--button-soft-bg);
+}
+
+.input-card,
+.textarea-card,
+.chat-thread-input,
+.chat-call-input {
+  background: color-mix(in srgb, var(--bg-card) 78%, var(--surface-muted));
+}
+
+.badge,
+.page-dot.active,
+.chat-thread-tool-dot[data-active="true"] {
+  background: var(--badge-bg);
+}
+
+.toast {
+  background: color-mix(in srgb, var(--text-primary) 86%, var(--accent-dark));
+  color: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--accent-light) 34%, transparent);
+}
+
+.switch::after {
+  background:
+    radial-gradient(circle at 50% 48%, var(--accent-light) 0 3px, transparent 3.6px),
+    var(--bg-card);
+}
+
+.switch.active {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--decor-green) 64%, var(--bg-card)), var(--accent-light));
+}
+
+.chat-kawaii-icon .paper { fill: var(--chat-icon-paper); }
+.chat-kawaii-icon .fill { fill: var(--chat-icon-fill); stroke: var(--chat-icon-line); }
+.chat-kawaii-icon .dot { fill: var(--chat-icon-dot); stroke: none; }
+
+@keyframes charmFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.desktop-icon:hover .desktop-icon-art,
+.chat-thread-tool-card:hover .chat-thread-tool-icon,
+.icon-button:hover svg {
+  animation: charmFloat 1.8s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════ */
 /* 【全应用软萌组件层】所有内置 App 共用，不介入业务结构 */
 /* ═══════════════════════════════════════ */
 
@@ -1790,3 +2000,4 @@ input:checked + .switch {
     animation-iteration-count: 1 !important;
   }
 }
+
