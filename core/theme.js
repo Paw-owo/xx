@@ -247,9 +247,9 @@ function createPreset(id, name, mode, palette) {
       'chat-fold-divider': 'color-mix(in srgb, var(--accent-light) 72%, transparent)',
       'chat-tool-breath-shadow': 'var(--shadow-sm)',
       'chat-tool-breath-shadow-strong': 'var(--shadow-md)',
-      'cream-bell-lace': id === 'cream-bell' ? 'linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 34%, transparent), transparent 70%)' : 'none',
-      'cream-bell-dots': id === 'cream-bell' ? 'radial-gradient(circle at 72% 18%, color-mix(in srgb, var(--bg-card) 64%, transparent) 0 22px, transparent 23px)' : 'none',
-      'cream-bell-plaid': id === 'cream-bell' ? 'radial-gradient(circle at 18% 10%, color-mix(in srgb, var(--accent-light) 24%, transparent), transparent 28%)' : 'none',
+      'cream-bell-lace': 'none',
+      'cream-bell-dots': 'none',
+      'cream-bell-plaid': 'none',
       'cream-bell-badge-display': id === 'cream-bell' ? 'block' : 'none',
       'cream-bell-charm-opacity': id === 'cream-bell' ? '1' : '0',
       ...(dark ? DARK_SHADOWS : LIGHT_SHADOWS)
