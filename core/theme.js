@@ -130,11 +130,11 @@ const DARK_SHADOWS = {};
 
 const PRESETS = {
   'cream-bell': createPreset('cream-bell', '奶油铃铛', 'light', {
-    background: '#FFF8E8', secondary: '#F6E8C9', card: '#FFFDF5', paper: '#FFF9EA', charm: '#FFEFC2',
-    accent: '#E8B850', accentSoft: '#FFE8A9', accentDeep: '#9B6A2E', accentStrong: '#D99A35',
-    text: '#5F4631', textSoft: '#8F7358', hint: '#B9A58D', border: '#E7C99E', shadow: '#8A5A28',
-    success: '#85AA8C', danger: '#C87C72', blue: '#C8D7E3', yellow: '#F2CE72', pink: '#F6C8BC', green: '#C9D8BC', lilac: '#D8CBE0',
-    userBubble: '#FFE0A3', userText: '#5D422C', icon: '#A5733B', iconDetail: '#AD7440'
+    background: '#FFF6E6', secondary: '#E8C191', card: '#FFFDF6', paper: '#FFF8EA', charm: '#F4B966',
+    accent: '#C8772E', accentSoft: '#FFDDA3', accentDeep: '#6C3B1F', accentStrong: '#A75A25',
+    text: '#4C2B1A', textSoft: '#825B3E', hint: '#B18B69', border: '#D79B62', shadow: '#7A431E',
+    success: '#7EA36F', danger: '#C57964', blue: '#C9D7D9', yellow: '#F2C76D', pink: '#F2BDAE', green: '#C8D4A9', lilac: '#D4C4D8',
+    userBubble: '#F1C184', userText: '#4D2C1B', icon: '#8B4F26', iconDetail: '#6C3B1F'
   }),
   'cloud-soda': createPreset('cloud-soda', '云朵苏打', 'light', {
     background: '#F2F7F6', secondary: '#E1EEEA', card: '#FCFAF5', paper: '#F7FBF8', charm: '#DDF0EC',
