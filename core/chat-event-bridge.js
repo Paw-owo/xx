@@ -260,12 +260,18 @@ export async function appendExternalChatMessage(payload = {}) {
       const next = Math.max(0, Number(unreadMap[characterId] || 0) + 1);
       const unreadSaved = setData('chat_unread_counts', { ...unreadMap, [characterId]: next });
       if (!isDBWriteOk(unreadSaved)) throw new Error('聊天未读还没能保存');
-      if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
     } catch (error) {
       try { await deleteDB('messages', message.id); } catch (_) {}
       emitExternalMessageFailed(payload, error);
       return null;
     }
+  }
+
+  // 角标刷新只影响 UI，不回滚已经落好的外部消息。
+  try {
+    if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  } catch (error) {
+    console.warn('[chat-event-bridge] refreshDesktopBadges failed', error);
   }
 
   // 通知 chat.js 刷新 UI（chat.js 可选监听，不强制）
