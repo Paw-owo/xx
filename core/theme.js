@@ -7,7 +7,7 @@ const THEME_KEY = 'app_theme';
 const PRESET_KEY = 'app_theme_preset';
 const MODE_KEY = 'app_theme_mode';
 
-const DEFAULT_PRESET = 'coconut-spring';
+const DEFAULT_PRESET = 'cream-bell';
 const DEFAULT_MODE = 'light';
 
 const FONT_FALLBACK = "'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
@@ -17,29 +17,42 @@ const FONT_FALLBACK = "'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMac
 // ═══════════════════════════════════════
 
 const BASE_VARIABLES = {
-  'bg-main': '#FBF4F1',
-  'bg-light': '#F7E8E8',
-  'bg-card': '#FFF9F5',
-  'color-accent': '#C98F9C',
-  'color-text': '#665052',
-  'color-success': '#91AA96',
-  'color-danger': '#C68181',
-  'bg-primary': '#FBF4F1',
-  'bg-secondary': '#F7E8E8',
+  'bg-main': '#FFF8E8',
+  'bg-light': '#F6E8C9',
+  'bg-card': '#FFFDF5',
+  'color-accent': '#E8B850',
+  'color-text': '#5F4631',
+  'color-success': '#85AA8C',
+  'color-danger': '#C87C72',
+  'bg-primary': '#FFF8E8',
+  'bg-secondary': '#F6E8C9',
   'bg-overlay': 'color-mix(in srgb, var(--text-primary) 24%, transparent)',
-  'surface': '#FFF9F5',
-  'surface-muted': 'color-mix(in srgb, var(--bg-card) 90%, var(--text-hint) 10%)',
-  'accent': '#C98F9C',
-  'accent-light': '#F2DADD',
-  'accent-dark': '#A86F7B',
-  'text-primary': '#665052',
-  'text-secondary': '#907779',
-  'text-hint': '#B9A4A3',
-  'border-soft': '#EBD9D6',
-  'icon-color': '#9C747A',
-  'decor-blue': '#C7DCE0',
-  'decor-yellow': '#EAD9A9',
-  'decor-pink': 'var(--accent-light)',
+  'surface': 'var(--bg-card)',
+  'surface-soft': 'color-mix(in srgb, var(--bg-card) 88%, transparent)',
+  'surface-glass': 'color-mix(in srgb, var(--bg-primary) 86%, transparent)',
+  'surface-muted': '#F9EFD7',
+  'surface-paper': '#FFF9EA',
+  'surface-charm': '#FFEFC2',
+  'accent': '#E8B850',
+  'accent-light': '#FFE8A9',
+  'accent-dark': '#9B6A2E',
+  'accent-strong': '#D99A35',
+  'text-primary': '#5F4631',
+  'text-secondary': '#8F7358',
+  'text-hint': '#B9A58D',
+  'text-soft': 'color-mix(in srgb, var(--text-primary) 68%, var(--text-secondary))',
+  'border-soft': '#E7C99E',
+  'border-charm': 'color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card))',
+  'icon-color': '#A5733B',
+  'icon-detail': '#AD7440',
+  'icon-tile-bg': 'var(--surface-paper)',
+  'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
+  'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
+  'decor-blue': '#C8D7E3',
+  'decor-yellow': '#F2CE72',
+  'decor-pink': '#F6C8BC',
+  'decor-green': '#C9D8BC',
+  'decor-lilac': '#D8CBE0',
   'decor-cream': 'var(--bg-card)',
   'media-ink': 'color-mix(in srgb, var(--text-primary) 76%, var(--bg-primary))',
   'media-ink-deep': 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))',
@@ -47,12 +60,21 @@ const BASE_VARIABLES = {
   'media-highlight': 'color-mix(in srgb, var(--decor-yellow) 72%, var(--bg-card))',
   'media-overlay-soft': 'color-mix(in srgb, var(--text-primary) 18%, transparent)',
   'media-overlay': 'color-mix(in srgb, var(--text-primary) 36%, transparent)',
-  'bubble-user-bg': '#E9C4CA',
-  'bubble-user-text': '#665052',
-  'bubble-ai-bg': '#FFF9F5',
-  'bubble-ai-text': '#665052',
-  'bubble-radius': '23px',
-  'bubble-radius-tail': '9px',
+  'bubble-user-bg': '#FFE0A3',
+  'bubble-user-text': '#5D422C',
+  'bubble-ai-bg': 'var(--surface-paper)',
+  'bubble-ai-text': 'var(--text-primary)',
+  'bubble-radius': '24px',
+  'bubble-radius-tail': '10px',
+  'button-primary-bg': 'linear-gradient(180deg, var(--accent-light), var(--accent))',
+  'button-primary-text': 'var(--bubble-user-text)',
+  'button-soft-bg': 'color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light))',
+  'badge-bg': 'var(--accent-strong)',
+  'badge-text': 'var(--bubble-user-text)',
+  'decoration-spot': 'var(--accent-dark)',
+  'illustration-line': 'var(--icon-detail)',
+  'illustration-fill': 'var(--surface-paper)',
+  'illustration-accent': 'var(--accent-light)',
   'font-main': FONT_FALLBACK,
   'font-size-base': '15px',
   'font-size-small': '13px',
@@ -61,20 +83,37 @@ const BASE_VARIABLES = {
   'spacing-sm': '8px',
   'spacing-md': '16px',
   'spacing-lg': '24px',
-  'radius-sm': '14px',
-  'radius-md': '21px',
-  'radius-lg': '29px',
-  'shadow-sm': '0 3px 10px color-mix(in srgb, var(--text-primary) 6%, transparent)',
-  'shadow-md': '0 7px 22px color-mix(in srgb, var(--text-primary) 7%, transparent)',
-  'shadow-lg': '0 12px 34px color-mix(in srgb, var(--text-primary) 9%, transparent)',
-  'shadow-card': '0 5px 18px color-mix(in srgb, var(--text-primary) 6%, transparent)',
-  'shadow-float': '0 10px 30px color-mix(in srgb, var(--text-primary) 9%, transparent)',
+  'radius-sm': '15px',
+  'radius-md': '22px',
+  'radius-lg': '30px',
+  'radius-xl': '38px',
+  'radius-full': '999px',
+  'shadow-sm': '0 4px 12px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 8%, transparent)',
+  'shadow-md': '0 9px 24px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 10%, transparent)',
+  'shadow-lg': '0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent)',
+  'shadow-card': '0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent)',
+  'shadow-float': '0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent)',
+  'shadow-color': '#8A5A28',
   'shadow-neu-out': 'var(--shadow-sm)',
   'shadow-neu-in': 'inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent)',
+  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 76%, transparent)',
+  'toy-border': '1px solid color-mix(in srgb, var(--border-soft) 76%, transparent)',
   'motion': 'all 240ms cubic-bezier(.2,.8,.2,1)',
   'press-scale': '0.97',
-  'radius-xl': '36px',
-  'radius-full': '999px'
+  'chat-icon-line': 'var(--icon-detail)',
+  'chat-icon-paper': 'var(--surface-paper)',
+  'chat-icon-fill': 'var(--accent-light)',
+  'chat-icon-dot': 'var(--accent-dark)',
+  'chat-fold-card-bg': 'var(--surface-paper)',
+  'chat-fold-card-open-bg': 'color-mix(in srgb, var(--accent-light) 54%, var(--bg-card))',
+  'chat-fold-detail-bg': 'color-mix(in srgb, var(--bg-card) 76%, var(--surface-muted))',
+  'chat-fold-line': 'var(--accent-strong)',
+  'chat-fold-summary-color': 'var(--text-secondary)',
+  'chat-fold-title-color': 'var(--text-primary)',
+  'chat-fold-code-color': 'var(--text-secondary)',
+  'chat-fold-divider': 'color-mix(in srgb, var(--accent-light) 72%, transparent)',
+  'chat-tool-breath-shadow': 'var(--shadow-sm)',
+  'chat-tool-breath-shadow-strong': 'var(--shadow-md)'
 };
 
 // ═══════════════════════════════════════
@@ -90,45 +129,52 @@ const DARK_SHADOWS = {};
 // ═══════════════════════════════════════
 
 const PRESETS = {
-  'coconut-spring': createPreset('coconut-spring', '草莓奶霜', 'light', {
-    background: '#FBF4F1', secondary: '#F7E8E8', card: '#FFF9F5',
-    accent: '#C98F9C', accentSoft: '#F2DADD', accentDeep: '#A86F7B',
-    text: '#665052', textSoft: '#907779', hint: '#B9A4A3', border: '#EBD9D6',
-    success: '#91AA96', danger: '#C68181', blue: '#C7DCE0', yellow: '#EAD9A9'
+  'cream-bell': createPreset('cream-bell', '奶油铃铛', 'light', {
+    background: '#FFF8E8', secondary: '#F6E8C9', card: '#FFFDF5', paper: '#FFF9EA', charm: '#FFEFC2',
+    accent: '#E8B850', accentSoft: '#FFE8A9', accentDeep: '#9B6A2E', accentStrong: '#D99A35',
+    text: '#5F4631', textSoft: '#8F7358', hint: '#B9A58D', border: '#E7C99E', shadow: '#8A5A28',
+    success: '#85AA8C', danger: '#C87C72', blue: '#C8D7E3', yellow: '#F2CE72', pink: '#F6C8BC', green: '#C9D8BC', lilac: '#D8CBE0',
+    userBubble: '#FFE0A3', userText: '#5D422C', icon: '#A5733B', iconDetail: '#AD7440'
   }),
-  'coconut-iced': createPreset('coconut-iced', '云朵苏打', 'light', {
-    background: '#F2F6F3', secondary: '#E2EEE9', card: '#FCFAF5',
-    accent: '#89AAA9', accentSoft: '#D7E8E5', accentDeep: '#668B8A',
-    text: '#536360', textSoft: '#7B918C', hint: '#A8B7B1', border: '#D6E4DF',
-    success: '#86A58E', danger: '#C58B88', blue: '#BDD7DE', yellow: '#E8D9A9'
+  'cloud-soda': createPreset('cloud-soda', '云朵苏打', 'light', {
+    background: '#F2F7F6', secondary: '#E1EEEA', card: '#FCFAF5', paper: '#F7FBF8', charm: '#DDF0EC',
+    accent: '#86AAA8', accentSoft: '#D7E8E5', accentDeep: '#5E8583', accentStrong: '#6B9996',
+    text: '#516360', textSoft: '#78908C', hint: '#A6B7B1', border: '#D5E4DF', shadow: '#416865',
+    success: '#86A58E', danger: '#C58B88', blue: '#BDD7DE', yellow: '#E8D9A9', pink: '#EBC6C3', green: '#CFE1D3', lilac: '#D7D0E2',
+    userBubble: '#DDF0EC', userText: '#47615F', icon: '#668B8A', iconDetail: '#5E8583'
   }),
-  'strawberry-milk': createPreset('strawberry-milk', '蜜桃布丁', 'light', {
-    background: '#FFF5ED', secondary: '#F8E4D8', card: '#FFFBF5',
-    accent: '#D59A86', accentSoft: '#F4D9CF', accentDeep: '#AD7465',
-    text: '#69534C', textSoft: '#92786E', hint: '#BCA69C', border: '#EDDDD4',
-    success: '#91A78D', danger: '#C98282', blue: '#C8DADE', yellow: '#EED8A4'
+  'peach-pudding': createPreset('peach-pudding', '蜜桃布丁', 'light', {
+    background: '#FFF5ED', secondary: '#F8E4D8', card: '#FFFBF5', paper: '#FFF7EE', charm: '#F7DFD0',
+    accent: '#D59A86', accentSoft: '#F4D9CF', accentDeep: '#AD7465', accentStrong: '#C98770',
+    text: '#69534C', textSoft: '#92786E', hint: '#BCA69C', border: '#EDDDD4', shadow: '#8A5548',
+    success: '#91A78D', danger: '#C98282', blue: '#C8DADE', yellow: '#EED8A4', pink: '#F1C6C3', green: '#CBD8BC', lilac: '#D8CBE0',
+    userBubble: '#F4D9CF', userText: '#654C44', icon: '#AD7465', iconDetail: '#B47A67'
   }),
-  'dark-chocolate': createPreset('dark-chocolate', '可可晚安', 'dark', {
-    background: '#28201F', secondary: '#352928', card: '#3D302E',
-    accent: '#D8A7AD', accentSoft: '#533D40', accentDeep: '#E7BDC1',
-    text: '#F3E7E2', textSoft: '#C5AAA4', hint: '#917873', border: '#584440',
-    success: '#9DB39D', danger: '#D18F8B', blue: '#90ADB3', yellow: '#CEB879'
+  'cocoa-night': createPreset('cocoa-night', '可可晚安', 'dark', {
+    background: '#28201F', secondary: '#352928', card: '#3D302E', paper: '#453735', charm: '#533D40',
+    accent: '#D8A7AD', accentSoft: '#533D40', accentDeep: '#E7BDC1', accentStrong: '#E0B0B5',
+    text: '#F3E7E2', textSoft: '#C5AAA4', hint: '#917873', border: '#584440', shadow: '#1A1211',
+    success: '#9DB39D', danger: '#D18F8B', blue: '#90ADB3', yellow: '#CEB879', pink: '#D8A7AD', green: '#9DB39D', lilac: '#B8A5CA',
+    userBubble: '#533D40', userText: '#F3E7E2', icon: '#E7BDC1', iconDetail: '#E7BDC1'
   }),
   'teddy-nest': createPreset('teddy-nest', '泰迪暖窝', 'dark', {
-    background: '#302521', secondary: '#3B2D28', card: '#44342E',
-    accent: '#DAB497', accentSoft: '#594538', accentDeep: '#F0CCAE',
-    text: '#F4E8DC', textSoft: '#CAB3A3', hint: '#968075', border: '#604B41',
-    success: '#A2B49A', danger: '#D29387', blue: '#91AAB0', yellow: '#D1B77D'
+    background: '#302521', secondary: '#3B2D28', card: '#44342E', paper: '#4B3A32', charm: '#594538',
+    accent: '#DAB497', accentSoft: '#594538', accentDeep: '#F0CCAE', accentStrong: '#E5BE9E',
+    text: '#F4E8DC', textSoft: '#CAB3A3', hint: '#968075', border: '#604B41', shadow: '#1D1411',
+    success: '#A2B49A', danger: '#D29387', blue: '#91AAB0', yellow: '#D1B77D', pink: '#D3A2A0', green: '#A2B49A', lilac: '#B5A2C6',
+    userBubble: '#594538', userText: '#F4E8DC', icon: '#F0CCAE', iconDetail: '#E6C09F'
   }),
-  'vanilla-pudding': createPreset('vanilla-pudding', '蓝莓月光', 'dark', {
-    background: '#25242D', secondary: '#302F3A', card: '#393744',
-    accent: '#B3A5C9', accentSoft: '#4C465B', accentDeep: '#D0C3E3',
-    text: '#EEEAF2', textSoft: '#BCB4C6', hint: '#858092', border: '#514E5E',
-    success: '#96AD9D', danger: '#CA8D91', blue: '#91AFBD', yellow: '#CAB77F'
+  'blueberry-moon': createPreset('blueberry-moon', '蓝莓月光', 'dark', {
+    background: '#25242D', secondary: '#302F3A', card: '#393744', paper: '#413F4E', charm: '#4C465B',
+    accent: '#B3A5C9', accentSoft: '#4C465B', accentDeep: '#D0C3E3', accentStrong: '#C4B4DB',
+    text: '#EEEAF2', textSoft: '#BCB4C6', hint: '#858092', border: '#514E5E', shadow: '#17151F',
+    success: '#96AD9D', danger: '#CA8D91', blue: '#91AFBD', yellow: '#CAB77F', pink: '#C8A0B7', green: '#96AD9D', lilac: '#B3A5C9',
+    userBubble: '#4C465B', userText: '#EEEAF2', icon: '#D0C3E3', iconDetail: '#CDBFE0'
   })
 };
 
 function createPreset(id, name, mode, palette) {
+  const dark = mode === 'dark';
   return {
     id,
     name,
@@ -143,59 +189,104 @@ function createPreset(id, name, mode, palette) {
       'color-danger': palette.danger,
       'bg-primary': palette.background,
       'bg-secondary': palette.secondary,
-      'bg-overlay': 'color-mix(in srgb, var(--text-primary) 30%, transparent)',
+      'bg-overlay': `color-mix(in srgb, var(--text-primary) ${dark ? '42%' : '30%'}, transparent)`,
       'surface': palette.card,
-      'surface-muted': 'color-mix(in srgb, var(--bg-card) 84%, var(--bg-secondary))',
+      'surface-soft': 'color-mix(in srgb, var(--bg-card) 88%, transparent)',
+      'surface-glass': `color-mix(in srgb, var(--bg-primary) ${dark ? '78%' : '86%'}, transparent)`,
+      'surface-muted': `color-mix(in srgb, var(--bg-card) ${dark ? '76%' : '84%'}, var(--bg-secondary))`,
+      'surface-paper': palette.paper,
+      'surface-charm': palette.charm,
       'accent': palette.accent,
       'accent-light': palette.accentSoft,
       'accent-dark': palette.accentDeep,
+      'accent-strong': palette.accentStrong,
       'text-primary': palette.text,
       'text-secondary': palette.textSoft,
       'text-hint': palette.hint,
+      'text-soft': 'color-mix(in srgb, var(--text-primary) 68%, var(--text-secondary))',
       'border-soft': palette.border,
-      'icon-color': palette.accentDeep,
+      'border-charm': 'color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card))',
+      'icon-color': palette.icon,
+      'icon-detail': palette.iconDetail,
+      'icon-tile-bg': 'var(--surface-paper)',
+      'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
+      'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
       'decor-blue': palette.blue,
       'decor-yellow': palette.yellow,
-      'bubble-user-bg': 'color-mix(in srgb, var(--accent) 72%, var(--bg-card))',
-      'bubble-user-text': palette.text,
-      'bubble-ai-bg': palette.card,
+      'decor-pink': palette.pink,
+      'decor-green': palette.green,
+      'decor-lilac': palette.lilac,
+      'decor-cream': palette.card,
+      'bubble-user-bg': palette.userBubble,
+      'bubble-user-text': palette.userText || palette.text,
+      'bubble-ai-bg': palette.paper,
       'bubble-ai-text': palette.text,
-      ...(mode === 'dark' ? DARK_SHADOWS : LIGHT_SHADOWS)
+      'button-primary-bg': 'linear-gradient(180deg, var(--accent-light), var(--accent))',
+      'button-primary-text': 'var(--bubble-user-text)',
+      'button-soft-bg': 'color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light))',
+      'badge-bg': 'var(--accent-strong)',
+      'badge-text': 'var(--bubble-user-text)',
+      'decoration-spot': dark ? 'var(--accent-light)' : 'var(--accent-dark)',
+      'illustration-line': 'var(--icon-detail)',
+      'illustration-fill': 'var(--surface-paper)',
+      'illustration-accent': 'var(--accent-light)',
+      'shadow-color': palette.shadow,
+      'inner-highlight': `inset 0 1px 0 color-mix(in srgb, white ${dark ? '12%' : '76%'}, transparent)`,
+      'toy-border': '1px solid color-mix(in srgb, var(--border-soft) 76%, transparent)',
+      'chat-icon-line': 'var(--icon-detail)',
+      'chat-icon-paper': 'var(--surface-paper)',
+      'chat-icon-fill': 'var(--accent-light)',
+      'chat-icon-dot': 'var(--accent-dark)',
+      'chat-fold-card-bg': 'var(--surface-paper)',
+      'chat-fold-card-open-bg': 'color-mix(in srgb, var(--accent-light) 54%, var(--bg-card))',
+      'chat-fold-detail-bg': 'color-mix(in srgb, var(--bg-card) 76%, var(--surface-muted))',
+      'chat-fold-line': 'var(--accent-strong)',
+      'chat-fold-summary-color': 'var(--text-secondary)',
+      'chat-fold-title-color': 'var(--text-primary)',
+      'chat-fold-code-color': 'var(--text-secondary)',
+      'chat-fold-divider': 'color-mix(in srgb, var(--accent-light) 72%, transparent)',
+      'chat-tool-breath-shadow': 'var(--shadow-sm)',
+      'chat-tool-breath-shadow-strong': 'var(--shadow-md)',
+      ...(dark ? DARK_SHADOWS : LIGHT_SHADOWS)
     }
   };
 }
-
 // ═══════════════════════════════════════
 // 【旧版兼容】老主题 ID 映射到新 ID
 // ═══════════════════════════════════════
 
 const LEGACY_PRESET_ALIAS = {
-  default: 'coconut-spring',
-  light: 'coconut-spring',
-  blue: 'coconut-spring',
+  default: 'cream-bell',
+  light: 'cream-bell',
+  blue: 'cloud-soda',
   pink: 'strawberry-milk',
-  cream: 'coconut-spring',
-  sky: 'coconut-iced',
-  paper: 'coconut-spring',
-  peach: 'coconut-spring',
-  coral: 'coconut-iced',
-  berry: 'strawberry-milk',
-  strawberry: 'strawberry-milk',
-  blush: 'coconut-spring',
-  lavender: 'strawberry-milk',
-  purple: 'strawberry-milk',
-  warm: 'coconut-spring',
-  dark: 'dark-chocolate',
-  night: 'dark-chocolate',
-  dusk: 'dark-chocolate',
-  'rose-noir': 'dark-chocolate',
+  cream: 'cream-bell',
+  sky: 'cloud-soda',
+  paper: 'cream-bell',
+  peach: 'peach-pudding',
+  coral: 'cloud-soda',
+  berry: 'peach-pudding',
+  strawberry: 'peach-pudding',
+  blush: 'peach-pudding',
+  lavender: 'blueberry-moon',
+  purple: 'blueberry-moon',
+  warm: 'cream-bell',
+  dark: 'cocoa-night',
+  night: 'cocoa-night',
+  dusk: 'cocoa-night',
+  'rose-noir': 'cocoa-night',
   candle: 'teddy-nest',
-  milk: 'vanilla-pudding',
-  cocoa: 'vanilla-pudding',
-  'warm-gray': 'vanilla-pudding',
+  milk: 'blueberry-moon',
+  cocoa: 'cocoa-night',
+  'warm-gray': 'blueberry-moon',
   'milk-cafe': 'teddy-nest',
   caramel: 'teddy-nest',
-  gray: 'vanilla-pudding'
+  gray: 'blueberry-moon',
+  'coconut-spring': 'cream-bell',
+  'coconut-iced': 'cloud-soda',
+  'strawberry-milk': 'peach-pudding',
+  'dark-chocolate': 'cocoa-night',
+  'vanilla-pudding': 'blueberry-moon'
 };
 
 let currentTheme = null;
@@ -310,7 +401,7 @@ export function setPreset(name) {
 
 export function setThemeMode(mode) {
   const safeMode = normalizeMode(mode);
-  const presetId = safeMode === 'dark' ? 'dark-chocolate' : 'coconut-spring';
+  const presetId = safeMode === 'dark' ? 'cocoa-night' : 'cream-bell';
   const presetTheme = getPresetById(presetId);
 
   document.documentElement.setAttribute('data-theme', presetId);

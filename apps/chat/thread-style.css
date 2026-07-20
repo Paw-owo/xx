@@ -1228,3 +1228,57 @@
   border: 1px solid color-mix(in srgb, var(--border-soft) 66%, transparent);
   background: color-mix(in srgb, var(--surface-paper) 82%, var(--surface-muted));
 }
+
+/* 图片、礼物、文件感卡片补齐到同一主题化小纸片语言 */
+.chat-message-bubble.sticker-bubble,
+.chat-message-bubble.image-bubble {
+  background: color-mix(in srgb, var(--surface-paper) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 66%, transparent);
+  box-shadow: var(--shadow-sm), var(--inner-highlight);
+}
+
+.chat-message-image-frame,
+.chat-message-sticker-image,
+.chat-message-sticker-placeholder,
+.chat-mini-message-card,
+.chat-voice-card {
+  border: 1px solid color-mix(in srgb, var(--border-soft) 66%, transparent);
+  background:
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--illustration-accent) 34%, transparent), transparent 24%),
+    color-mix(in srgb, var(--surface-paper) 82%, var(--surface-muted));
+  box-shadow: var(--shadow-sm), var(--inner-highlight);
+}
+
+.chat-mini-message-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px 24px 20px 26px;
+}
+
+.chat-mini-message-card::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  width: 22px;
+  height: 14px;
+  opacity: .24;
+  background:
+    radial-gradient(circle at 4px 7px, var(--decoration-spot) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 11px 3px, var(--decoration-spot) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 18px 7px, var(--decoration-spot) 0 2px, transparent 2.6px),
+    radial-gradient(ellipse at 11px 11px, var(--decoration-spot) 0 4px, transparent 4.6px);
+  pointer-events: none;
+}
+
+.chat-mini-card-cover {
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.chat-voice-play {
+  background: var(--button-soft-bg);
+  color: var(--icon-detail);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 58%, transparent);
+}

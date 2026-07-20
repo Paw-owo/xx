@@ -17,7 +17,7 @@
   --surface-muted: #F9EFD7;
   --surface-paper: #FFF9EA;
   --surface-charm: #FFEFC2;
-  --bg-overlay: color-mix(in srgb, #6E4B2F 24%, transparent);
+  --bg-overlay: color-mix(in srgb, var(--text-primary) 24%, transparent);
   --accent: #E8B850;
   --accent-light: #FFE8A9;
   --accent-dark: #9B6A2E;
@@ -38,6 +38,15 @@
   --icon-tile-alt-cool: color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card));
   --icon-tile-alt-warm: color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card));
   --icon-detail: #AD7440;
+  --button-primary-bg: linear-gradient(180deg, var(--accent-light), var(--accent));
+  --button-primary-text: var(--bubble-user-text);
+  --button-soft-bg: color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light));
+  --badge-bg: var(--accent-strong);
+  --badge-text: var(--bubble-user-text);
+  --decoration-spot: var(--accent-dark);
+  --illustration-line: var(--icon-detail);
+  --illustration-fill: var(--surface-paper);
+  --illustration-accent: var(--accent-light);
   --decor-blue: #C8D7E3;
   --decor-yellow: #F2CE72;
   --decor-pink: #F6C8BC;
@@ -69,11 +78,12 @@
   --radius-lg: 30px;
   --radius-xl: 38px;
   --radius-full: 999px;
-  --shadow-sm: 0 4px 12px color-mix(in srgb, #8A5A28 8%, transparent);
-  --shadow-md: 0 9px 24px color-mix(in srgb, #8A5A28 10%, transparent);
-  --shadow-lg: 0 16px 38px color-mix(in srgb, #8A5A28 12%, transparent);
-  --shadow-card: 0 7px 18px color-mix(in srgb, #8A5A28 9%, transparent);
-  --shadow-float: 0 14px 34px color-mix(in srgb, #8A5A28 13%, transparent);
+  --shadow-color: #8A5A28;
+  --shadow-sm: 0 4px 12px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 8%, transparent);
+  --shadow-md: 0 9px 24px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 10%, transparent);
+  --shadow-lg: 0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent);
+  --shadow-card: 0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent);
+  --shadow-float: 0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent);
   --inner-highlight: inset 0 1px 0 color-mix(in srgb, white 76%, transparent);
   --toy-border: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
   --press-scale: .97;
@@ -1729,8 +1739,8 @@ body {
 .chat-call-send,
 .chat-call-control.primary,
 .chat-call-control.danger {
-  background: linear-gradient(180deg, var(--accent-light), var(--accent));
-  color: var(--bubble-user-text);
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
   border: 1px solid color-mix(in srgb, var(--accent-dark) 24%, transparent);
   box-shadow: var(--shadow-sm), var(--inner-highlight);
 }
@@ -1761,7 +1771,7 @@ body {
 .chat-message-action-btn,
 .chat-message-code-action,
 .chat-message-code-toggle {
-  background: color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light));
+  background: var(--button-soft-bg);
 }
 
 .input-card,
@@ -1774,7 +1784,7 @@ body {
 .badge,
 .page-dot.active,
 .chat-thread-tool-dot[data-active="true"] {
-  background: var(--accent-strong);
+  background: var(--badge-bg);
 }
 
 .toast {
