@@ -18,6 +18,8 @@ import {
 import {
   showToast,
   showConfirm,
+  showBottomSheet,
+  hideBottomSheet,
   createIcon
 } from '../core/ui.js';
 import { promptForRemoteImage } from '../core/image-url.js';
@@ -647,6 +649,132 @@ function injectStyles() {
     .shop-hidden-file {
       display: none;
     }
+
+    .shop-gift-sheet {
+      max-height: min(82dvh, 640px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .shop-gift-title {
+      font-size: var(--font-size-title);
+      font-weight: 600;
+      color: var(--text-primary);
+      text-align: center;
+      padding: 4px 8px 0;
+    }
+
+    .shop-gift-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 0 4px;
+    }
+
+    .shop-gift-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+      border: 1px solid var(--border-soft);
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.18s ease;
+    }
+
+    .shop-gift-row:active {
+      background: color-mix(in srgb, var(--accent-light) 35%, var(--bg-card));
+    }
+
+    .shop-gift-avatar {
+      flex: 0 0 auto;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      overflow: hidden;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: color-mix(in srgb, var(--accent-light) 30%, transparent);
+      color: var(--accent-dark);
+    }
+
+    .shop-gift-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .shop-gift-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .shop-gift-note {
+      width: 100%;
+      resize: none;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-soft);
+      background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      font-family: var(--font-main);
+      line-height: 1.5;
+    }
+
+    .shop-gift-actions {
+      display: flex;
+      gap: 10px;
+      padding: 0 4px;
+    }
+
+    .shop-gift-actions .shop-gift-cancel,
+    .shop-gift-actions .shop-gift-send {
+      flex: 1;
+      padding: 11px 14px;
+      border-radius: var(--radius-md);
+      font-size: var(--font-size-base);
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+    }
+
+    .shop-gift-actions .shop-gift-cancel {
+      background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+      border-color: var(--border-soft);
+      color: var(--text-secondary);
+    }
+
+    .shop-gift-actions .shop-gift-send {
+      background: var(--accent-dark);
+      color: var(--bubble-user-text);
+    }
+
+    .shop-gift-sheet > .shop-gift-cancel {
+      width: 100%;
+      padding: 11px 14px;
+      border-radius: var(--radius-md);
+      background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+      border: 1px solid var(--border-soft);
+      color: var(--text-secondary);
+      font-size: var(--font-size-base);
+      cursor: pointer;
+    }
   `;
 
   document.head.appendChild(style);
@@ -1016,22 +1144,10 @@ async function chooseGiftTarget(item) {
     return;
   }
 
-  const names = characters
-    .map((character, index) => `${index + 1}. ${character.name || '未命名'}`)
-    .join('\n');
+  const character = await pickGiftCharacter(item, characters);
+  if (!character) return;
 
-  const input = window.prompt(`想把「${item.name}」送给谁呀？\n${names}\n\n输入序号就好。`);
-  if (!input) return;
-
-  const index = Number(input) - 1;
-  const character = characters[index];
-
-  if (!character) {
-    showToast('没有找到这个TA ๑ᵒᯅᵒ๑');
-    return;
-  }
-
-  const note = window.prompt('要不要写一句礼物小纸条？可以直接留空。') || '';
+  const note = await promptForGiftNote();
 
   await userGiftToAI({
     characterId: character.id,
@@ -1041,6 +1157,114 @@ async function chooseGiftTarget(item) {
   });
 
   await renderShop();
+}
+
+// 用底部弹层让用户从角色列表点选送礼对象，替代原 window.prompt 输入序号
+function pickGiftCharacter(item, characters) {
+  return new Promise((resolve) => {
+    const sheet = showBottomSheet(document.createDocumentFragment());
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      hideBottomSheet();
+      resolve(value);
+    };
+
+    sheet.classList.add('shop-gift-sheet');
+
+    const title = document.createElement('strong');
+    title.className = 'shop-gift-title';
+    title.textContent = `把「${item.name}」送给谁呀？`;
+    sheet.append(title);
+
+    const list = document.createElement('div');
+    list.className = 'shop-gift-list';
+
+    characters.forEach((character) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'shop-gift-row';
+
+      const avatar = document.createElement('span');
+      avatar.className = 'shop-gift-avatar';
+      if (character.avatar) {
+        const img = document.createElement('img');
+        img.src = character.avatar;
+        img.alt = '';
+        avatar.append(img);
+      } else {
+        avatar.append(createIcon('smile', 22));
+      }
+
+      const name = document.createElement('span');
+      name.className = 'shop-gift-name';
+      name.textContent = character.name || '未命名';
+
+      row.append(avatar, name, createIcon('chevron-right', 18));
+      row.addEventListener('click', () => finish(character));
+      list.append(row);
+    });
+
+    sheet.append(list);
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'shop-gift-cancel';
+    cancel.textContent = '先不要';
+    cancel.addEventListener('click', () => finish(null));
+    sheet.append(cancel);
+  });
+}
+
+// 用底部弹层让用户写礼物小纸条，替代原 window.prompt
+function promptForGiftNote() {
+  return new Promise((resolve) => {
+    const sheet = showBottomSheet(document.createDocumentFragment());
+
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      hideBottomSheet();
+      resolve(value);
+    };
+
+    sheet.classList.add('shop-gift-sheet');
+
+    const title = document.createElement('strong');
+    title.className = 'shop-gift-title';
+    title.textContent = '要不要写一句礼物小纸条？';
+    sheet.append(title);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'shop-gift-note';
+    textarea.rows = 3;
+    textarea.maxLength = 120;
+    textarea.placeholder = '可以直接留空哦';
+    sheet.append(textarea);
+
+    const actions = document.createElement('div');
+    actions.className = 'shop-gift-actions';
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'shop-gift-cancel';
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', () => finish(null));
+
+    const send = document.createElement('button');
+    send.type = 'button';
+    send.className = 'shop-gift-send';
+    send.textContent = '送出';
+    send.addEventListener('click', () => finish(textarea.value.trim()));
+
+    actions.append(cancel, send);
+    sheet.append(actions);
+
+    requestAnimationFrame(() => textarea.focus());
+  });
 }
 
 async function buyItem(item) {
