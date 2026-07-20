@@ -1,8 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="主题变量信纸聊天背景">
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop stop-color="Canvas"/><stop offset="1" stop-color="ButtonFace"/></linearGradient><pattern id="paper" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M0 29.5h30" stroke="currentColor" stroke-width=".8" opacity=".16"/><circle cx="9" cy="10" r="1" fill="currentColor" opacity=".12"/></pattern></defs>
-  <rect width="390" height="844" fill="url(#bg)"/><rect width="390" height="844" fill="url(#paper)"/>
-  <path d="M42 104h112l-56 42Z" fill="Canvas" stroke="currentColor" stroke-width="3" opacity=".42"/><path d="M42 104l56 49 56-49" fill="none" stroke="currentColor" stroke-width="3" opacity=".42"/>
-  <g opacity=".32"><path d="M216 84h112c10 0 18 8 18 18v104H198V102c0-10 8-18 18-18Z" fill="Canvas" stroke="currentColor" stroke-width="3"/><path d="M220 106h104v68H220z" fill="currentColor" opacity=".14"/><path d="M272 88v86M220 140h104" stroke="currentColor" stroke-width="3"/></g>
-  <g opacity=".30"><circle cx="296" cy="580" r="38" fill="currentColor"/><circle cx="278" cy="558" r="11" fill="CanvasText" opacity=".24"/><circle cx="316" cy="558" r="11" fill="CanvasText" opacity=".24"/><circle cx="286" cy="582" r="3" fill="CanvasText"/><circle cx="306" cy="582" r="3" fill="CanvasText"/><path d="M291 595c4 3 8 3 12 0" stroke="CanvasText" stroke-width="3" fill="none" stroke-linecap="round"/></g>
-  <g opacity=".30" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M56 428c18 9 36 9 54 0 18-9 36-9 54 0" stroke-width="3"/><path d="M284 360c8-12 22-12 30 0 8-12 22-12 30 0" stroke-width="3"/><path d="m72 672 4 9 9 4-9 4-4 9-4-9-9-4 9-4z" fill="Canvas" stroke-width="2"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="焦糖小熊纯色主题背景">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop stop-color="Canvas"/><stop offset="1" stop-color="ButtonFace"/></linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop stop-color="Canvas"/><stop offset="1" stop-color="currentColor" stop-opacity=".16"/></radialGradient>
+  </defs>
+  <rect width="390" height="844" fill="url(#bg)"/>
+  <circle cx="66" cy="126" r="74" fill="url(#glow)" opacity=".72"/>
+  <circle cx="326" cy="698" r="96" fill="url(#glow)" opacity=".54"/>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" opacity=".28">
+    <path d="M44 186c34-18 70-18 106 0 32 16 66 16 102 0" stroke-width="3"/>
+    <path d="M268 134h54c12 0 22 10 22 22v54c0 12-10 22-22 22h-54c-12 0-22-10-22-22v-54c0-12 10-22 22-22Z" stroke-width="3"/>
+    <path d="M268 164h54M268 188h36" stroke-width="4" opacity=".42"/>
+  </g>
+  <g opacity=".34" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 612c0-15 12-28 28-28h74c15 0 28 13 28 28v52c0 15-13 28-28 28H86c-16 0-28-13-28-28Z" fill="Canvas" stroke-width="3"/>
+    <path d="M84 584c0-18 13-30 30-30h18c17 0 30 12 30 30" fill="none" stroke-width="7"/>
+    <path d="M91 632h64M91 654h38" stroke-width="5" opacity=".42"/>
+  </g>
+  <g opacity=".36" stroke="CanvasText" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="292" cy="534" r="34" fill="currentColor" stroke="currentColor" stroke-width="3"/>
+    <circle cx="273" cy="512" r="10" fill="currentColor"/><circle cx="313" cy="512" r="10" fill="currentColor"/>
+    <circle cx="281" cy="532" r="2.8" fill="CanvasText"/><circle cx="303" cy="532" r="2.8" fill="CanvasText"/>
+    <path d="M287 547c4 3 8 3 12 0" fill="none" stroke-width="3"/>
+    <path d="M270 568c13 10 30 10 44 0" fill="none" stroke="Canvas" stroke-width="6" opacity=".76"/>
+  </g>
+  <g fill="Canvas" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" opacity=".34">
+    <path d="m70 342 5 10 11 2-8 8 2 11-10-5-10 5 2-11-8-8 11-2Z"/>
+    <path d="M314 324c-12-10-26-1-20 13 3 8 12 14 20 21 8-7 17-13 20-21 6-14-8-23-20-13Z"/>
+    <circle cx="98" cy="478" r="18"/><circle cx="90" cy="472" r="2" fill="currentColor"/><circle cx="104" cy="468" r="2" fill="currentColor"/><circle cx="106" cy="484" r="2" fill="currentColor"/>
+  </g>
 </svg>
