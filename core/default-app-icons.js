@@ -48,8 +48,60 @@ const ICON_DRAWINGS = {
     <path class="soft" d="M18 65h60v19H18Z"/><path class="accent" d="M27 62h42l8 12H19Z"/><path d="M31 72h34M36 80h24"/><path class="accent" d="m48 12 5 12 13 1-10 8 3 13-11-7-11 7 3-13-10-8 13-1Z"/>`
 };
 
+
+const CREAM_BELL_DRAWINGS = {
+  chat: `
+    <path class="soft" d="M17 42h60c5 0 9 4 9 9v25c0 5-4 9-9 9H35l-13 7 3-8h-8c-5 0-9-4-9-9V51c0-5 4-9 9-9Z"/>
+    <path class="accent" d="M24 51h49L48 67Z"/><path d="m24 78 17-15m32 15L55 63"/>
+    <circle class="fur" cx="35" cy="34" r="13"/><circle class="fur" cx="61" cy="34" r="13"/><circle class="fur" cx="48" cy="42" r="18"/>
+    <circle class="face" cx="42" cy="42" r="2.4"/><circle class="face" cx="54" cy="42" r="2.4"/><path d="M46 49c1.5 1.4 3.5 1.4 5 0"/>
+    <circle class="accent" cx="72" cy="27" r="7"/><path d="M69 27h6M72 24v6"/>`,
+  settings: `
+    <circle class="accent" cx="48" cy="48" r="30"/><circle class="soft" cx="48" cy="48" r="20"/>
+    <circle class="fur" cx="37" cy="36" r="8"/><circle class="fur" cx="59" cy="36" r="8"/><circle class="fur" cx="48" cy="48" r="18"/>
+    <circle class="face" cx="42" cy="48" r="2.3"/><circle class="face" cx="54" cy="48" r="2.3"/><path d="M45 55c2 1.8 4 1.8 6 0"/>
+    <path class="soft" d="M23 48h10m30 0h10M48 23v10m0 30v10"/>`,
+  wallet: `
+    <path class="accent" d="M14 42h62c7 0 12 5 12 12v23c0 5-4 9-9 9H14c-5 0-9-4-9-9V51c0-5 4-9 9-9Z"/>
+    <path class="soft" d="M60 56h29v17H60c-5 0-9-4-9-8.5S55 56 60 56Z"/><circle class="face" cx="62" cy="64.5" r="2.4"/>
+    <circle class="fur" cx="37" cy="33" r="8"/><circle class="fur" cx="59" cy="33" r="8"/><circle class="fur" cx="48" cy="43" r="17"/>
+    <circle class="face" cx="42" cy="43" r="2.3"/><circle class="face" cx="54" cy="43" r="2.3"/><path d="M45 50c2 1.6 4 1.6 6 0"/>`,
+  shop: `
+    <path class="soft" d="M18 34h60l-5 50H23Z"/><path class="accent" d="M15 34h66l-8-17H23Z"/>
+    <path d="M34 34c0-10 5-17 14-17s14 7 14 17"/>
+    <circle class="fur" cx="38" cy="56" r="8"/><circle class="fur" cx="58" cy="56" r="8"/><circle class="fur" cx="48" cy="66" r="17"/>
+    <circle class="face" cx="42" cy="66" r="2.2"/><circle class="face" cx="54" cy="66" r="2.2"/><path d="M45 72c2 1.4 4 1.4 6 0"/>`,
+  worldbook: `
+    <path class="accent" d="M15 30c12-5 23-3 33 6 10-9 21-11 33-6v51c-12-5-23-3-33 6-10-9-21-11-33-6Z"/>
+    <path class="soft" d="M48 36v51M25 45h14M25 56h12M58 45h14M58 56h12"/>
+    <circle class="fur" cx="39" cy="31" r="7"/><circle class="fur" cx="57" cy="31" r="7"/><circle class="fur" cx="48" cy="39" r="14"/>
+    <circle class="face" cx="43" cy="40" r="2"/><circle class="face" cx="53" cy="40" r="2"/>`,
+  memo: `
+    <path class="soft" d="M21 19h49l10 10v55H21Z"/><path class="accent" d="M70 19v12h10M34 43h28M34 54h24M34 65h18"/>
+    <circle class="accent" cx="27" cy="27" r="8"/><circle class="fur" cx="27" cy="27" r="3"/>
+    <path class="accent" d="m62 72 11-27 9 4-11 27-10 8Z"/>`,
+  games: `
+    <path class="accent" d="M18 49h60c7 0 12 5 14 13l3 15c2 10-9 16-16 8L66 74H30L17 85C10 93 0 87 2 77l3-15c2-8 7-13 13-13Z"/>
+    <circle class="fur" cx="38" cy="39" r="8"/><circle class="fur" cx="58" cy="39" r="8"/><circle class="fur" cx="48" cy="49" r="17"/>
+    <circle class="face" cx="42" cy="49" r="2.2"/><circle class="face" cx="54" cy="49" r="2.2"/><path d="M25 65v12m-6-6h12"/><circle class="soft" cx="72" cy="66" r="4"/><circle class="soft" cx="81" cy="75" r="4"/>`,
+  music: `
+    <circle class="fur" cx="36" cy="38" r="9"/><circle class="fur" cx="60" cy="38" r="9"/><circle class="fur" cx="48" cy="49" r="20"/>
+    <path class="soft" d="M25 47c0-8 6-15 14-15v30c-8 0-14-7-14-15Zm46 0c0-8-6-15-14-15v30c8 0 14-7 14-15Z"/>
+    <circle class="face" cx="42" cy="50" r="2.3"/><circle class="face" cx="54" cy="50" r="2.3"/><path d="M45 57c2 1.6 4 1.6 6 0"/>
+    <path class="accent" d="M67 18v39c0 7-5 12-12 12-5 0-9-4-9-8s4-8 9-8c3 0 5 1 7 2V24l21-5v30"/>`,
+  dream: `
+    <path class="soft" d="M75 13c-11 3-18 12-18 24 0 14 11 25 25 25 2 0 4 0 6-1-6 14-20 24-37 24-22 0-40-18-40-40S29 5 51 5c9 0 18 3 24 8Z"/>
+    <path class="accent" d="M34 51c0-12 8-21 19-21s19 9 19 21-8 22-19 22-19-10-19-22Z"/>
+    <circle class="fur" cx="44" cy="45" r="6"/><circle class="fur" cx="62" cy="45" r="6"/><circle class="fur" cx="53" cy="54" r="14"/>
+    <path d="M47 55c2 3 5 3 7 0m8 0c-2 3-5 3-7 0"/>`,
+  'theme-center': `
+    <path class="accent" d="M25 43h46l-5 34H30Z"/><path class="soft" d="M31 31h34c5 0 9 4 9 9v5H22v-5c0-5 4-9 9-9Z"/>
+    <path class="accent" d="M35 31c0-8 5-14 13-14s13 6 13 14"/>
+    <circle class="fur" cx="37" cy="56" r="5"/><circle class="fur" cx="59" cy="56" r="5"/><path class="soft" d="M42 58c2 4 10 4 12 0"/>
+    <circle class="soft" cx="75" cy="30" r="6"/>`
+};
 export function createDefaultAppIcon(app, size = 28, documentRef = document) {
-  const drawing = ICON_DRAWINGS[app?.id];
+  const drawing = CREAM_BELL_DRAWINGS[app?.id] || ICON_DRAWINGS[app?.id];
   if (!drawing) return null;
   const svg = documentRef.createElementNS(SVG_NS, 'svg');
   svg.classList.add('cozy-app-icon', `cozy-app-icon-${app.id}`);
@@ -58,11 +110,14 @@ export function createDefaultAppIcon(app, size = 28, documentRef = document) {
   svg.setAttribute('height', String(size));
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
-  svg.innerHTML = `<g class="icon-character">${drawing}</g>
+  svg.innerHTML = `<g class="icon-badge-frame" aria-hidden="true">
+      <path class="badge-paper" d="M18 23c0-4 3-7 7-7h46c4 0 7 3 7 7v49c0 4-3 7-7 7H25c-4 0-7-3-7-7Z"/>
+      <path class="badge-stitch" d="M25 24h46v48H25Z"/>
+    </g>
+    <g class="icon-character">${drawing}</g>
     <g class="icon-decoration" aria-hidden="true">
-      <path class="sparkle" d="m13 17 1.8 4.2L19 23l-4.2 1.8L13 29l-1.8-4.2L7 23l4.2-1.8Z"/>
-      <path class="bow" d="M72 15c-7-5-12-2-10 5 1 4 5 6 10 3 5 3 9 1 10-3 2-7-3-10-10-5Z"/>
-      <circle class="bell" cx="72" cy="20" r="3.2"/>
+      <circle class="cookie-dot" cx="76" cy="23" r="3"/>
+      <path class="sparkle" d="m16 20 1.2 3.2 3.2 1.2-3.2 1.2L16 29l-1.2-3.4-3.2-1.2 3.2-1.2Z"/>
     </g>`;
   return svg;
 }

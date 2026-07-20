@@ -44,3 +44,11 @@ assert.equal((page.match(/addEventListener\('error', \(\) => \{[^}]*createDefaul
 assert.match(page, /if \(customImage\)[\s\S]*image\.src = customImage/, 'custom images remain preferred');
 
 console.log('desktop icon checks passed');
+
+
+const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
+assert.match(styleSource, /:root\[data-theme="cream-bell"\] \.desktop-icon-art/, 'cream-bell desktop icon styling is scoped to the preset');
+assert.match(styleSource, /\.cozy-app-icon \.icon-badge-frame \{ display: none; \}/, 'cream-bell badge frame is hidden outside the preset');
+assert.match(styleSource, /:root\[data-theme="cream-bell"\] \.cozy-app-icon \.icon-badge-frame/, 'cream-bell badge frame is restored only by the preset');
+assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
+console.log('cream-bell visual isolation checks passed');
