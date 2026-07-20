@@ -1,14 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="主题变量桌面手账壁纸">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844" role="img" aria-label="焦糖小熊纯色主题背景">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop stop-color="Canvas"/><stop offset="1" stop-color="ButtonFace"/></linearGradient>
-    <pattern id="check" width="36" height="36" patternUnits="userSpaceOnUse"><rect width="36" height="36" fill="none"/><path d="M0 0h18v18H0zM18 18h18v18H18z" fill="currentColor" opacity=".10"/><path d="M18 0h18v18H18zM0 18h18v18H0z" fill="Canvas" opacity=".34"/></pattern>
-    <pattern id="dots" width="26" height="26" patternUnits="userSpaceOnUse"><circle cx="7" cy="8" r="1.3" fill="currentColor" opacity=".16"/><circle cx="19" cy="18" r="1" fill="currentColor" opacity=".10"/></pattern>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%"><stop stop-color="Canvas"/><stop offset="1" stop-color="currentColor" stop-opacity=".16"/></radialGradient>
   </defs>
-  <rect width="390" height="844" fill="url(#bg)"/><rect width="390" height="844" fill="url(#dots)"/>
-  <path d="M0 0h390v118H0z" fill="url(#check)" opacity=".62"/>
-  <path d="M0 104c20 18 39 18 59 0 20 18 39 18 59 0 20 18 39 18 59 0 20 18 39 18 59 0 20 18 39 18 59 0 20 18 39 18 59 0 12 11 24 15 36 12v25H0z" fill="Canvas" stroke="currentColor" stroke-width="2" opacity=".72"/>
-  <g opacity=".42" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M34 151v64m0-64c0 18 18 18 18 0m-18 64c0-18 18-18 18 0"/><path d="M332 136v70m0-70c0 18 18 18 18 0m-18 70c0-18 18-18 18 0"/></g>
-  <g opacity=".44"><circle cx="80" cy="650" r="46" fill="currentColor"/><circle cx="64" cy="626" r="12" fill="CanvasText" opacity=".24"/><circle cx="102" cy="622" r="12" fill="CanvasText" opacity=".24"/><circle cx="80" cy="659" r="24" fill="Canvas" opacity=".62"/><circle cx="70" cy="648" r="3" fill="CanvasText"/><circle cx="90" cy="648" r="3" fill="CanvasText"/><path d="M76 663c3 3 6 3 9 0" stroke="CanvasText" stroke-width="3" fill="none" stroke-linecap="round"/></g>
-  <g opacity=".36"><path d="M238 574h86c13 0 24 11 24 24v62H214v-62c0-13 11-24 24-24Z" fill="Canvas" stroke="currentColor" stroke-width="3"/><path d="M238 574c5-30 23-48 43-48s38 18 43 48" fill="none" stroke="currentColor" stroke-width="8" stroke-linecap="round"/><path d="M254 608h58M254 632h36" stroke="CanvasText" stroke-width="5" stroke-linecap="round" opacity=".34"/></g>
-  <g stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".46"><path d="M54 348c20 11 40 11 60 0 20-11 40-11 60 0"/><path d="M244 316c10-14 26-14 36 0 10-14 26-14 36 0"/><path d="m322 462 5 10 10 5-10 5-5 10-5-10-10-5 10-5z" fill="Canvas"/></g>
+  <rect width="390" height="844" fill="url(#bg)"/>
+  <circle cx="66" cy="126" r="74" fill="url(#glow)" opacity=".72"/>
+  <circle cx="326" cy="698" r="96" fill="url(#glow)" opacity=".54"/>
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" opacity=".28">
+    <path d="M44 186c34-18 70-18 106 0 32 16 66 16 102 0" stroke-width="3"/>
+    <path d="M268 134h54c12 0 22 10 22 22v54c0 12-10 22-22 22h-54c-12 0-22-10-22-22v-54c0-12 10-22 22-22Z" stroke-width="3"/>
+    <path d="M268 164h54M268 188h36" stroke-width="4" opacity=".42"/>
+  </g>
+  <g opacity=".34" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M58 612c0-15 12-28 28-28h74c15 0 28 13 28 28v52c0 15-13 28-28 28H86c-16 0-28-13-28-28Z" fill="Canvas" stroke-width="3"/>
+    <path d="M84 584c0-18 13-30 30-30h18c17 0 30 12 30 30" fill="none" stroke-width="7"/>
+    <path d="M91 632h64M91 654h38" stroke-width="5" opacity=".42"/>
+  </g>
+  <g opacity=".36" stroke="CanvasText" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="292" cy="534" r="34" fill="currentColor" stroke="currentColor" stroke-width="3"/>
+    <circle cx="273" cy="512" r="10" fill="currentColor"/><circle cx="313" cy="512" r="10" fill="currentColor"/>
+    <circle cx="281" cy="532" r="2.8" fill="CanvasText"/><circle cx="303" cy="532" r="2.8" fill="CanvasText"/>
+    <path d="M287 547c4 3 8 3 12 0" fill="none" stroke-width="3"/>
+    <path d="M270 568c13 10 30 10 44 0" fill="none" stroke="Canvas" stroke-width="6" opacity=".76"/>
+  </g>
+  <g fill="Canvas" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" opacity=".34">
+    <path d="m70 342 5 10 11 2-8 8 2 11-10-5-10 5 2-11-8-8 11-2Z"/>
+    <path d="M314 324c-12-10-26-1-20 13 3 8 12 14 20 21 8-7 17-13 20-21 6-14-8-23-20-13Z"/>
+    <circle cx="98" cy="478" r="18"/><circle cx="90" cy="472" r="2" fill="currentColor"/><circle cx="104" cy="468" r="2" fill="currentColor"/><circle cx="106" cy="484" r="2" fill="currentColor"/>
+  </g>
 </svg>

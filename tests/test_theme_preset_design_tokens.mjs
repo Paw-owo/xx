@@ -31,7 +31,7 @@ assert.deepEqual(
   ['cream-bell', 'cloud-soda', 'peach-pudding', 'cocoa-night', 'teddy-nest', 'blueberry-moon'],
   'preset ids describe six independent skins'
 );
-assert.ok(presets.some((preset) => preset.name === '奶油铃铛'), 'yellow toy palette is a named theme, not anonymous global chrome');
+assert.ok(presets.some((preset) => preset.name === '焦糖小熊'), 'default caramel bear palette is a named theme, not anonymous global chrome');
 
 const required = [
   'surface-paper',
@@ -70,8 +70,8 @@ for (const preset of presets) {
 
 const cream = theme.setPreset('cream-bell');
 assert.equal(cream.variables['cream-bell-badge-display'], 'block', 'cream-bell turns on badge SVG frame');
-assert.notEqual(cream.variables['cream-bell-lace'], 'none', 'cream-bell owns lace resource');
-assert.notEqual(cream.variables['cream-bell-plaid'], 'none', 'cream-bell owns plaid resource');
+assert.notEqual(cream.variables['cream-bell-lace'], 'none', 'cream-bell owns soft resource');
+assert.notEqual(cream.variables['cream-bell-plaid'], 'none', 'cream-bell owns glow resource');
 
 const soda = theme.setPreset('cloud-soda');
 assert.equal(soda.variables['cream-bell-badge-display'], 'none', 'other themes turn off cream-bell badge SVG frame');
@@ -81,7 +81,7 @@ assert.equal(document.documentElement.attrs['data-theme'], 'cloud-soda', 'switch
 
 const creamAgain = theme.setPreset('cream-bell');
 assert.equal(creamAgain.variables['cream-bell-badge-display'], 'block', 'switching back restores badge SVG frame');
-assert.notEqual(creamAgain.variables['cream-bell-lace'], 'none', 'switching back restores lace resource');
+assert.notEqual(creamAgain.variables['cream-bell-lace'], 'none', 'switching back restores soft resource');
 assert.equal(document.documentElement.attrs['data-theme'], 'cream-bell', 'switching back updates data-theme');
 
 const legacy = theme.setPreset('dark-chocolate');

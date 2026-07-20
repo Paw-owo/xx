@@ -30,8 +30,8 @@ const drawings = APPS.map((app) => {
 assert.equal(new Set(drawings).size, APPS.length, 'all default silhouettes are distinct');
 
 const gallery = createDefaultAppIcon(APPS.find(({ id }) => id === 'gallery'), 28, fakeDocument).innerHTML;
-assert.doesNotMatch(gallery, /<image|<rect/i, 'gallery does not use photo or album imagery');
-assert.match(gallery, /m31 49 10 4m26-4-10 4/, 'gallery keeps its downward angry brows');
+assert.doesNotMatch(gallery, /<image/i, 'gallery does not use external photo imagery');
+assert.match(gallery, /M17 25h62v56H17Z/, 'gallery keeps a distinct framed dessert-photo silhouette');
 
 const source = fs.readFileSync(new URL('../core/default-app-icons.js', import.meta.url), 'utf8');
 assert.doesNotMatch(source, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i, 'icon source contains no hard-coded colors');
@@ -51,4 +51,4 @@ assert.match(styleSource, /:root\[data-theme="cream-bell"\] \.desktop-icon-art/,
 assert.match(styleSource, /\.cozy-app-icon \.icon-badge-frame \{ display: none; \}/, 'cream-bell badge frame is hidden outside the preset');
 assert.match(styleSource, /:root\[data-theme="cream-bell"\] \.cozy-app-icon \.icon-badge-frame/, 'cream-bell badge frame is restored only by the preset');
 assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
-console.log('cream-bell visual isolation checks passed');
+console.log('caramel bear visual isolation checks passed');

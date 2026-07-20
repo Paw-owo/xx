@@ -129,7 +129,7 @@ const DARK_SHADOWS = {};
 // ═══════════════════════════════════════
 
 const PRESETS = {
-  'cream-bell': createPreset('cream-bell', '奶油铃铛', 'light', {
+  'cream-bell': createPreset('cream-bell', '焦糖小熊', 'light', {
     background: '#FFF6E6', secondary: '#E8C191', card: '#FFFDF6', paper: '#FFF8EA', charm: '#F4B966',
     accent: '#C8772E', accentSoft: '#FFDDA3', accentDeep: '#6C3B1F', accentStrong: '#A75A25',
     text: '#4C2B1A', textSoft: '#825B3E', hint: '#B18B69', border: '#D79B62', shadow: '#7A431E',
@@ -247,9 +247,9 @@ function createPreset(id, name, mode, palette) {
       'chat-fold-divider': 'color-mix(in srgb, var(--accent-light) 72%, transparent)',
       'chat-tool-breath-shadow': 'var(--shadow-sm)',
       'chat-tool-breath-shadow-strong': 'var(--shadow-md)',
-      'cream-bell-lace': id === 'cream-bell' ? 'radial-gradient(circle at 10px 0, transparent 9px, color-mix(in srgb, var(--border-soft) 52%, transparent) 9.8px 10.8px, transparent 11.6px) 0 0 / 20px 12px repeat-x' : 'none',
-      'cream-bell-dots': id === 'cream-bell' ? 'radial-gradient(circle, color-mix(in srgb, var(--accent-dark) 28%, transparent) 0 1.2px, transparent 1.8px) 0 0 / 16px 16px' : 'none',
-      'cream-bell-plaid': id === 'cream-bell' ? 'linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 50%, transparent 0) 0 0 / 18px 18px, linear-gradient(color-mix(in srgb, var(--accent) 10%, transparent) 50%, transparent 0) 0 0 / 18px 18px' : 'none',
+      'cream-bell-lace': id === 'cream-bell' ? 'linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 34%, transparent), transparent 70%)' : 'none',
+      'cream-bell-dots': id === 'cream-bell' ? 'radial-gradient(circle at 72% 18%, color-mix(in srgb, var(--bg-card) 64%, transparent) 0 22px, transparent 23px)' : 'none',
+      'cream-bell-plaid': id === 'cream-bell' ? 'radial-gradient(circle at 18% 10%, color-mix(in srgb, var(--accent-light) 24%, transparent), transparent 28%)' : 'none',
       'cream-bell-badge-display': id === 'cream-bell' ? 'block' : 'none',
       'cream-bell-charm-opacity': id === 'cream-bell' ? '1' : '0',
       ...(dark ? DARK_SHADOWS : LIGHT_SHADOWS)
