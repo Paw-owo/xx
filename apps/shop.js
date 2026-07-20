@@ -1642,13 +1642,14 @@ export async function aiGiftToUser({ characterId, characterName = 'TA', itemId, 
   });
 
   if (!inventoryId) {
-    addAiBalance(characterId, item.price, `退款：礼物 ${item.name} 没收好`, {
+    const refunded = addAiBalance(characterId, item.price, `退款：礼物 ${item.name} 没收好`, {
       category: 'gift_refund',
       title: `礼物退款 ${item.name}`,
       source: 'shop_gift_refund',
       characterId,
       characterName
     });
+    if (!refunded) console.error('[shop] aiGiftToUser 入库失败且退款失败，AI 余额可能短缺', { characterId, itemId: item.id, price: item.price });
     return { ok: false, reason: 'inventory_failed' };
   }
 
@@ -1662,14 +1663,15 @@ export async function aiGiftToUser({ characterId, characterName = 'TA', itemId, 
   });
 
   if (!card) {
-    await rollbackInventoryAddition(item, 'user', characterId);
-    addAiBalance(characterId, item.price, `退款：礼物 ${item.name} 没记好`, {
+    const inventoryRolledBack = await rollbackInventoryAddition(item, 'user', characterId);
+    const refunded = addAiBalance(characterId, item.price, `退款：礼物 ${item.name} 没记好`, {
       category: 'gift_refund',
       title: `礼物退款 ${item.name}`,
       source: 'shop_gift_refund',
       characterId,
       characterName
     });
+    if (!inventoryRolledBack || !refunded) console.error('[shop] aiGiftToUser 记录失败后回滚不完整', { characterId, itemId: item.id, price: item.price, inventoryRolledBack, refunded });
     return { ok: false, reason: 'gift_record_failed' };
   }
 
@@ -1725,8 +1727,13 @@ export async function userGiftToAI({ characterId, characterName = 'TA', itemId, 
   });
 
   if (!inventoryId) {
-    addBalance(item.price, `退款：送礼 ${item.name} 没收好`);
-    showToast('礼物还没放稳，钱已经退回来啦');
+    const refunded = addBalance(item.price, `退款：送礼 ${item.name} 没收好`);
+    if (!refunded) {
+      console.error('[shop] userGiftToAI 入库失败且退款失败，用户余额可能短缺', { characterId, itemId: item.id, price: item.price });
+      showToast('礼物还没放稳，钱也需要再抱回来一下');
+    } else {
+      showToast('礼物还没放稳，钱已经退回来啦');
+    }
     return { ok: false, reason: 'inventory_failed' };
   }
 
@@ -1740,9 +1747,14 @@ export async function userGiftToAI({ characterId, characterName = 'TA', itemId, 
   });
 
   if (!card) {
-    await rollbackInventoryAddition(item, 'character', characterId);
-    addBalance(item.price, `退款：送礼 ${item.name} 没记好`);
-    showToast('礼物记录没写好，钱已经退回来啦');
+    const inventoryRolledBack = await rollbackInventoryAddition(item, 'character', characterId);
+    const refunded = addBalance(item.price, `退款：送礼 ${item.name} 没记好`);
+    if (!inventoryRolledBack || !refunded) {
+      console.error('[shop] userGiftToAI 记录失败后回滚不完整', { characterId, itemId: item.id, price: item.price, inventoryRolledBack, refunded });
+      showToast('礼物记录没写好，钱也需要再抱回来一下');
+    } else {
+      showToast('礼物记录没写好，钱已经退回来啦');
+    }
     return { ok: false, reason: 'gift_record_failed' };
   }
 

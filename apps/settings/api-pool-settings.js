@@ -311,7 +311,7 @@ function injectStyle() {
     .api-pool-model-chip {
       padding: 5px 10px;
       border-radius: var(--radius-md);
-      border: 1px solid var(--bg-overlay);
+      border: 1px solid var(--border-soft);
       background: var(--bg-secondary);
       color: var(--text-secondary);
       font-size: var(--font-size-sm);
@@ -592,10 +592,10 @@ function openEditor(item, options = {}) {
   const isEdit = !!item;
   const lockGroup = options.lockGroup || '';
   const overlay = el('div', 'settings-sheet-overlay');
-  overlay.style.cssText = 'position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:color-mix(in srgb, var(--media-ink-deep) 30%, transparent);';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:var(--bg-overlay);';
 
   const sheet = el('div', 'settings-sheet');
-  sheet.style.cssText = 'width:min(100%,460px);max-height:80vh;overflow-y:auto;border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--bg-card);padding:16px;display:flex;flex-direction:column;gap:10px;';
+  sheet.style.cssText = 'width:min(100%,460px);max-height:min(80dvh, calc(var(--app-viewport-height, 100dvh) - 24px));overflow-y:auto;border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--bg-card);padding:16px;display:flex;flex-direction:column;gap:10px;';
 
   sheet.append(el('div', 'settings-group-title', isEdit ? '编辑接口' : '新增接口'));
 
@@ -607,7 +607,7 @@ function openEditor(item, options = {}) {
   const providerWrap = el('div', 'api-pool-form-field');
   providerWrap.append(el('label', '', '接口类型'));
   const providerSelect = el('select');
-  providerSelect.style.cssText = 'width:100%;padding:8px 10px;border-radius:var(--radius-md);border:1px solid var(--bg-overlay);background:var(--bg-secondary);color:var(--text-primary);';
+  providerSelect.style.cssText = 'width:100%;padding:8px 10px;border-radius:var(--radius-md);border:1px solid var(--border-soft);background:var(--bg-secondary);color:var(--text-primary);';
   [
     ['openai', '通用中转 / OpenAI 格式'],
     ['anthropic', 'Claude / Anthropic 格式'],

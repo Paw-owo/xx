@@ -4,7 +4,7 @@
 // 来自角色的外部私聊才写 chat_unread_counts；用户主动送出/转出不增加聊天角标
 // 角色隔离：无 characterId 不落库，不乱塞默认角色
 
-import { getData, setData, generateId, getNow, setDB } from './storage.js';
+import { getData, setData, generateId, getNow, setDB, deleteDB } from './storage.js';
 import { on, emit } from './app-bus.js';
 
 let initialized = false;
@@ -34,6 +34,21 @@ function isDuplicate(eventId) {
   return recentEventIds.has(eventId) || pendingEventIds.has(eventId);
 }
 
+function emitExternalMessageFailed(payload = {}, error) {
+  const sourceEventId = String(payload.sourceEventId || payload.eventId || '').trim();
+  const errorMessage = error?.message || String(error || '外部消息还没写好');
+  try {
+    emit('chat:external-message-failed', {
+      eventId: sourceEventId,
+      sourceEventId,
+      sourceApp: String(payload.sourceApp || ''),
+      sourceType: String(payload.sourceType || payload.type || ''),
+      characterId: String(payload.characterId || ''),
+      error: errorMessage
+    });
+  } catch (_) {}
+}
+
 function markEventHandled(eventId) {
   if (!eventId) return;
   recentEventIds.add(eventId);
@@ -55,6 +70,12 @@ async function handleShopGift(data) {
   const characterId = String(data?.characterId || '').trim();
   if (!characterId) {
     console.warn('[chat-event-bridge] shop:gift 缺少 characterId，跳过落库');
+    emitExternalMessageFailed({
+      ...data,
+      sourceEventId: buildSourceEventId('shop:gift', data),
+      sourceApp: 'shop',
+      sourceType: 'shop_gift'
+    }, new Error('缺少角色信息，消息还没找到要去的小窝'));
     return;
   }
 
@@ -104,6 +125,12 @@ async function handleWalletTransfer(data) {
   const characterId = String(data?.characterId || '').trim();
   if (!characterId) {
     console.warn('[chat-event-bridge] wallet:transfer 缺少 characterId，跳过落库');
+    emitExternalMessageFailed({
+      ...data,
+      sourceEventId: buildSourceEventId('wallet:transfer', data),
+      sourceApp: 'wallet',
+      sourceType: 'wallet_transfer'
+    }, new Error('缺少角色信息，消息还没找到要去的小窝'));
     return;
   }
 
@@ -148,7 +175,10 @@ async function handleWalletTransfer(data) {
 // 导出供 anniversary-bridge 等常驻模块复用，不新建第二套消息系统
 export async function appendExternalChatMessage(payload = {}) {
   const characterId = String(payload.characterId || '').trim();
-  if (!characterId) return null;
+  if (!characterId) {
+    emitExternalMessageFailed(payload, new Error('缺少角色信息，消息还没找到要去的小窝'));
+    return null;
+  }
 
   const now = getNow();
   const role = payload.role === 'assistant' ? 'assistant' : 'user';
@@ -206,9 +236,10 @@ export async function appendExternalChatMessage(payload = {}) {
 
   try {
     const saved = await setDB('messages', message);
-    if (!isDBWriteOk(saved)) return null;
+    if (!isDBWriteOk(saved)) throw new Error('消息还没能存进聊天里');
   } catch (error) {
     console.error('[chat-event-bridge] appendExternalChatMessage setDB failed', error);
+    emitExternalMessageFailed(payload, error);
     return null;
   }
 
@@ -227,14 +258,30 @@ export async function appendExternalChatMessage(payload = {}) {
     try {
       const unreadMap = getData('chat_unread_counts') || {};
       const next = Math.max(0, Number(unreadMap[characterId] || 0) + 1);
-      setData('chat_unread_counts', { ...unreadMap, [characterId]: next });
+      const unreadSaved = setData('chat_unread_counts', { ...unreadMap, [characterId]: next });
+      if (!isDBWriteOk(unreadSaved)) throw new Error('聊天未读还没能保存');
       if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
-    } catch (_) {}
+    } catch (error) {
+      try { await deleteDB('messages', message.id); } catch (_) {}
+      emitExternalMessageFailed(payload, error);
+      return null;
+    }
   }
 
   // 通知 chat.js 刷新 UI（chat.js 可选监听，不强制）
   try {
-    emit('chat:external-message', { characterId, type, message });
+    emit('chat:external-message', {
+      threadId: characterId,
+      characterId,
+      sourceApp: message.sourceApp,
+      sourceType: message.sourceType,
+      isExternalMessage: true,
+      content: message.content,
+      messageId: message.id,
+      eventId: message.sourceEventId,
+      type,
+      message
+    });
   } catch (_) {}
 
   return message;

@@ -1301,6 +1301,7 @@ function injectStyle() {
       border-bottom:1px solid color-mix(in srgb, var(--border-soft) 52%, transparent);
       background:color-mix(in srgb, var(--bg-card) 78%, transparent);
       backdrop-filter:blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       z-index:3;
     }
 
@@ -1431,6 +1432,7 @@ function injectStyle() {
       padding:12px 20px calc(14px + env(safe-area-inset-bottom));
       background:color-mix(in srgb, var(--bg-primary) 90%, transparent);
       backdrop-filter:blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       z-index:3;
     }
 

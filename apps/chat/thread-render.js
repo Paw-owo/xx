@@ -922,7 +922,7 @@ function downloadCodeFile(code, lang) {
   link.click();
   link.remove();
 
-  window.setTimeout(() => URL.revokeObjectURL(url), 800);
+  window.setTimeout(() => URL.revokeObjectURL(url), 3000);
   showToast('代码文件已下载');
 }
 
@@ -942,8 +942,8 @@ function previewHtmlCode(code) {
 
   const frame = document.createElement('iframe');
   frame.className = 'chat-html-preview-frame';
-  // sandbox 保留预览能力（forms）但去掉 allow-scripts，避免执行用户/AI 代码
-  frame.setAttribute('sandbox', 'allow-forms');
+  // 静态 HTML 预览不授予脚本、表单或同源权限，避免外部提交和代码执行。
+  frame.setAttribute('sandbox', '');
   frame.setAttribute('frameborder', '0');
   frame.srcdoc = String(code || '');
 

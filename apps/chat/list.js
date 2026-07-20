@@ -1385,6 +1385,7 @@ function injectStyle() {
       padding: 14px 20px 10px;
       background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
       backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       z-index: 2;
     }
 

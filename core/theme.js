@@ -264,7 +264,7 @@ const LEGACY_PRESET_ALIAS = {
   default: 'cream-bell',
   light: 'cream-bell',
   blue: 'cloud-soda',
-  pink: 'strawberry-milk',
+  pink: 'peach-pudding',
   cream: 'cream-bell',
   sky: 'cloud-soda',
   paper: 'cream-bell',
@@ -570,9 +570,16 @@ function normalizeVariables(vars) {
 }
 
 function normalizePresetId(id) {
-  const cleanId = String(id || '').trim().toLowerCase();
+  let cleanId = String(id || '').trim().toLowerCase();
+  const visited = new Set();
+
+  while (LEGACY_PRESET_ALIAS[cleanId] && !visited.has(cleanId)) {
+    visited.add(cleanId);
+    cleanId = LEGACY_PRESET_ALIAS[cleanId];
+    if (PRESETS[cleanId]) return cleanId;
+  }
+
   if (PRESETS[cleanId]) return cleanId;
-  if (LEGACY_PRESET_ALIAS[cleanId]) return LEGACY_PRESET_ALIAS[cleanId];
   return DEFAULT_PRESET;
 }
 

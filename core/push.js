@@ -36,14 +36,14 @@ function truncate(text, max) {
 }
 
 // ═══════════════════════════════════════
-// 【底层发送】统一 fetch，失败只 warn 不 throw
+// 【底层发送】统一 fetch，失败明确返回状态，不影响业务流程
 // ═══════════════════════════════════════
 
 async function sendPush(path, payload) {
   const { enabled, endpoint, apiKey } = readCloudConfig();
   // 云同步未开启时不推送，也不发任何请求
-  if (!enabled) return;
-  if (!endpoint) return;
+  if (!enabled) return false;
+  if (!endpoint) return false;
 
   const url = `${endpoint}${path}`;
   const headers = { 'Content-Type': 'application/json' };
@@ -61,9 +61,12 @@ async function sendPush(path, payload) {
     });
     if (!response.ok) {
       console.warn('[push]', path, 'status', response.status);
+      return false;
     }
+    return true;
   } catch (err) {
     console.warn('[push]', path, err?.message || err);
+    return false;
   } finally {
     clearTimeout(timer);
   }
@@ -161,7 +164,8 @@ export async function pushMessages(characterId, characterName, messages) {
     messages: newMessages
   };
 
-  await sendPush('/push/messages', payload);
+  const pushed = await sendPush('/push/messages', payload);
+  if (!pushed) return;
 
   // 推送成功后更新 watermark 到最后一条消息的 timestamp
   const lastTs = new Date(newMessages[newMessages.length - 1].timestamp || 0).getTime();

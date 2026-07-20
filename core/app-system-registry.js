@@ -221,6 +221,21 @@ export const APP_EVENT_SPECS = Object.freeze([
     consumers: ['apps/chat.js']
   },
   {
+    eventName: 'chat:external-message',
+    sourceApp: 'chat-event-bridge',
+    payload: ['threadId', 'characterId', 'sourceApp', 'sourceType', 'isExternalMessage', 'content', 'messageId', 'eventId', 'type', 'message'],
+    consumers: ['apps/chat.js'],
+    note: '外部来源已由 core/chat-event-bridge.js 落库后发出；chat 只刷新会话与温柔提示，不重复写消息。'
+  },
+  {
+    eventName: 'chat:external-message-failed',
+    sourceApp: 'chat-event-bridge',
+    payload: ['eventId', 'sourceEventId', 'sourceApp', 'sourceType', 'characterId', 'error'],
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '外部消息落库或未读保存失败时发出，当前仅事件记录，供后续通知中心或上层兜底订阅。'
+  },
+  {
     eventName: 'shop:gift',
     sourceApp: 'shop',
     payload: ['characterId', 'direction', 'itemName', 'itemId', 'note', 'characterName'],

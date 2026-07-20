@@ -1424,6 +1424,7 @@ function injectStyle() {
       padding:12px 20px 10px;
       background:var(--surface-glass);
       backdrop-filter:blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       z-index:2;
     }
 

@@ -30,7 +30,7 @@ import { getIdentityCore } from './identity-core.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
 import { buildMcpToolsContext, getUsableMcpTools, callMcpTool } from '../../core/mcp.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
-import { getActiveRelationshipLock } from './thread-relationship.js';
+import { getActiveRelationshipLock, isStrictRelationshipLocked } from './thread-relationship.js';
 import {
   getThemeAIContext,
   validateAIThemeResult,
@@ -435,7 +435,8 @@ export async function checkThreadProactiveMessages(state, options = {}) {
   if (document.visibilityState !== 'visible') return null;
 
   const activeLock = await getActiveRelationshipLock(characterId);
-  if (activeLock && ['soft_block', 'cooldown', 'ultimatum'].includes(activeLock.type)) {
+  // 主动消息的免打扰锁要与 thread-relationship.js 的严格锁保持同步。
+  if (activeLock && isStrictRelationshipLocked({ relationshipLock: activeLock })) {
     return null;
   }
 
@@ -480,7 +481,8 @@ export async function requestProactiveThreadMessage(state, reason = 'manual') {
   if (!characterId) return null;
 
   const activeLock = await getActiveRelationshipLock(characterId);
-  if (activeLock && ['soft_block', 'cooldown', 'ultimatum'].includes(activeLock.type)) {
+  // 主动消息的免打扰锁要与 thread-relationship.js 的严格锁保持同步。
+  if (activeLock && isStrictRelationshipLocked({ relationshipLock: activeLock })) {
     return null;
   }
 

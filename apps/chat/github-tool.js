@@ -515,7 +515,7 @@ function buildDeveloperResult(input) {
 
 const STYLE_ID = 'github-tool-style';
 const STYLE_CSS = `
-.gh-sheet { padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); max-height: 78vh; display: flex; flex-direction: column; gap: 12px; }
+.gh-sheet { padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); max-height: min(78dvh, calc(var(--app-viewport-height, 100dvh) - 24px)); display: flex; flex-direction: column; gap: 12px; }
 .gh-title { font-size: 17px; font-weight: 600; color: var(--text-primary); }
 .gh-sub { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .gh-field { display: flex; flex-direction: column; gap: 5px; }
@@ -530,7 +530,7 @@ const STYLE_CSS = `
 .gh-divider { height: 1px; background: var(--border-soft, color-mix(in srgb, var(--text-primary) 10%, transparent)); margin: 4px 0; }
 .gh-search { width: 100%; height: 36px; padding: 0 12px; border-radius: 10px; background: var(--bg-card); color: var(--text-primary); font-size: 13px; border: 1px solid transparent; }
 .gh-search:focus { border-color: var(--accent); }
-.gh-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; min-height: 120px; max-height: 50vh; }
+.gh-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; min-height: 120px; max-height: 50dvh; }
 .gh-item { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; cursor: pointer; font-size: 13px; color: var(--text-primary); background: transparent; text-align: left; width: 100%; }
 .gh-item:active { background: var(--bg-card); }
 .gh-item-icon { flex: 0 0 auto; width: 16px; height: 16px; color: var(--text-secondary); }
@@ -541,9 +541,9 @@ const STYLE_CSS = `
 .gh-viewer { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .gh-viewer-path { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono, monospace); word-break: break-all; }
 .gh-viewer-sha { font-size: 11px; color: var(--text-tertiary, var(--text-secondary)); font-family: var(--font-mono, monospace); }
-.gh-viewer textarea { width: 100%; flex: 1; min-height: 200px; max-height: 50vh; padding: 12px; border-radius: 12px; background: var(--bg-card); color: var(--text-primary); font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.5; resize: none; border: 1px solid transparent; }
+.gh-viewer textarea { width: 100%; flex: 1; min-height: 200px; max-height: 50dvh; padding: 12px; border-radius: 12px; background: var(--bg-card); color: var(--text-primary); font-family: var(--font-mono, monospace); font-size: 12px; line-height: 1.5; resize: none; border: 1px solid transparent; }
 .gh-viewer textarea:focus { border-color: var(--accent); }
-.gh-edit-textarea { min-height: 240px; max-height: 40vh; }
+.gh-edit-textarea { min-height: 240px; max-height: 40dvh; }
 .gh-back-row { display: flex; align-items: center; gap: 8px; }
 .gh-back-btn { background: var(--bg-card); color: var(--text-primary); padding: 6px 14px; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; }
 .gh-back-btn:active { transform: scale(0.97); }

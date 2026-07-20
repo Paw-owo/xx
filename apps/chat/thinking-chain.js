@@ -886,7 +886,7 @@ function injectStyle() {
       left:0;right:0;bottom:0;
       z-index:10041;
       width:100vw;
-      height:55vh;
+      height:55dvh;
       display:flex;
       flex-direction:column;
       border-radius:28px 28px 0 0;

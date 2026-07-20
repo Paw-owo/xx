@@ -916,7 +916,7 @@ function injectStyle() {
     .editable-toolbar-btn:active{transform:scale(0.95)}
     .editable-toolbar-btn.is-active{background:var(--accent);color:var(--bubble-user-text)}
     .editable-toolbar-btn.primary{background:var(--accent);color:var(--bubble-user-text)}
-    .editable-list{display:flex;flex-direction:column;gap:10px;max-height:50vh;overflow-y:auto;padding-bottom:8px}
+    .editable-list{display:flex;flex-direction:column;gap:10px;max-height:50dvh;overflow-y:auto;padding-bottom:8px}
     .editable-card{position:relative;padding:14px 16px;border-radius:18px;background:var(--bg-card);transition:all 200ms ease;overflow:hidden}
     .editable-card:active{transform:scale(0.98)}
     .editable-card.is-delete-mode{padding-left:40px}

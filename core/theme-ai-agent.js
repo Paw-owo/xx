@@ -531,8 +531,21 @@ export async function saveThemeVersionAsync(input) {
 export function deleteThemeVersion(themeId) {
   const prepared = prepareThemeVersionDelete(themeId);
   if (!prepared.ok) return false;
-  if (prepared.removed) void deleteThemeResources(prepared.cleanId, prepared.removed).catch(() => {});
-  commitThemeVersionDelete(prepared);
+  const resourceOwners = getData('theme_ai_resource_owners', {});
+  const hasOwnedResource = resourceOwners && typeof resourceOwners === 'object' && Object.values(resourceOwners).includes(prepared.cleanId);
+  if (!prepared.removed || !hasOwnedResource) {
+    commitThemeVersionDelete(prepared);
+    return true;
+  }
+
+  void (async () => {
+    try {
+      await deleteThemeResources(prepared.cleanId, prepared.removed);
+      commitThemeVersionDelete(prepared);
+    } catch (error) {
+      console.warn('[theme-ai-agent] delete theme resources failed', error?.message || error);
+    }
+  })();
   return true;
 }
 
