@@ -68,7 +68,7 @@ assert.match(source, /createThemeCover/);
 assert.doesNotMatch(source, /from '\.\.\/core\/theme\.js'/);
 
 const settings = readFileSync(new URL('../apps/settings.js', import.meta.url), 'utf8');
-assert.match(settings, /主题中心/);
-assert.match(settings, /theme-center/);
+assert.doesNotMatch(settings, /主题中心/);
+assert.doesNotMatch(settings, /theme-center/);
 assert.doesNotMatch(settings, /AI 主题工作室/);
 assert.doesNotMatch(settings, /theme-studio/);

@@ -70,8 +70,8 @@ assert.match(studioSource, /hydrateInitialEditingTheme/);
 assert.match(studioSource, /themePrompt/);
 
 const settingsSource = readFileSync(new URL('../apps/settings.js', import.meta.url), 'utf8');
-assert.match(settingsSource, /主题中心/);
-assert.match(settingsSource, /theme-center/);
+assert.doesNotMatch(settingsSource, /主题中心/);
+assert.doesNotMatch(settingsSource, /theme-center/);
 assert.doesNotMatch(settingsSource, /AI 主题工作室/);
 assert.doesNotMatch(settingsSource, /theme-studio/);
 

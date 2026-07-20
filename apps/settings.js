@@ -230,7 +230,6 @@ function renderHome() {
     hero('设置小窝', '慢慢调成你喜欢的样子 ˶>ᗜ<˶'),
     group('常用小开关', [
       navItem('star', '外观主题', '颜色和夜间模式在这里', 'theme'),
-      appNavItem('star', '主题中心', '收纳、试穿和分享你的小世界', 'theme-center'),
       navItem('edit', '字体与显示', '字号、字体、聊天样子轻轻调', 'display')
     ]),
     group('模型与服务', [
@@ -323,12 +322,6 @@ function renderThemePage() {
   });
   colors.append(list);
   wrap.append(colors);
-
-  const assets = card('主题资产', '保存、导入、导出和历史版本都交给主题中心');
-  assets.append(actionRow([
-    actionBtn('star', '打开主题中心', () => window.openApp?.('theme-center'))
-  ]));
-  wrap.append(assets);
 
   return wrap;
 }
@@ -2267,7 +2260,7 @@ function injectCustomFont(dataUrl, format) {
 }
 
 // ═══════════════════════════════════════
-// 【旧主题文件】仅保留底层恢复能力，用户入口已移到主题中心
+// 【旧主题文件】仅保留底层恢复能力
 // ═══════════════════════════════════════
 
 async function importThemeFile() {
