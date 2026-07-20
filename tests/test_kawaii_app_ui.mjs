@@ -19,7 +19,8 @@ assert.match(appLayer, /\[class\$="-empty-icon"\]/, 'app empty illustrations sha
 assert.doesNotMatch(appLayer, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i, 'shared app layer contains no hard-coded colors');
 assert.ok(
   [...appLayer.matchAll(/box-shadow:\s*([^;]+);/g)].every(([, value]) => value.trim() === 'none'),
-  'shared app layer does not use shadows'
+  'shared app layer and later theme overrides do not use box shadows'
 );
+assert.doesNotMatch(appLayer, /filter:\s*drop-shadow\(/, 'shared app layer and later theme overrides do not use drop shadows');
 
 console.log('kawaii app UI checks passed');
