@@ -2434,7 +2434,7 @@ function injectStyle() {
     }
 
     .character-empty {
-      min-height: calc(100vh - 260px);
+      min-height: calc(var(--app-viewport-height, 100dvh) - 260px);
       display: flex;
       flex-direction: column;
       align-items: center;

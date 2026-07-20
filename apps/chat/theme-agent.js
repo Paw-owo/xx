@@ -39,18 +39,53 @@ function buildThemeDraft(prompt) {
   const isCat = /猫|cat|猫猫|猫爪/.test(lower);
   const isNight = /夜|星|梦|深色|night/.test(lower);
   const isGreen = /绿|森林|薄荷|mint|green/.test(lower);
+  const isWarm = /奶油|暖|橙|黄|cream|warm|sun/.test(lower);
   const palette = isNight
-    ? { accent: '#8f7cf7', bg: '#25243a', card: '#32304a', text: '#fff8ff' }
+    ? {
+        accent: '#8f7cf7', accentLight: '#403a68', accentDark: '#d8d0ff', accentStrong: '#b8a8ff',
+        bg: '#25243a', card: '#32304a', muted: '#2b2942', paper: '#373551',
+        text: '#fff8ff', secondary: '#d8d2ee', hint: '#aaa2c8', border: '#4b4770', shadow: 'rgba(9, 8, 20, 0.34)',
+        userBubble: '#6f61d7', aiBubble: '#373551'
+      }
     : isGreen
-      ? { accent: '#8bc9a8', bg: '#f1fbf4', card: '#ffffff', text: '#385345' }
-      : { accent: '#f3a7c4', bg: '#fff3f7', card: '#fffafa', text: '#5b4650' };
+      ? {
+          accent: '#8bc9a8', accentLight: '#dff3e7', accentDark: '#3f7d59', accentStrong: '#5aa878',
+          bg: '#f1fbf4', card: '#ffffff', muted: '#e8f5ed', paper: '#fffdf8',
+          text: '#385345', secondary: '#66796d', hint: '#8da296', border: '#cfe5d7', shadow: 'rgba(65, 108, 80, 0.16)',
+          userBubble: '#cfeedd', aiBubble: '#fffdf8'
+        }
+      : isWarm
+        ? {
+            accent: '#e8ae70', accentLight: '#fff0d8', accentDark: '#9a6636', accentStrong: '#c98448',
+            bg: '#fff7eb', card: '#fffdf8', muted: '#f7ead8', paper: '#fffaf1',
+            text: '#5a4938', secondary: '#806d58', hint: '#a89278', border: '#ead8bf', shadow: 'rgba(123, 89, 48, 0.16)',
+            userBubble: '#ffe3ba', aiBubble: '#fffaf1'
+          }
+        : {
+            accent: '#f3a7c4', accentLight: '#ffe3ee', accentDark: '#a85b7a', accentStrong: '#d8789e',
+            bg: '#fff3f7', card: '#fffafa', muted: '#f9e9ef', paper: '#fffdfc',
+            text: '#5b4650', secondary: '#806a74', hint: '#aa8f9a', border: '#efd2dd', shadow: 'rgba(128, 74, 96, 0.16)',
+            userBubble: '#ffd9e8', aiBubble: '#fffdfc'
+          };
   return {
     themeVariables: {
       accent: palette.accent,
-      'accent-light': palette.accent,
+      'accent-light': palette.accentLight,
+      'accent-dark': palette.accentDark,
+      'accent-strong': palette.accentStrong,
       'bg-primary': palette.bg,
       'bg-card': palette.card,
       'text-primary': palette.text,
+      'text-secondary': palette.secondary,
+      'text-hint': palette.hint,
+      'border-soft': palette.border,
+      'shadow-color': palette.shadow,
+      'surface-muted': palette.muted,
+      'surface-paper': palette.paper,
+      'bubble-user-bg': palette.userBubble,
+      'bubble-user-text': palette.text,
+      'bubble-ai-bg': palette.aiBubble,
+      'bubble-ai-text': palette.text,
       'radius-md': '22px',
       'radius-lg': '26px'
     },
@@ -58,11 +93,11 @@ function buildThemeDraft(prompt) {
       app_widget_area_bg: { required: true, reason: isCat ? '需要一张猫爪或铃铛装饰图。' : '需要一张柔和装饰图。' }
     },
     themeConfig: {
-      themeName: isCat ? '猫猫软窝主题' : isNight ? '星夜软梦主题' : isGreen ? '薄荷小森林主题' : '柔软小手机主题',
+      themeName: isCat ? '猫猫软窝主题' : isNight ? '星夜软梦主题' : isGreen ? '薄荷小森林主题' : isWarm ? '奶油暖光主题' : '柔软小手机主题',
       description: `根据“${prompt}”生成的主题草稿。`,
       metadata: { agent: 'theme-agent', source: 'sub-agent' }
     },
-    uiDecorationParameters: { roundness: 0.86, decorDensity: isCat ? 0.72 : 0.58, decorIntensity: 0.62, decorEnabled: 1 }
+    uiDecorationParameters: { roundness: 0.86, decorDensity: isCat ? 0.72 : 0.58, decorIntensity: isNight ? 0.5 : 0.62, decorEnabled: 1 }
   };
 }
 

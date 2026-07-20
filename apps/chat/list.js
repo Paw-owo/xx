@@ -1711,7 +1711,7 @@ function injectStyle() {
     }
 
     .chat-list-picker {
-      max-height: min(58vh, 520px);
+      max-height: min(calc(var(--app-viewport-height, 100dvh) - 220px), 520px);
       overflow-y: auto;
       display: flex;
       flex-direction: column;

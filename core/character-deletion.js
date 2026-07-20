@@ -27,7 +27,22 @@ const CHARACTER_PRIVATE_STORES = Object.freeze([
 
 const CHARACTER_LOCAL_MAP_KEYS = Object.freeze([
   'chat_unread_counts',
-  'chat_hidden_private_threads'
+  'chat_hidden_private_threads',
+  'chat_draft_map',
+  'chat_pinned_threads',
+  'chat_archived_threads'
+]);
+
+const CHARACTER_DIRECT_LOCAL_KEYS = Object.freeze([
+  (id) => `chat_${id}_config`,
+  (id) => `chat_${id}_visible_count`,
+  (id) => `last_moment_${id}`,
+  (id) => `app_bg_chat_opacity_${id}`,
+  (id) => `push_msg_watermark_${id}`
+]);
+
+const CHARACTER_PREFIX_LOCAL_KEYS = Object.freeze([
+  (id) => `chat_ask_user_state_${id}_`
 ]);
 
 const deletionTestOperations = {
@@ -98,9 +113,7 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
     for (const key of CHARACTER_LOCAL_MAP_KEYS) {
       const previous = await callDeletionOperation('getData', key, checkpointMissing);
       if (previous === checkpointMissing) continue;
-      const next = key === 'chat_hidden_private_threads'
-        ? normalizeList(previous).filter((item) => String(item) !== id)
-        : Object.fromEntries(Object.entries(previous && typeof previous === 'object' ? previous : {}).filter(([itemId]) => itemId !== id));
+      const next = cleanCharacterLocalMapValue(key, previous, id);
       const saved = await callDeletionOperation('setData', key, next);
       if (saved !== true) throw new Error('character-local-map-update-failed');
       rollback.push(() => callDeletionOperation('setData', key, previous));
@@ -114,12 +127,21 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       rollback.push(() => callDeletionOperation('setData', 'chat_last_route', route));
     }
 
-    const directKeys = [`chat_${id}_config`, `chat_${id}_visible_count`];
+    const directKeys = CHARACTER_DIRECT_LOCAL_KEYS.map((buildKey) => buildKey(id));
     for (const key of directKeys) {
       const previous = await callDeletionOperation('getData', key, checkpointMissing);
       if (previous === checkpointMissing) continue;
       const removed = await callDeletionOperation('removeData', key);
       if (removed !== true) throw new Error('character-local-key-delete-failed');
+      rollback.push(() => callDeletionOperation('setData', key, previous));
+    }
+
+    const prefixKeys = getLocalStorageKeys().filter((key) => CHARACTER_PREFIX_LOCAL_KEYS.some((buildPrefix) => key.startsWith(buildPrefix(id))));
+    for (const key of prefixKeys) {
+      const previous = await callDeletionOperation('getData', key, checkpointMissing);
+      if (previous === checkpointMissing) continue;
+      const removed = await callDeletionOperation('removeData', key);
+      if (removed !== true) throw new Error('character-prefix-local-key-delete-failed');
       rollback.push(() => callDeletionOperation('setData', key, previous));
     }
 
@@ -155,6 +177,37 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
 
 function normalizeList(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function cleanCharacterLocalMapValue(key, previous, id) {
+  if (key === 'chat_hidden_private_threads') {
+    return normalizeList(previous).filter((item) => String(item) !== id);
+  }
+
+  const privateKey = `private:${id}`;
+  const groupKey = `group:${id}`;
+
+  if (Array.isArray(previous)) {
+    return previous.filter((item) => {
+      const value = String(item?.id || item?.key || item);
+      return value !== id && value !== privateKey && value !== groupKey;
+    });
+  }
+
+  const source = previous && typeof previous === 'object' ? previous : {};
+  return Object.fromEntries(Object.entries(source).filter(([itemId]) => (
+    itemId !== id && itemId !== privateKey && itemId !== groupKey
+  )));
+}
+
+function getLocalStorageKeys() {
+  try {
+    const storage = typeof window !== 'undefined' ? window.localStorage : globalThis.localStorage;
+    if (!storage) return [];
+    return Array.from({ length: storage.length }, (_, index) => storage.key(index)).filter(Boolean);
+  } catch (_) {
+    return [];
+  }
 }
 
 async function callDeletionOperation(name, ...args) {

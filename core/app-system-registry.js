@@ -182,7 +182,9 @@ export const APP_EVENT_SPECS = Object.freeze([
     eventName: 'moments:interaction',
     sourceApp: 'moments',
     payload: ['type', 'characterId', 'postId', 'content'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '当前仓库只有写端；朋友圈内部已直接写入动态和聊天外部互动，此事件暂不承诺额外联动。'
   },
   {
     eventName: 'dream:created',
@@ -194,19 +196,29 @@ export const APP_EVENT_SPECS = Object.freeze([
     eventName: 'memo:memory-synced',
     sourceApp: 'memo',
     payload: ['memoId', 'characterId', 'title', 'category', 'memoryId'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '当前仓库只有备忘录写端；记忆同步已在写端完成，此事件仅作为事件记录。'
   },
   {
     eventName: 'worldbook:updated',
     sourceApp: 'worldbook',
     payload: ['entryId', 'deleted', 'saved', 'isEdit'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'future',
+    note: '当前仓库只有世界书写端；聊天上下文按需读取世界书，暂不接假消费者。'
   },
   {
     eventName: 'games:unread-updated',
     sourceApp: 'games',
     payload: ['source', 'count', 'action'],
     consumers: ['index.html']
+  },
+  {
+    eventName: 'anniversary:reminder',
+    sourceApp: 'anniversary',
+    payload: ['anniversaryId', 'title', 'date', 'characterId', 'days', 'note', 'source', 'createdBy'],
+    consumers: ['apps/chat.js']
   },
   {
     eventName: 'shop:gift',
@@ -224,25 +236,33 @@ export const APP_EVENT_SPECS = Object.freeze([
     eventName: 'wallet:balance-updated',
     sourceApp: 'wallet',
     payload: ['balance', 'type', 'amount', 'description'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '当前仓库只有钱包写端；钱包界面自行刷新余额，不将余额变动伪装成聊天或通知。'
   },
   {
     eventName: 'music:favorite',
     sourceApp: 'music',
     payload: ['source', 'songId', 'title', 'artist', 'favorite'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '当前仓库只有音乐写端；收藏状态已在音乐数据内持久化。'
   },
   {
     eventName: 'music:playlist',
     sourceApp: 'music',
     payload: ['action', 'playlistId', 'songId', 'name', 'songCount'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '当前仓库只有音乐写端；歌单状态已在音乐数据内持久化。'
   },
   {
     eventName: 'music:import',
     sourceApp: 'music',
     payload: ['songId', 'title', 'artist', 'fileName', 'duration'],
-    consumers: []
+    consumers: [],
+    consumerStatus: 'record-only',
+    note: '当前仓库只有音乐写端；导入结果已由音乐界面展示，不接假消费者。'
   },
   {
     eventName: 'chat:ai-reply-finished',

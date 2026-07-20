@@ -701,7 +701,7 @@ function ensureStyle() {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      height: min(52vh, 400px);
+      height: min(calc(var(--app-viewport-height, 100dvh) - 260px), 400px);
     }
 
     /* ── 搜索栏 ── */

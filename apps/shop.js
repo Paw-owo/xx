@@ -18,6 +18,8 @@ import {
 import {
   showToast,
   showConfirm,
+  showBottomSheet,
+  hideBottomSheet,
   createIcon
 } from '../core/ui.js';
 import { promptForRemoteImage } from '../core/image-url.js';
@@ -26,6 +28,7 @@ import {
   getBalance,
   addBalance,
   deductBalance,
+  addAiBalance,
   deductAiBalance
 } from './wallet.js';
 
@@ -33,6 +36,10 @@ const SHOP_KEY = 'shop_items';
 const STYLE_ID = 'shop-styles';
 const BG_KEY = 'app_bg_shop';
 const ITEM_IMAGE_PREFIX = 'app_shop_item_';
+
+function isDBWriteOk(result) {
+  return result !== null && result !== false && result !== undefined;
+}
 
 let container = null;
 let currentTab = 'shop';
@@ -310,6 +317,12 @@ function injectStyles() {
 
     .shop-hero,
     .shop-card,
+    .shop-gift-sheet{display:flex;flex-direction:column;gap:12px;padding:8px 2px calc(8px + env(safe-area-inset-bottom))}
+    .shop-gift-title{font-size:16px;font-weight:700;color:var(--text-primary);padding:0 4px}
+    .shop-gift-list{display:flex;flex-direction:column;gap:8px;max-height:min(56dvh,420px);overflow:auto}
+    .shop-gift-target{display:flex;align-items:center;gap:8px;width:100%;border:0;border-radius:18px;padding:12px 14px;background:var(--bg-card);color:var(--text-primary);font:inherit;text-align:left}
+    .shop-gift-note{width:100%;min-height:112px;resize:none;border:1px solid color-mix(in srgb,var(--border-soft) 68%,transparent);border-radius:18px;background:var(--bg-card);color:var(--text-primary);font:inherit;line-height:1.6;padding:12px;outline:0}
+    .shop-gift-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .shop-inventory-row,
     .shop-editor-card,
     .shop-empty {
@@ -1016,22 +1029,11 @@ async function chooseGiftTarget(item) {
     return;
   }
 
-  const names = characters
-    .map((character, index) => `${index + 1}. ${character.name || '未命名'}`)
-    .join('\n');
+  const character = await showGiftTargetSheet(item, characters);
+  if (!character) return;
 
-  const input = window.prompt(`想把「${item.name}」送给谁呀？\n${names}\n\n输入序号就好。`);
-  if (!input) return;
-
-  const index = Number(input) - 1;
-  const character = characters[index];
-
-  if (!character) {
-    showToast('没有找到这个TA ๑ᵒᯅᵒ๑');
-    return;
-  }
-
-  const note = window.prompt('要不要写一句礼物小纸条？可以直接留空。') || '';
+  const note = await showGiftNoteSheet(item, character);
+  if (note === null) return;
 
   await userGiftToAI({
     characterId: character.id,
@@ -1041,6 +1043,85 @@ async function chooseGiftTarget(item) {
   });
 
   await renderShop();
+}
+
+function showGiftTargetSheet(item, characters) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'shop-gift-sheet';
+
+    const title = document.createElement('div');
+    title.className = 'shop-gift-title';
+    title.textContent = `想把「${item.name}」送给谁呀？`;
+
+    const list = document.createElement('div');
+    list.className = 'shop-gift-list';
+
+    characters.forEach(character => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'shop-gift-target';
+      btn.append(createIcon('heart', 16), document.createTextNode(character.name || '未命名'));
+      btn.addEventListener('click', () => {
+        hideBottomSheet();
+        resolve(character);
+      });
+      list.appendChild(btn);
+    });
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'shop-editor-btn';
+    cancel.textContent = '先不送了';
+    cancel.addEventListener('click', () => {
+      hideBottomSheet();
+      resolve(null);
+    });
+
+    wrap.append(title, list, cancel);
+    showBottomSheet(wrap);
+  });
+}
+
+function showGiftNoteSheet(item, character) {
+  return new Promise(resolve => {
+    const wrap = document.createElement('div');
+    wrap.className = 'shop-gift-sheet';
+
+    const title = document.createElement('div');
+    title.className = 'shop-gift-title';
+    title.textContent = `给${character.name || 'TA'}的小纸条`;
+
+    const note = document.createElement('textarea');
+    note.className = 'shop-gift-note';
+    note.placeholder = '可以写一句温柔的小话，也可以留空。';
+
+    const actions = document.createElement('div');
+    actions.className = 'shop-gift-actions';
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'shop-editor-btn';
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', () => {
+      hideBottomSheet();
+      resolve(null);
+    });
+
+    const send = document.createElement('button');
+    send.type = 'button';
+    send.className = 'shop-buy-btn';
+    send.textContent = `送出「${item.name}」`;
+    send.addEventListener('click', () => {
+      hideBottomSheet();
+      resolve(note.value.trim());
+    });
+
+    actions.append(cancel, send);
+    wrap.append(title, note, actions);
+    showBottomSheet(wrap);
+    requestAnimationFrame(() => note.focus());
+  });
 }
 
 async function buyItem(item) {
@@ -1130,6 +1211,33 @@ async function addToInventory(item, extra = {}) {
   const saved = await setDB('inventory', record.id, record);
   if (!saved) return null;
   return record.id;
+}
+
+
+async function rollbackInventoryAddition(item, owner = 'user', characterId = '') {
+  if (!item?.id) return false;
+  const all = await getAllDB('inventory').catch(() => []);
+  const record = all.find((entry) => entry &&
+    entry.recordType !== 'gift_record' &&
+    entry.source !== 'gift_record' &&
+    entry.owner !== 'gift_record' &&
+    entry.itemId === item.id &&
+    (entry.owner || 'user') === owner &&
+    String(entry.characterId || '') === String(characterId || ''));
+  if (!record) return false;
+
+  const quantity = Number(record.quantity || 0);
+  if (quantity <= 1) {
+    await deleteDB('inventory', record.id).catch(() => null);
+    return true;
+  }
+
+  const saved = await setDB('inventory', record.id, {
+    ...record,
+    quantity: quantity - 1,
+    updatedAt: getNow()
+  });
+  return isDBWriteOk(saved);
 }
 
 async function renderInventory(list) {
@@ -1526,12 +1634,23 @@ export async function aiGiftToUser({ characterId, characterName = 'TA', itemId, 
     return { ok: false, reason: 'no_ai_balance' };
   }
 
-  await addToInventory(item, {
+  const inventoryId = await addToInventory(item, {
     owner: 'user',
     source: 'gift_from_ai',
     characterId,
     characterName
   });
+
+  if (!inventoryId) {
+    addAiBalance(characterId, item.price, `退款：礼物 ${item.name} 没收好`, {
+      category: 'gift_refund',
+      title: `礼物退款 ${item.name}`,
+      source: 'shop_gift_refund',
+      characterId,
+      characterName
+    });
+    return { ok: false, reason: 'inventory_failed' };
+  }
 
   const card = await writeGiftRecord({
     direction: 'ai_to_user',
@@ -1541,6 +1660,18 @@ export async function aiGiftToUser({ characterId, characterName = 'TA', itemId, 
     note: cleanNote,
     timestamp
   });
+
+  if (!card) {
+    await rollbackInventoryAddition(item, 'user', characterId);
+    addAiBalance(characterId, item.price, `退款：礼物 ${item.name} 没记好`, {
+      category: 'gift_refund',
+      title: `礼物退款 ${item.name}`,
+      source: 'shop_gift_refund',
+      characterId,
+      characterName
+    });
+    return { ok: false, reason: 'gift_record_failed' };
+  }
 
   await recordGiftMemory({
     characterId,
@@ -1586,12 +1717,18 @@ export async function userGiftToAI({ characterId, characterName = 'TA', itemId, 
     return { ok: false, reason: 'no_balance' };
   }
 
-  await addToInventory(item, {
+  const inventoryId = await addToInventory(item, {
     owner: 'character',
     source: 'gift_from_user',
     characterId,
     characterName
   });
+
+  if (!inventoryId) {
+    addBalance(item.price, `退款：送礼 ${item.name} 没收好`);
+    showToast('礼物还没放稳，钱已经退回来啦');
+    return { ok: false, reason: 'inventory_failed' };
+  }
 
   const card = await writeGiftRecord({
     direction: 'user_to_ai',
@@ -1601,6 +1738,13 @@ export async function userGiftToAI({ characterId, characterName = 'TA', itemId, 
     note: cleanNote || `用户把「${item.name}」送给了我。${item.effect || ''}`,
     timestamp
   });
+
+  if (!card) {
+    await rollbackInventoryAddition(item, 'character', characterId);
+    addBalance(item.price, `退款：送礼 ${item.name} 没记好`);
+    showToast('礼物记录没写好，钱已经退回来啦');
+    return { ok: false, reason: 'gift_record_failed' };
+  }
 
   await recordGiftMemory({
     characterId,
@@ -1643,7 +1787,8 @@ async function writeGiftRecord({ direction, characterId, characterName, item, no
     updatedAt: timestamp
   };
 
-  await setDB('inventory', record.id, record);
+  const saved = await setDB('inventory', record.id, record);
+  if (!isDBWriteOk(saved)) return null;
   return card;
 }
 

@@ -1,13 +1,17 @@
 // core/chat-event-bridge.js
-// 常驻监听 shop:gift / wallet:transfer，落库到 messages store + 写 chat_unread_counts
+// 常驻监听 shop:gift / wallet:transfer，按外部来源落库到 messages store
 // 不依赖 chat.js 是否挂载，启动时由 index.html 调用 initChatEventBridge() 初始化一次
-// 复用现有 messages store 和 chat_unread_counts 键，不新增 store / 不新增未读键
+// 来自角色的外部私聊才写 chat_unread_counts；用户主动送出/转出不增加聊天角标
 // 角色隔离：无 characterId 不落库，不乱塞默认角色
 
 import { getData, setData, generateId, getNow, setDB } from './storage.js';
 import { on, emit } from './app-bus.js';
 
 let initialized = false;
+
+function isDBWriteOk(result) {
+  return result !== null && result !== false && result !== undefined;
+}
 const recentEventIds = new Set();
 const pendingEventIds = new Set();
 const RECENT_ID_LIMIT = 64;
@@ -83,7 +87,9 @@ async function handleShopGift(data) {
       card: data?.card || null,
       item: data?.item || null,
       shopItem: data?.shopItem || null,
-      incrementUnread: true
+      incrementUnread: dir === 'ai_to_user',
+      sourceApp: 'shop',
+      sourceType: 'shop_gift'
     });
     if (!message) throw new Error('消息落库失败');
     markEventHandled(eventId);
@@ -124,7 +130,9 @@ async function handleWalletTransfer(data) {
       note: String(data?.note || ''),
       direction: dir || '',
       title: dir === 'ai_to_user' ? `${name}转给我` : `转给${name}`,
-      incrementUnread: true
+      incrementUnread: dir === 'ai_to_user',
+      sourceApp: 'wallet',
+      sourceType: 'wallet_transfer'
     });
     if (!message) throw new Error('消息落库失败');
     markEventHandled(eventId);
@@ -184,6 +192,9 @@ export async function appendExternalChatMessage(payload = {}) {
     card: payload.card || null,
     item: payload.item || null,
     shopItem: payload.shopItem || null,
+    sourceApp: String(payload.sourceApp || ''),
+    sourceType: String(payload.sourceType || payload.type || ''),
+    isExternalMessage: true,
     sourceEventId: String(payload.sourceEventId || ''),
     characterId,
     characterName: String(payload.characterName || ''),
@@ -194,7 +205,8 @@ export async function appendExternalChatMessage(payload = {}) {
   };
 
   try {
-    await setDB('messages', message);
+    const saved = await setDB('messages', message);
+    if (!isDBWriteOk(saved)) return null;
   } catch (error) {
     console.error('[chat-event-bridge] appendExternalChatMessage setDB failed', error);
     return null;
@@ -210,7 +222,8 @@ export async function appendExternalChatMessage(payload = {}) {
       String(activeThread.characterId || '') === String(characterId || ''));
   } catch (_) {}
 
-  if (!isActivePrivate) {
+  const shouldIncrementUnread = payload.incrementUnread !== false;
+  if (shouldIncrementUnread && !isActivePrivate) {
     try {
       const unreadMap = getData('chat_unread_counts') || {};
       const next = Math.max(0, Number(unreadMap[characterId] || 0) + 1);

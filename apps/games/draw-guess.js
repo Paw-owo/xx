@@ -1344,7 +1344,7 @@ function injectStyles() {
     .dg-board-meta strong { font-size: 17px; font-weight: 600; }
 
     .dg-board {
-      position: relative; height: min(46vh, 340px); min-height: 240px;
+      position: relative; height: min(calc(var(--app-viewport-height, 100dvh) - 320px), 340px); min-height: 240px;
       border-radius: 26px;
       background: var(--bg-primary);
       background-image: radial-gradient(circle at 18% 22%, color-mix(in srgb, var(--accent-light) 28%, transparent) 0 1px, transparent 2px);

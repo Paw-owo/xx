@@ -70,7 +70,7 @@ export async function mount(containerEl, options = {}) {
           return;
         }
 
-        // 否则 toast 提示（落库已由常驻层完成）
+        // 否则统一 toast 提示（落库已由常驻层完成，来源文案来自外部消息本身）
         const text = data?.message?.content || '';
         if (text) window.showToast?.(text);
       } catch (error) {
@@ -79,8 +79,7 @@ export async function mount(containerEl, options = {}) {
     });
 
     // 纪念日提醒：anniversary-bridge 已直接落库（appendExternalChatMessage → chat:external-message），
-    // chat:external-message 监听器已负责 toast + 列表刷新，这里只做「正在该会话时刷新 thread」，
-    // 不再重复 toast，避免双 toast（anniversary-bridge 自身的 showToast + 这里的 toast + external-message 的 toast）
+    // chat:external-message 监听器统一负责 toast；这里只做对应会话刷新/列表刷新，避免双 toast
     unsubscribeAnniversaryReminder = window.AppBus.on('anniversary:reminder', async (data) => {
       try {
         const characterId = data?.characterId;
@@ -92,7 +91,7 @@ export async function mount(containerEl, options = {}) {
           return;
         }
 
-        // 不在该会话：只刷新列表（toast 由 chat:external-message 监听器和 anniversary-bridge 自身负责）
+        // 不在该会话：只刷新列表（toast 由 chat:external-message 监听器负责）
         if (currentRoute.name === 'list') {
           await renderRoute();
         }

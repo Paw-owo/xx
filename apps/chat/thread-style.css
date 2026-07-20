@@ -542,7 +542,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: min(70vh, 620px);
+  height: min(calc(var(--app-viewport-height, 100dvh) - 160px), 620px);
   padding: 2px 0 8px;
 }
 
@@ -775,7 +775,11 @@
 
 .chat-call-screen {
   position: fixed;
-  inset: 0;
+  top: var(--app-viewport-top, 0px);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: var(--app-viewport-height, 100dvh);
   z-index: 999;
   display: flex;
   flex-direction: column;
@@ -897,7 +901,7 @@
   grid-template-columns: 1fr auto;
   align-items: end;
   gap: 10px;
-  margin: 0 auto 12px;
+  margin: 0 auto max(12px, env(safe-area-inset-bottom));
 }
 
 .chat-call-input {

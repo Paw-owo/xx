@@ -433,9 +433,14 @@ function describeApiStatus(api) {
 }
 
 // 在 state.poolEndpoints 中按 id 查找接口项（实时读取设置 APP 数据源）
+function isChatEndpoint(ep) {
+  return ep?.groupType !== 'sensory_eye' && ep?.groupType !== 'sensory_ear';
+}
+
 function findPoolEndpoint(endpointId) {
   const list = Array.isArray(state.poolEndpoints) ? state.poolEndpoints : [];
-  return list.find((item) => String(item.id) === String(endpointId)) || null;
+  const endpoint = list.find((item) => String(item.id) === String(endpointId)) || null;
+  return isChatEndpoint(endpoint) ? endpoint : null;
 }
 
 function getGroupName(groupKey) {
@@ -607,7 +612,7 @@ function openApiDetailSheet() {
   // ── 可用接口项：status !== 'disabled'，按更新时间倒序 ──
   function getActiveEndpoints() {
     return (state.poolEndpoints || [])
-      .filter((ep) => ep && ep.status !== 'disabled')
+      .filter((ep) => ep && ep.status !== 'disabled' && isChatEndpoint(ep))
       .sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
   }
 
@@ -689,7 +694,15 @@ function openApiDetailSheet() {
         // resolveGroupTypes 在 useGlobal===false && endpointId 时直接返回完整全局池，
         // 不按 poolGroup 过滤；endpointId 命中时 callAPI 用该 endpoint 的 sources，失效才回退全局。
         const ep = findPoolEndpoint(draft.endpointId);
-        const poolGroup = ep ? (ep.groupType === 'free' ? 'free' : 'paid') : 'paid';
+        if (!ep) {
+          showToast('这个感官接口不能用来聊天，先换一个普通聊天接口吧');
+          draft.endpointId = '';
+          draft.model = '';
+          nextBtn.disabled = false;
+          setPage('endpoint');
+          return;
+        }
+        const poolGroup = ep.groupType === 'free' ? 'free' : 'paid';
         const model = draft.mode === 'model' ? draft.model : '';
         await updateCharacter({
           apiConfig: { ...own, useGlobal: false, poolGroup, endpointId: draft.endpointId, model }
@@ -1800,7 +1813,7 @@ function injectStyle() {
 
     .api-detail-card{
       width:min(100%,420px);
-      max-height:min(86vh,640px);
+      max-height:min(calc(var(--app-viewport-height, 100dvh) - 96px),640px);
       display:flex;
       flex-direction:column;
       padding:22px 22px 18px;
@@ -1865,7 +1878,7 @@ function injectStyle() {
     .api-sheet{
       width:clamp(280px,90vw,460px);
       height:clamp(290px,94vw,480px);
-      max-height:min(88dvh,600px);
+      max-height:min(calc(var(--app-viewport-height, 100dvh) - 96px),600px);
       display:flex;
       flex-direction:column;
       padding:16px 16px 12px;

@@ -323,7 +323,7 @@ function injectStyle() {
     }
 
     .chat-settings-host{
-      min-height:min(72vh,640px);
+      min-height:min(calc(var(--app-viewport-height, 100dvh) - 120px),640px);
       border-radius:24px;
       overflow:hidden;
       background:var(--bg-card);

@@ -64,6 +64,18 @@ const CUSTOM_FONT_META_KEY = 'app_custom_font_meta';
 const CUSTOM_WIDGETS_KEY = 'app_custom_widgets';
 const API_POOL_GROUPS_KEY = 'app_api_pool_groups';
 
+const CHAT_LOCAL_KEYS = Object.freeze([
+  'chat_unread_counts',
+  'chat_group_unread_counts',
+  'chat_hidden_private_threads',
+  'chat_last_route',
+  'chat_active_thread',
+  'chat_draft_map',
+  'chat_pinned_threads',
+  'chat_archived_threads',
+  'app_grudge_settings'
+]);
+
 const DB_STORES = [
   'characters', 'messages', 'moments', 'memories', 'stickers',
   'worldbook', 'inventory', 'pet', 'groups', 'group_messages',
@@ -2080,6 +2092,19 @@ async function importAll() {
 // 【数据清理】
 // ═══════════════════════════════════════
 
+
+function removeLocalKeysSafely(keys) {
+  const failed = [];
+  for (const key of keys) {
+    try {
+      if (removeData(key) !== true) failed.push(key);
+    } catch (_) {
+      failed.push(key);
+    }
+  }
+  return failed;
+}
+
 async function clearStoreWithConfirm(store, message, successText) {
   const ok = await showConfirm(message);
   if (!ok) return;
@@ -2093,12 +2118,14 @@ async function clearStoreWithConfirm(store, message, successText) {
     showToast('数据清理失败，请重试');
     return;
   }
+  let failedLocalKeys = [];
   if (store === 'messages' || store === 'group_messages') {
-    removeData('chat_unread_counts');
-    removeData('chat_group_unread_counts');
+    failedLocalKeys = removeLocalKeysSafely(['chat_unread_counts', 'chat_group_unread_counts']);
   }
 
-  showToast(successText);
+  showToast(failedLocalKeys.length
+    ? `${successText}，但有些聊天角标还没清掉，请再试一次`
+    : successText);
   emitRefresh();
   render('data');
 }
@@ -2115,9 +2142,11 @@ async function clearChatData() {
     return;
   }
 
-  CHAT_LOCAL_KEYS.forEach(removeData);
+  const failedKeys = removeLocalKeysSafely(CHAT_LOCAL_KEYS);
 
-  showToast('聊天全部清好啦');
+  showToast(failedKeys.length
+    ? `聊天记录已清好啦，但有 ${failedKeys.length} 个本地小标记没清掉，请再试一次`
+    : '聊天全部清好啦');
   emitRefresh();
   render('data');
 }
@@ -2168,7 +2197,7 @@ async function clearAllData() {
   const ok = await showConfirm('这会清空所有数据，真的继续吗？');
   if (!ok) return;
 
-  [
+  const localKeysToClear = [
     SETTINGS_KEY, CLOUD_KEY, ICONS_KEY, HIDDEN_ICONS_KEY, WALLPAPER_KEY,
     WALLPAPER_OPACITY_KEY, WIDGET_BACKGROUNDS_KEY, DESKTOP_SCALE_KEY,
     CUSTOM_FONT_META_KEY, CUSTOM_WIDGETS_KEY, API_POOL_GROUPS_KEY,
@@ -2178,7 +2207,9 @@ async function clearAllData() {
     'music_app_settings', 'music_current_song',
     // GitHub 工具配置和 Token：清空全部时一并清理，避免敏感凭据残留
     ...GITHUB_TOOL_STORAGE_KEYS
-  ].forEach(removeData);
+  ];
+
+  const failedLocalKeys = removeLocalKeysSafely(localKeysToClear);
 
   for (const store of DB_STORES) {
     try { await clearStoreDB(store); } catch {}
@@ -2191,7 +2222,9 @@ async function clearAllData() {
     customFontStyleEl = null;
   }
 
-  showToast('都清空啦');
+  showToast(failedLocalKeys.length
+    ? `主要数据已清空，但有 ${failedLocalKeys.length} 个本地小标记没清掉，请再试一次`
+    : '都清空啦');
   emitRefresh();
   render('data');
 }
@@ -3681,7 +3714,7 @@ function injectStyle() {
       /* 撑满父级 .bottom-sheet（flex column），不依赖 height:100% */
       flex: 1;
       min-height: 0;
-      max-height: min(80vh, 720px);
+      max-height: min(calc(var(--app-viewport-height, 100dvh) - 96px), 720px);
       overflow: hidden;
     }
 

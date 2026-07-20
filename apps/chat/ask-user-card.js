@@ -3,7 +3,7 @@
 //
 // 三态：
 //   pending（未提交）：默认折叠 pill「询问 N 个问题 ›」→ 点开展开问卷
-//   submitted（已提交）：只读 pill「已回答 · N/N 题 ✓」
+//   submitted（已提交）：只读 pill「已回答 · N/N 题」
 // 状态持久化：localStorage key = chat_ask_user_state_<threadId>_<messageId>
 //
 // 提交后走 onSubmit(answerText) → 由 thread-render 调 sendThreadMessage 触发 AI 回复
@@ -83,7 +83,7 @@ function createStreamingPill(count) {
 }
 
 // ───────────────────────────────────────
-// 已提交只读 pill「已回答 · N/N 题 ✓」
+// 已提交只读 pill「已回答 · N/N 题」
 // ───────────────────────────────────────
 
 function createReadonlyPill(askUser, saved) {
@@ -92,7 +92,7 @@ function createReadonlyPill(askUser, saved) {
   pill.className = 'ask-user-pill ask-user-pill-readonly';
   pill.appendChild(createQuestionIcon());
   const span = document.createElement('span');
-  span.textContent = `已回答 · ${answered}/${total} 题 ✓`;
+  span.textContent = `已回答 · ${answered}/${total} 题`;
   pill.appendChild(span);
   return pill;
 }
@@ -477,7 +477,7 @@ function injectStyle() {
 
     .ask-user-sheet{
       position:fixed;left:0;right:0;bottom:0;z-index:10043;
-      width:100vw;height:75vh;display:flex;flex-direction:column;
+      width:100vw;height:min(calc(var(--app-viewport-height, 100dvh) - 120px),75dvh);display:flex;flex-direction:column;
       border-radius:28px 28px 0 0;background:var(--bg-card);
       transform:translateY(108%);
       transition:transform 280ms cubic-bezier(0.34,1.56,0.64,1);
