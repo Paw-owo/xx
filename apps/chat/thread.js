@@ -411,7 +411,7 @@ function createHeader() {
     createAvatar(getTargetAvatar(), getTargetName()),
     createTitleText()
   );
-  title.addEventListener('click', () => openSettingsPage());
+  if (state.mode === 'private') title.addEventListener('click', () => openSettingsPage());
 
   const actions = el('div', 'chat-thread-header-actions');
 
@@ -433,10 +433,13 @@ function createHeader() {
     render();
   });
 
-  const settings = iconButton('settings', '设置');
-  settings.addEventListener('click', () => openSettingsPage());
-
-  actions.append(search, settings);
+  if (state.mode === 'private') {
+    const settings = iconButton('settings', '设置');
+    settings.addEventListener('click', () => openSettingsPage());
+    actions.append(search, settings);
+  } else {
+    actions.append(search);
+  }
   header.append(back, title, actions);
   return header;
 }
