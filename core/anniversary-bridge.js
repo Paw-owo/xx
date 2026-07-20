@@ -2,7 +2,8 @@
 // 常驻检查到期纪念日提醒，不依赖 anniversary APP mount
 // 启动时由 index.html 调用 initAnniversaryBridge() 初始化一次
 // 复用 anniversary.js 的 checkTodayAnniversaries 和 chat-event-bridge.js 的 appendExternalChatMessage
-// 去重沿用 app_anniversary_greeted 键，每天每个纪念日只提醒一次
+// 主链路为 anniversary:reminder + 私聊消息落库；不额外写角色记忆或直接 toast
+// 去重沿用 app_anniversary_greeted 键，成功提醒后每天每个纪念日只记录一次
 
 import { getData, setData } from './storage.js';
 import { emit } from './app-bus.js';
@@ -75,9 +76,6 @@ async function checkAnniversaryReminders() {
   for (const item of todayItems) {
     const greetKey = `${item.id}_${today}`;
     if (greetedKeys.has(greetKey)) continue;
-    greetedKeys.add(greetKey);
-    saveGreetedKeys(greetedKeys);
-
     // 计算天数（当天 = 0）
     const days = 0;
 
@@ -97,36 +95,32 @@ async function checkAnniversaryReminders() {
       emit('anniversary:reminder', reminderData);
     } catch (_) {}
 
-    // 写角色记忆（对齐原 anniversary.js 的 recordExternalInteraction）
+    // 有绑定角色时写入对应私聊 messages store；toast 由 chat:external-message 监听器统一负责。
+    // 不再额外 recordExternalInteraction，避免同一纪念日同时进入记忆和聊天上下文。
     if (item.characterId) {
-      try {
-        await window.AppBus.recordExternalInteraction({
-          characterId: item.characterId,
-          role: 'assistant',
-          content: `今天是${item.name || '纪念日'}。${item.note || ''}`.trim(),
-          source: '纪念日',
-          importance: 5
-        });
-      } catch (_) {}
+      const message = await appendExternalChatMessage({
+        characterId: String(item.characterId),
+        characterName: '',
+        role: 'assistant',
+        type: 'text',
+        content: `今天是${item.name || '纪念日'}${item.note ? `，${item.note}` : ''}。要不要去聊聊？`,
+        title: item.name,
+        note: item.note || '',
+        direction: 'ai_to_user',
+        sourceEventId: `anniversary_${item.id}_${today}`,
+        incrementUnread: true,
+        sourceApp: 'anniversary',
+        sourceType: 'anniversary_reminder'
+      });
 
-      // 写入对应私聊 messages store；toast 由 chat:external-message 监听器统一负责，避免重复提醒
-      try {
-        await appendExternalChatMessage({
-          characterId: String(item.characterId),
-          characterName: '',
-          role: 'assistant',
-          type: 'text',
-          content: `今天是${item.name || '纪念日'}${item.note ? `，${item.note}` : ''}。要不要去聊聊？`,
-          title: item.name,
-          note: item.note || '',
-          direction: 'ai_to_user',
-          sourceEventId: `anniversary_${item.id}_${today}`,
-          incrementUnread: true,
-          sourceApp: 'anniversary',
-          sourceType: 'anniversary_reminder'
-        });
-      } catch (_) {}
+      if (!message) {
+        console.warn('[anniversary-bridge] 纪念日提醒还没能写进聊天，保留下一次检查机会');
+        continue;
+      }
     }
+
+    greetedKeys.add(greetKey);
+    saveGreetedKeys(greetedKeys);
 
   }
 }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="默认锁屏头像">
+  <rect width="160" height="160" rx="48" fill="#FFF7F0"/>
+  <circle cx="44" cy="40" r="26" fill="#F4CFC5" opacity="0.68"/>
+  <circle cx="120" cy="120" r="30" fill="#DCEAD8" opacity="0.72"/>
+  <path d="M48 82c0-28 18-48 43-48s43 20 43 48v12c0 28-18 48-43 48S48 122 48 94V82Z" fill="#F9D9CE" stroke="#B98578" stroke-width="6"/>
+  <path d="M62 52 49 33M120 52l13-19" fill="none" stroke="#B98578" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="76" cy="87" r="5" fill="#8F665D"/>
+  <circle cx="106" cy="87" r="5" fill="#8F665D"/>
+  <path d="M80 112c8 6 22 6 30 0" fill="none" stroke="#8F665D" stroke-width="6" stroke-linecap="round"/>
+</svg>

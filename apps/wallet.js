@@ -903,7 +903,8 @@ export function addBalance(amount, description = '充值', extra = {}) {
   });
   nextWallet.balance = wallet.balance;
 
-  saveWallet(nextWallet);
+  const saved = saveWallet(nextWallet);
+  if (!saved) return false;
   window.AppBus?.emit('wallet:balance-updated', { balance: nextWallet.balance, type: 'income', amount: value, description });
   return true;
 }
@@ -926,7 +927,8 @@ export function deductBalance(amount, description = '消费', extra = {}) {
   });
   nextWallet.balance = wallet.balance;
 
-  saveWallet(nextWallet);
+  const saved = saveWallet(nextWallet);
+  if (!saved) return false;
   window.AppBus?.emit('wallet:balance-updated', { balance: nextWallet.balance, type: 'expense', amount: value, description });
   return true;
 }
@@ -937,7 +939,7 @@ export function getAiWallets() {
 }
 
 function saveAiWallets(wallets) {
-  setData(AI_WALLETS_KEY, wallets && typeof wallets === 'object' ? wallets : {});
+  return setData(AI_WALLETS_KEY, wallets && typeof wallets === 'object' ? wallets : {});
 }
 
 export function getAiWallet(characterId) {
@@ -993,8 +995,7 @@ export function setAiWalletBalance(characterId, amount, description = '余额调
     wallets[characterId] = current;
   }
 
-  saveAiWallets(wallets);
-  return true;
+  return saveAiWallets(wallets);
 }
 
 export function addAiBalance(characterId, amount, description = '收入', extra = {}) {
@@ -1023,8 +1024,7 @@ export function addAiBalance(characterId, amount, description = '收入', extra 
   nextWallet.balance = wallet.balance;
   wallets[characterId] = nextWallet;
 
-  saveAiWallets(wallets);
-  return true;
+  return saveAiWallets(wallets);
 }
 
 export function deductAiBalance(characterId, amount, description = '支出', extra = {}) {
@@ -1055,8 +1055,7 @@ export function deductAiBalance(characterId, amount, description = '支出', ext
   nextWallet.balance = wallet.balance;
   wallets[characterId] = nextWallet;
 
-  saveAiWallets(wallets);
-  return true;
+  return saveAiWallets(wallets);
 }
 
 function createTransferCard({ direction, amount, note = '', characterId = '', characterName = 'TA', timestamp = getNow() } = {}) {
@@ -1115,9 +1114,10 @@ export async function transferToAI({ characterId, characterName = 'TA', amount, 
     }
   );
   nextWallet.balance = wallet.balance;
-  saveWallet(nextWallet);
+  const savedUserWallet = saveWallet(nextWallet);
+  if (!savedUserWallet) return { ok: false, reason: 'wallet_save_failed' };
 
-  addAiBalance(characterId, value, `收到用户转账${cleanNote ? `：${cleanNote}` : ''}`, {
+  const receivedByAi = addAiBalance(characterId, value, `收到用户转账${cleanNote ? `：${cleanNote}` : ''}`, {
     category: 'transfer',
     title: '收到用户转账',
     note: cleanNote,
@@ -1128,6 +1128,25 @@ export async function transferToAI({ characterId, characterName = 'TA', amount, 
     characterName,
     timestamp
   });
+
+  if (!receivedByAi) {
+    const rollbackWallet = readWallet();
+    rollbackWallet.balance = normalizeAmount(rollbackWallet.balance + value);
+    const rollbackRecord = addTransaction(rollbackWallet, value, `退回给用户${cleanNote ? `：${cleanNote}` : ''}`, 'income', {
+      category: 'transfer_refund',
+      title: '转账退回',
+      note: cleanNote,
+      source: 'wallet_transfer_rollback',
+      ownerType: 'user',
+      direction: 'user_to_ai',
+      characterId,
+      characterName,
+      timestamp: getNow()
+    });
+    rollbackRecord.balance = rollbackWallet.balance;
+    saveWallet(rollbackRecord);
+    return { ok: false, reason: 'ai_wallet_save_failed' };
+  }
 
   await recordWalletMemory({
     characterId,
@@ -1198,7 +1217,21 @@ export async function aiTransferToUser({ characterId, characterName = 'TA', amou
     }
   );
   nextWallet.balance = wallet.balance;
-  saveWallet(nextWallet);
+  const savedUserWallet = saveWallet(nextWallet);
+  if (!savedUserWallet) {
+    addAiBalance(characterId, value, `退回给${characterName || 'TA'}${cleanNote ? `：${cleanNote}` : ''}`, {
+      category: 'transfer_refund',
+      title: '转账退回',
+      note: cleanNote,
+      source: 'wallet_transfer_rollback',
+      ownerType: 'character',
+      direction: 'ai_to_user',
+      characterId,
+      characterName,
+      timestamp: getNow()
+    });
+    return { ok: false, reason: 'wallet_save_failed' };
+  }
 
   await recordWalletMemory({
     characterId,

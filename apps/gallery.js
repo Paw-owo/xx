@@ -622,6 +622,7 @@ function injectStyle() {
       padding: 16px 20px 10px;
       background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
       backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       z-index: 2;
     }
 
@@ -863,7 +864,7 @@ function injectStyle() {
     }
 
     .grudge-empty {
-      min-height: 52vh;
+      min-height: 52dvh;
       display: flex;
       flex-direction: column;
       align-items: center;

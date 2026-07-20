@@ -1462,7 +1462,7 @@ function injectStyles() {
     }
 
     .truth-character-list {
-      max-height: 48vh;
+      max-height: 48dvh;
       overflow-y: auto;
       display: flex;
       flex-direction: column;

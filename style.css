@@ -115,7 +115,6 @@ body {
   bottom: auto;
   left: 0;
   width: 100vw;
-  height: 100vh;
   height: 100dvh;
   height: var(--app-viewport-height, 100dvh);
   margin: 0;
@@ -260,7 +259,6 @@ a {
   right: 0;
   bottom: auto;
   left: 0;
-  height: 100vh;
   height: 100dvh;
   height: var(--app-viewport-height, 100dvh);
   z-index: 10;
@@ -586,7 +584,7 @@ a {
 }
 
 .section-content.open {
-  max-height: 72vh;
+  max-height: 72dvh;
   opacity: 1;
   transform: translateY(0);
 }

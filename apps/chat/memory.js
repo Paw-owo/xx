@@ -625,6 +625,7 @@ function injectStyle() {
       padding: 14px 20px 8px;
       background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
       backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
       z-index: 2;
     }
 
@@ -895,6 +896,7 @@ function injectStyle() {
       padding: 12px 20px calc(14px + env(safe-area-inset-bottom));
       background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
       backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
     }
 
     .chat-memory-add-btn {

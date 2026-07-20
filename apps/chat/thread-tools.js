@@ -207,10 +207,20 @@ function buildGridView(state, options, showDetail) {
   var pager = document.createElement('div');
   pager.className = 'tools-pager';
 
+  var isGroupMode = state?.mode === 'group';
+  var visibleGroups = TOOL_GROUPS.map(function(group) {
+    return {
+      label: group.label,
+      tools: group.tools.filter(function(tool) {
+        return !(isGroupMode && tool.id === 'phone');
+      })
+    };
+  });
+
   // 两页：第一页=一起玩+日常（常用类），第二页=管理（代码类，GitHub 在此）
   var pages = [
-    { groups: [TOOL_GROUPS[0], TOOL_GROUPS[1]] },
-    { groups: [TOOL_GROUPS[2]] }
+    { groups: [visibleGroups[0], visibleGroups[1]] },
+    { groups: [visibleGroups[2]] }
   ];
 
   pages.forEach(function(page) {

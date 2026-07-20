@@ -1018,6 +1018,7 @@ function ensureStyle() {
       justify-content: center;
       background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
       backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       opacity: 0;
       pointer-events: none;
       transition: opacity 200ms ease;

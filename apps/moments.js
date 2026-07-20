@@ -1162,7 +1162,7 @@ function injectStyle() {
 
     .image-preview-sheet img {
       width: 100%;
-      max-height: 70vh;
+      max-height: 70dvh;
       object-fit: contain;
       border-radius: var(--radius-lg);
       box-shadow: var(--shadow-sm);

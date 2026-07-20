@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="小手机图标">
+  <rect width="180" height="180" rx="42" fill="#F8EDE6"/>
+  <circle cx="48" cy="42" r="28" fill="#F3C9BD" opacity="0.72"/>
+  <circle cx="136" cy="132" r="34" fill="#D9E8DA" opacity="0.78"/>
+  <rect x="48" y="28" width="84" height="124" rx="28" fill="#FFF9F4" stroke="#C89082" stroke-width="7"/>
+  <rect x="64" y="48" width="52" height="72" rx="18" fill="#F7DCD2" opacity="0.8"/>
+  <path d="M70 92c10 17 30 17 40 0" fill="none" stroke="#9F7166" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="77" cy="78" r="5" fill="#9F7166"/>
+  <circle cx="103" cy="78" r="5" fill="#9F7166"/>
+  <circle cx="90" cy="135" r="6" fill="#C89082"/>
+</svg>

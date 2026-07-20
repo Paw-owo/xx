@@ -1854,7 +1854,7 @@ function injectStyle() {
     .lt-log-item.is-danger p, .lt-log-item.is-dead p { color: var(--accent); }
     .lt-log-item.is-honest p, .lt-log-item.is-survive p { color: var(--lt-text-primary); }
 
-    .lt-gameover { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--media-ink-deep) 78%, transparent); backdrop-filter: blur(6px); }
+    .lt-gameover { position: fixed; inset: 0; z-index: 12; display: grid; place-items: center; padding: 24px; background: color-mix(in srgb, var(--media-ink-deep) 78%, transparent); backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px); }
     .lt-gameover-card { width: min(420px, 100%); text-align: center; }
     .lt-gameover-card .lt-main-btn { width: 100%; margin-top: 18px; }
 
