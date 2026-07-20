@@ -51,7 +51,12 @@ const required = [
   'chat-icon-dot',
   'chat-fold-card-bg',
   'shadow-color',
-  'toy-border'
+  'toy-border',
+  'cream-bell-lace',
+  'cream-bell-dots',
+  'cream-bell-plaid',
+  'cream-bell-badge-display',
+  'cream-bell-charm-opacity'
 ];
 
 for (const preset of presets) {
@@ -61,6 +66,23 @@ for (const preset of presets) {
   }
   assert.equal(document.documentElement.attrs['data-theme'], preset.id, `${preset.id} is applied via theme attribute`);
 }
+
+
+const cream = theme.setPreset('cream-bell');
+assert.equal(cream.variables['cream-bell-badge-display'], 'block', 'cream-bell turns on badge SVG frame');
+assert.notEqual(cream.variables['cream-bell-lace'], 'none', 'cream-bell owns lace resource');
+assert.notEqual(cream.variables['cream-bell-plaid'], 'none', 'cream-bell owns plaid resource');
+
+const soda = theme.setPreset('cloud-soda');
+assert.equal(soda.variables['cream-bell-badge-display'], 'none', 'other themes turn off cream-bell badge SVG frame');
+assert.equal(soda.variables['cream-bell-lace'], 'none', 'other themes do not inherit lace resource');
+assert.equal(soda.variables['cream-bell-plaid'], 'none', 'other themes do not inherit plaid resource');
+assert.equal(document.documentElement.attrs['data-theme'], 'cloud-soda', 'switching away updates data-theme');
+
+const creamAgain = theme.setPreset('cream-bell');
+assert.equal(creamAgain.variables['cream-bell-badge-display'], 'block', 'switching back restores badge SVG frame');
+assert.notEqual(creamAgain.variables['cream-bell-lace'], 'none', 'switching back restores lace resource');
+assert.equal(document.documentElement.attrs['data-theme'], 'cream-bell', 'switching back updates data-theme');
 
 const legacy = theme.setPreset('dark-chocolate');
 assert.equal(legacy.preset, 'cocoa-night', 'legacy dark preset aliases remain compatible');

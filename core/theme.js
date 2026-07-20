@@ -247,6 +247,11 @@ function createPreset(id, name, mode, palette) {
       'chat-fold-divider': 'color-mix(in srgb, var(--accent-light) 72%, transparent)',
       'chat-tool-breath-shadow': 'var(--shadow-sm)',
       'chat-tool-breath-shadow-strong': 'var(--shadow-md)',
+      'cream-bell-lace': id === 'cream-bell' ? 'radial-gradient(circle at 10px 0, transparent 9px, color-mix(in srgb, var(--border-soft) 52%, transparent) 9.8px 10.8px, transparent 11.6px) 0 0 / 20px 12px repeat-x' : 'none',
+      'cream-bell-dots': id === 'cream-bell' ? 'radial-gradient(circle, color-mix(in srgb, var(--accent-dark) 28%, transparent) 0 1.2px, transparent 1.8px) 0 0 / 16px 16px' : 'none',
+      'cream-bell-plaid': id === 'cream-bell' ? 'linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent) 50%, transparent 0) 0 0 / 18px 18px, linear-gradient(color-mix(in srgb, var(--accent) 10%, transparent) 50%, transparent 0) 0 0 / 18px 18px' : 'none',
+      'cream-bell-badge-display': id === 'cream-bell' ? 'block' : 'none',
+      'cream-bell-charm-opacity': id === 'cream-bell' ? '1' : '0',
       ...(dark ? DARK_SHADOWS : LIGHT_SHADOWS)
     }
   };
