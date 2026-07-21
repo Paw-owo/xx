@@ -20,6 +20,7 @@ import { addMemory } from '../../core/memory.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
+import { createTimeoutSignal } from '../../core/abort-utils.js';
 
 const CALL_STYLE_ID = 'chat-thread-call-style';
 
@@ -42,6 +43,7 @@ const callState = {
   isEnding: false,
   callEnded: false,
   replyController: null,
+  cleanupDone: true,
   activeLock: null,
   worldbookItems: []
 };
@@ -61,6 +63,7 @@ export async function mountThreadCall(containerEl, options = {}) {
   callState.isSending = false;
   callState.isEnding = false;
   callState.callEnded = false;
+  callState.cleanupDone = false;
   callState.activeLock = null;
   callState.worldbookItems = [];
   callState.mounted = true;
@@ -80,10 +83,7 @@ export async function mountThreadCall(containerEl, options = {}) {
 
 export function unmountThreadCall() {
   callState.mounted = false;
-  callState.replyController?.abort();
-  callState.replyController = null;
-  stopTimer();
-  stopAll();
+  cleanupCallResources('unmount');
 
   if (callState.hostEl) {
     callState.hostEl.remove();
@@ -104,8 +104,25 @@ export function unmountThreadCall() {
   callState.isSending = false;
   callState.isEnding = false;
   callState.callEnded = false;
+  callState.cleanupDone = true;
   callState.activeLock = null;
   callState.worldbookItems = [];
+}
+
+export function cleanupThreadCallResources(reason = 'manual') {
+  return cleanupCallResources(reason);
+}
+
+function cleanupCallResources(reason = 'close') {
+  if (callState.cleanupDone) return false;
+  callState.cleanupDone = true;
+  if (callState.replyController) {
+    try { callState.replyController.abort(reason); } catch (_) {}
+    callState.replyController = null;
+  }
+  stopTimer();
+  stopAll();
+  return true;
 }
 
 function renderCall() {
@@ -312,7 +329,7 @@ function acceptIncomingCall() {
 }
 
 function rejectIncomingCall() {
-  stopAll();
+  cleanupCallResources('reject');
 
   // 先保存回调引用和角色信息，再清空状态
   const rejectFn = callState.onReject;
@@ -393,7 +410,9 @@ async function requestCallReply() {
   const useCharApi = apiConfig && apiConfig.useGlobal === false;
 
   let content = '';
-  callState.replyController?.abort();
+  if (callState.replyController) {
+    try { callState.replyController.abort('superseded'); } catch (_) {}
+  }
   const controller = new AbortController();
   callState.replyController = controller;
   const timeoutId = window.setTimeout(() => controller.abort('timeout'), 60000);
@@ -416,6 +435,8 @@ async function requestCallReply() {
     window.clearTimeout(timeoutId);
     if (callState.replyController === controller) callState.replyController = null;
   }
+
+  if (!callState.mounted || callState.callEnded || controller.signal.aborted) return '';
 
   const text = String(content || '').trim();
 
@@ -512,10 +533,8 @@ async function endCall() {
   if (callState.isEnding) return;
 
   callState.isEnding = true;
-  callState.replyController?.abort();
-  callState.replyController = null;
+  cleanupCallResources('hangup');
   renderCall();
-  stopAll();
 
   // 用 closed 标志保证只关闭一次：forceCloseTimer 超时和 finally 都可能触发
   let closed = false;
@@ -596,8 +615,10 @@ async function summarizeCall() {
   const apiConfig = callState.character?.apiConfig;
   const useCharApi = apiConfig && apiConfig.useGlobal === false;
 
-  const content = await silentRequest({
-    messages: [
+  const timeout = createTimeoutSignal(5000);
+  try {
+    const content = await silentRequest({
+      messages: [
       {
         role: 'system',
         content: `我是${name}，我正在把这通和${peerName}的电话总结成一条长期记忆，最多80字，只写事实和情绪，不写"总结如下"。我用第一人称"我"来写。`
@@ -606,15 +627,18 @@ async function summarizeCall() {
         role: 'user',
         content: transcript
       }
-    ],
-    endpointId: useCharApi ? (apiConfig.endpointId || '') : '',
-    model: useCharApi ? (apiConfig.model || '') : '',
-    temperature: 0.4,
-    maxTokens: apiConfig?.maxTokens,
-    signal: AbortSignal.timeout(5000)
-  });
+      ],
+      endpointId: useCharApi ? (apiConfig.endpointId || '') : '',
+      model: useCharApi ? (apiConfig.model || '') : '',
+      temperature: 0.4,
+      maxTokens: apiConfig?.maxTokens,
+      signal: timeout.signal
+    });
 
-  return String(content || '').trim();
+    return String(content || '').trim();
+  } finally {
+    timeout.cleanup();
+  }
 }
 
 function fallbackSummary() {

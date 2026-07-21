@@ -10,6 +10,7 @@ import { mountChatList, unmountChatList } from './chat/list.js';
 import { mountChatMemory, unmountChatMemory } from './chat/memory.js';
 import { mountChatThread, unmountChatThread } from './chat/thread.js';
 import { mountChatVisualSystem, unmountChatVisualSystem } from './chat/visual-system.js';
+import { appendExternalChatMessage } from '../core/chat-event-bridge.js';
 
 import {
   getData,
@@ -28,6 +29,8 @@ let renderPromise = null;
 let unsubscribeCharsUpdated = null;
 let unsubscribeChatExternalMessage = null;
 let unsubscribeAnniversaryReminder = null;
+let unsubscribeChatExternalFailed = null;
+const shownExternalFailureIds = new Set();
 let currentRoute = {
   name: 'list',
   params: {
@@ -78,6 +81,28 @@ export async function mount(containerEl, options = {}) {
       }
     });
 
+
+
+    unsubscribeChatExternalFailed = window.AppBus.on('chat:external-message-failed', (data = {}) => {
+      try {
+        const id = String(data.sourceEventId || data.eventId || `${data.sourceApp || ''}:${data.characterId || ''}:${data.stage || ''}:${data.error || ''}`);
+        if (shownExternalFailureIds.has(id)) return;
+        shownExternalFailureIds.add(id);
+        if (shownExternalFailureIds.size > 80) shownExternalFailureIds.delete(shownExternalFailureIds.values().next().value);
+
+        const stage = String(data.stage || 'message_write');
+        if (stage === 'unread_update') {
+          window.showToast?.('消息已经收好啦，角标稍后会自己对齐');
+          if (currentRoute.name === 'list') renderRoute().catch(() => null);
+          return;
+        }
+        const source = data.sourceApp ? `来自 ${data.sourceApp} 的` : '';
+        window.showToast?.(`${source}消息还没收好，可以回到来源再试一次`);
+      } catch (error) {
+        console.warn('[chat] external failure toast failed:', error?.message || error);
+      }
+    });
+
     // 纪念日提醒：anniversary-bridge 已直接落库（appendExternalChatMessage → chat:external-message），
     // chat:external-message 监听器统一负责 toast；这里只做对应会话刷新/列表刷新，避免双 toast
     unsubscribeAnniversaryReminder = window.AppBus.on('anniversary:reminder', async (data) => {
@@ -117,6 +142,10 @@ export function unmount() {
     try { unsubscribeChatExternalMessage(); } catch (_) {}
     unsubscribeChatExternalMessage = null;
   }
+  if (unsubscribeChatExternalFailed) {
+    try { unsubscribeChatExternalFailed(); } catch (_) {}
+    unsubscribeChatExternalFailed = null;
+  }
   if (unsubscribeAnniversaryReminder) {
     try { unsubscribeAnniversaryReminder(); } catch (_) {}
     unsubscribeAnniversaryReminder = null;
@@ -153,16 +182,37 @@ export function getAppApi() {
       const id = String(characterId || '').trim();
       const content = String(text || '').trim();
       if (!id || !content) return null;
-      await appState.openPrivateThread(id);
-      // 通过 recordExternalInteraction 把外部消息写入记忆；UI 层的消息渲染由 thread 自身处理
-      return recordExternalInteraction({
+
+      const sourceApp = String(extra.sourceApp || extra.source || 'external').trim() || 'external';
+      const message = await appendExternalChatMessage({
+        sourceEventId: extra.sourceEventId || extra.eventId || generateExternalMessageEventId(id, content, sourceApp, extra),
         characterId: id,
-        role: 'user',
+        characterName: String(extra.characterName || ''),
+        characterAvatar: String(extra.characterAvatar || ''),
+        role: extra.role === 'assistant' ? 'assistant' : 'user',
+        type: extra.type || 'text',
         content,
-        source: extra.source || '外部 APP',
+        note: String(extra.note || ''),
+        sourceApp,
+        sourceType: String(extra.sourceType || 'chat_api_send_message'),
+        incrementUnread: extra.incrementUnread
+      });
+      if (!message) return null;
+
+      if (currentRoute.name === 'thread' && currentRoute.params?.characterId === id) {
+        await renderRoute();
+      }
+
+      await recordExternalInteraction({
+        characterId: id,
+        role: message.role,
+        content,
+        source: extra.source || sourceApp,
         importance: extra.importance,
         mood: extra.mood || ''
       });
+
+      return message;
     },
 
     async refreshList() {
@@ -186,6 +236,20 @@ export function getAppApi() {
       await navigateTo(route);
     }
   };
+}
+
+
+function generateExternalMessageEventId(characterId, content, sourceApp, extra = {}) {
+  const explicit = String(extra.id || extra.messageId || '').trim();
+  if (explicit) return explicit;
+  return [
+    'chat-api-send-message',
+    characterId,
+    sourceApp,
+    String(extra.role || 'user'),
+    String(extra.timestamp || extra.createdAt || Date.now()),
+    content.slice(0, 80)
+  ].join('|');
 }
 
 export async function recordExternalInteraction(input = {}, legacyInteraction = {}) {

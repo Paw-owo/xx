@@ -587,7 +587,7 @@ export async function sendImageMessage(state, imageBase64, caption = '', extra =
 // 图文同轮发送：把多张图片 + 配文合成一条 type:'image' 消息
 // content 存配文（可为空字符串），images 存压缩后的 base64 数组
 // AI 上下文仍由 thread-ai.js 的 formatMessageForPrompt 返回 [图片] caption 占位符，不追求识图
-export async function sendImageTextMessage(state, { text = '', images = [], quoteMessageId = '' } = {}) {
+export async function sendImageTextMessage(state, { text = '', images = [], quoteMessageId = '', triggerAI = true } = {}) {
   const caption = String(text || '').trim();
   const imageList = Array.isArray(images)
     ? images.map((img) => String(img || '').trim()).filter(Boolean)
@@ -610,6 +610,10 @@ export async function sendImageTextMessage(state, { text = '', images = [], quot
 
   await saveMessage(state, message);
   clearQuote(state);
+
+  if (message.role === 'user' && triggerAI !== false) {
+    await requestAIReplySafely(state);
+  }
 
   return message;
 }
@@ -984,15 +988,15 @@ async function saveMessage(state, message) {
   try {
     await setDB(store, cleanMessage);
   } catch (error) {
-    console.error('save message failed', error);
+    console.error('[thread-actions] save message failed', error?.message || error);
 
     const fallback = buildFallbackMessage(state, cleanMessage);
     try {
       await setDB(store, fallback);
       showToast('内容有点大，先保存了精简版');
     } catch (fallbackError) {
-      console.error('save fallback message failed', fallbackError);
-      showToast('写入数据库失败');
+      console.error('[thread-actions] save fallback message failed', fallbackError?.message || fallbackError);
+      showToast('这条消息还没收好，内容已经尽量保留，请稍后再试');
       throw fallbackError;
     }
   }

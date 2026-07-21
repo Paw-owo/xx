@@ -31,6 +31,8 @@ import { getWorldbookForCharacter } from '../worldbook.js';
 import { buildMcpToolsContext, getUsableMcpTools, callMcpTool } from '../../core/mcp.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
 import { getActiveRelationshipLock, isStrictRelationshipLocked } from './thread-relationship.js';
+import { createTimeoutSignal } from '../../core/abort-utils.js';
+import { adjustChatUnread } from '../../core/chat-unread.js';
 import {
   getThemeAIContext,
   validateAIThemeResult,
@@ -91,6 +93,7 @@ const GRUDGE_TRIGGER_SCORE = 5;
 const STREAM_RENDER_THROTTLE_MS = 80;
 
 const activeAIJobs = new Map();
+const activeProactiveTasks = new Set();
 
 ensureDeveloperAgentRegistered();
 ensureThemeAgentRegistered();
@@ -409,6 +412,31 @@ export async function stopThreadAIReply(state, options = {}) {
 
 // 卸载时清理：只 abort + 标记 placeholder 停止，不 syncState（state 即将失效）
 // 用于 unmountChatThread，避免页面切换后 activeAIJobs 积累旧 job
+
+export async function repairStaleThreadPendingMessages(state) {
+  if (!state) return [];
+  const key = getAIJobKey(state);
+  if (activeAIJobs.has(key)) return [];
+  const store = state.mode === 'group' ? GROUP_STORE : PRIVATE_STORE;
+  const threadId = state.mode === 'group' ? String(state.groupId || '') : String(state.characterId || '');
+  if (!threadId) return [];
+  const rows = state.mode === 'group'
+    ? await loadGroupMessages(threadId).catch(() => [])
+    : await loadPrivateMessages(threadId).catch(() => []);
+  const pending = normalizeList(rows).filter((message) => message?.role === 'assistant' && message?.isPending);
+  const repaired = [];
+  for (const message of pending) {
+    const next = await finalizeMessageState(store, message.id, {
+      status: 'stopped',
+      content: String(message.content || '').trim() || '我先停在这里了。',
+      thinking: message.thinking || '页面刚刚离开了，我先把这次回复停住。',
+      thinkingSummary: message.thinkingSummary || '先停一下'
+    }).catch(() => null);
+    if (next) repaired.push(next);
+  }
+  return repaired;
+}
+
 export function abortActiveAIJobsForUnmount(state) {
   if (!state) return;
   const key = getAIJobKey(state);
@@ -434,44 +462,67 @@ export async function checkThreadProactiveMessages(state, options = {}) {
 
   if (document.visibilityState !== 'visible') return null;
 
-  const activeLock = await getActiveRelationshipLock(characterId);
-  // 主动消息的免打扰锁要与 thread-relationship.js 的严格锁保持同步。
-  if (activeLock && isStrictRelationshipLocked({ relationshipLock: activeLock })) {
-    return null;
-  }
-
   const config = getChatConfig(characterId);
-  const messages = await loadPrivateMessages(characterId);
-  const last = messages[messages.length - 1] || null;
+  if (!isProactiveConfigEnabled(config)) return null;
+  if (!isProactiveDueNow(config, Date.now())) return null;
+  if (activeProactiveTasks.has(characterId)) return null;
+  activeProactiveTasks.add(characterId);
 
-  if (!last) return null;
-
-  const now = Date.now();
-  const lastTime = new Date(last.timestamp || last.createdAt || 0).getTime();
-  if (!lastTime) return null;
-
-  await markUserReplyIfNeeded(characterId, config, last);
-
-  const refreshedConfig = getChatConfig(characterId);
-
-  if (refreshedConfig.proactiveAwaitingUserReply) {
-    return null;
-  }
-
-  if (refreshedConfig.proactiveMode1Enabled) {
-    const minutes = clampNumber(refreshedConfig.proactiveMode1Minutes, 1, 240);
-    const due = now - lastTime >= minutes * 60 * 1000;
-
-    if (last.role === 'user' && due) {
-      return sendProactivePrivateMessage(state, {
-        reason: 'offline_timeout',
-        config: refreshedConfig,
-        incrementUnread: options.incrementUnread !== false
-      });
+  try {
+    const activeLock = await getActiveRelationshipLock(characterId);
+    // 主动消息的免打扰锁要与 thread-relationship.js 的严格锁保持同步。
+    if (activeLock && isStrictRelationshipLocked({ relationshipLock: activeLock })) {
+      scheduleNextProactiveCheck(characterId, config, { failed: false });
+      return null;
     }
-  }
 
-  return null;
+    const messages = await loadPrivateMessages(characterId);
+    const last = messages[messages.length - 1] || null;
+
+    if (!last) {
+      scheduleNextProactiveCheck(characterId, config, { failed: false });
+      return null;
+    }
+
+    const now = Date.now();
+    const lastTime = new Date(last.timestamp || last.createdAt || 0).getTime();
+    if (!lastTime) {
+      scheduleNextProactiveCheck(characterId, config, { failed: false });
+      return null;
+    }
+
+    await markUserReplyIfNeeded(characterId, config, last);
+
+    const refreshedConfig = getChatConfig(characterId);
+
+    if (refreshedConfig.proactiveAwaitingUserReply) {
+      scheduleNextProactiveCheck(characterId, refreshedConfig, { failed: false });
+      return null;
+    }
+
+    if (refreshedConfig.proactiveMode1Enabled) {
+      const minutes = clampNumber(refreshedConfig.proactiveMode1Minutes, 1, 240);
+      const due = now - lastTime >= minutes * 60 * 1000;
+
+      if (last.role === 'user' && due) {
+        try {
+          return await sendProactivePrivateMessage(state, {
+            reason: 'offline_timeout',
+            config: refreshedConfig,
+            incrementUnread: options.incrementUnread !== false
+          });
+        } catch (error) {
+          scheduleNextProactiveCheck(characterId, refreshedConfig, { failed: true });
+          throw error;
+        }
+      }
+    }
+
+    scheduleNextProactiveCheck(characterId, refreshedConfig, { failed: false });
+    return null;
+  } finally {
+    activeProactiveTasks.delete(characterId);
+  }
 }
 
 export async function requestProactiveThreadMessage(state, reason = 'manual') {
@@ -747,6 +798,7 @@ async function requestPrivateReply(state, options = {}) {
     let result = null;
 
     const acc = createStreamAccumulator();
+    const renderStream = createStreamRenderScheduler(state, job);
     // 收集本轮可展示的动作记录（MCP/记忆/记仇），最终回写到 finalMessage 供过程链展示
     const pendingToolRecords = [];
 
@@ -759,11 +811,11 @@ async function requestPrivateReply(state, options = {}) {
           const msg = state.messages.find((m) => m.id === placeholder.id);
           acc.applyTo(msg);
           if (acc.shouldRender()) {
-            state.renderOnly?.();
+            renderStream();
           }
         }
       });
-      state.renderOnly?.();
+      renderStream.flush();
 
       // MCP 工具调用闭环：检测初次回复是否为工具请求 JSON
       //   是 → 先立即清空 placeholder（防止 JSON 闪现/长留气泡）→ 调 callMcpTool
@@ -816,7 +868,7 @@ async function requestPrivateReply(state, options = {}) {
                 acc.append(chunk);
                 const msg = state.messages.find((m) => m.id === placeholder.id);
                 acc.applyTo(msg);
-                if (acc.shouldRender()) state.renderOnly?.();
+                if (acc.shouldRender()) renderStream();
               }
             });
             // 兜底重试结果仍可能是工具 JSON，二次检测并丢弃
@@ -1098,6 +1150,7 @@ async function requestGroupReply(state, options = {}) {
         let result = null;
 
         const acc = createStreamAccumulator();
+        const renderStream = createStreamRenderScheduler(state, job);
         // 收集本轮可展示的动作记录（MCP/记忆/记仇），最终回写到 finalMessage 供过程链展示
         const pendingToolRecords = [];
 
@@ -1110,11 +1163,11 @@ async function requestGroupReply(state, options = {}) {
               const msg = state.groupMessages.find((m) => m.id === placeholder.id);
               acc.applyTo(msg);
               if (acc.shouldRender()) {
-                state.renderOnly?.();
+                renderStream();
               }
             }
           });
-          state.renderOnly?.();
+          renderStream.flush();
 
           // MCP 工具调用闭环：检测初次回复是否为工具请求 JSON
           if (result && result.content && parseMcpToolCall(result.content)) {
@@ -1145,7 +1198,7 @@ async function requestGroupReply(state, options = {}) {
                     acc.append(chunk);
                     const msg = state.groupMessages.find((m) => m.id === placeholder.id);
                     acc.applyTo(msg);
-                    if (acc.shouldRender()) state.renderOnly?.();
+                    if (acc.shouldRender()) renderStream();
                   }
                 });
               }
@@ -1391,13 +1444,14 @@ async function generateInnerMonologue({
       { role: 'user', content: user }
     ];
 
+    const timeout = createTimeoutSignal(12000);
     const result = await silentRequest({
       messages: promptMessages,
       model: '',
       temperature: 0.5,
-      signal: AbortSignal.timeout(12000),
+      signal: timeout.signal,
       json: true
-    });
+    }).finally(() => timeout.cleanup());
 
     const monologueData = parseInnerMonologueResult(result, userName);
     if (!monologueData.thinking) return;
@@ -1525,6 +1579,7 @@ function enrichToolCallsBackground(toolCalls, options = {}) {
     '- 数量必须和步骤数量一致'
   ].filter(Boolean).join('\n');
 
+  const timeout = createTimeoutSignal(8000);
   silentRequest({
     messages: [
       { role: 'system', content: system },
@@ -1532,9 +1587,9 @@ function enrichToolCallsBackground(toolCalls, options = {}) {
     ],
     model: '',
     temperature: 0.75,
-    signal: AbortSignal.timeout(8000),
+    signal: timeout.signal,
     json: true
-  }).then(async (result) => {
+  }).finally(() => timeout.cleanup()).then(async (result) => {
     // 后台 then 链写 state 前必须检查 state.mounted / job 是否仍有效，避免卸载后写入
     if (state && state.mounted === false) return;
 
@@ -2282,9 +2337,31 @@ async function handleMcpToolRequest(firstResult, ctx) {
     toolResult = await callMcpTool(matched.serverId, matched.name, toolCall.arguments || {});
   } catch (_) { toolResult = null; }
 
-  // 被禁用/需审批/失败：不暴露 JSON，降级为普通回复
+  // 被禁用/需审批/失败：不暴露 JSON，把失败写入过程链，并让最终回复知道没有取得工具结果。
   if (!toolResult || toolResult.blocked || toolResult.blockedByApproval || toolResult.isError) {
-    return { handled: true, finalResult: null, toolRecord: null };
+    const reason = toolResult?.blockedByApproval
+      ? '这个工具需要先确认，本轮没有调用。'
+      : (toolResult?.text || '工具这次没有返回可用结果。');
+    const toolRecord = cleanForDB({
+      name: 'mcp',
+      toolName: matched.name,
+      serviceName: matched.serverName || '',
+      status: 'error',
+      summary: summarizeText(reason, 80),
+      arguments: toolCall.arguments || {},
+      result: String(reason).slice(0, 500),
+      characterId: character?.id || '',
+      _source: 'tool'
+    });
+    return {
+      handled: true,
+      finalResult: {
+        content: '这个工具刚刚没有顺利取到结果，我先不把它当成真实资料。你愿意的话，我们可以换个方式再试一次。',
+        thinking: reason,
+        thinkingSummary: '工具没取到'
+      },
+      toolRecord
+    };
   }
 
   // 工具成功：把结果作为 context 再请求一次 AI（非流式，禁止再次工具调用）
@@ -2851,7 +2928,8 @@ async function startAIJob(state, meta = {}) {
     controller: new AbortController(),
     placeholderIds: [],
     stopped: false,
-    createdAt: getNow()
+    createdAt: getNow(),
+    jobId: generateId('job')
   };
 
   activeAIJobs.set(key, job);
@@ -2898,6 +2976,34 @@ function isAbortError(error) {
   return name.includes('abort') || message.includes('abort') || message.includes('aborted') || message.includes('signal');
 }
 
+function createStreamRenderScheduler(state, job) {
+  let rafId = 0;
+  const run = () => {
+    rafId = 0;
+    if (isStateForThisJob(state, job)) state.renderOnly?.();
+  };
+  const schedule = () => {
+    if (rafId || !isStateForThisJob(state, job)) return;
+    if (typeof requestAnimationFrame === 'function') rafId = requestAnimationFrame(run);
+    else rafId = setTimeout(run, 16);
+  };
+  schedule.flush = () => {
+    if (rafId) {
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafId);
+      else clearTimeout(rafId);
+      rafId = 0;
+    }
+    run();
+  };
+  schedule.cancel = () => {
+    if (!rafId) return;
+    if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafId);
+    else clearTimeout(rafId);
+    rafId = 0;
+  };
+  return schedule;
+}
+
 async function markJobPlaceholdersStopped(job, content) {
   if (!job?.store || !job.placeholderIds?.length) return;
 
@@ -2907,21 +3013,36 @@ async function markJobPlaceholdersStopped(job, content) {
 }
 
 async function markMessageStopped(store, id, content) {
+  return finalizeMessageState(store, id, {
+    status: 'stopped',
+    content: String(content || '我先停在这里了。'),
+    thinking: '我刚刚被打断了，先把话停住。',
+    thinkingSummary: '先停一下'
+  });
+}
+
+function isFinalMessageState(message) {
+  return Boolean(message && message.isPending === false && ['done', 'stopped', 'error'].includes(String(message.status || '')));
+}
+
+async function finalizeMessageState(store, id, outcome = {}) {
   if (!store || !id) return null;
 
   const message = await getMessageByIdFromStore(store, id).catch(() => null);
   if (!message) return null;
+  if (isFinalMessageState(message)) return message;
 
+  const status = String(outcome.status || 'done');
   const next = cleanForDB({
     ...message,
-    content: String(content || '我先停在这里了。'),
+    content: String(outcome.content ?? message.content ?? ''),
     isPending: false,
     isStreaming: false,
-    isStopped: true,
-    isError: false,
-    status: 'stopped',
-    thinking: message.thinking || '我刚刚被打断了，先把话停住。',
-    thinkingSummary: message.thinkingSummary || '先停一下',
+    isStopped: status === 'stopped',
+    isError: status === 'error',
+    status,
+    thinking: outcome.thinking ?? message.thinking ?? '',
+    thinkingSummary: outcome.thinkingSummary ?? message.thinkingSummary ?? '',
     updatedAt: getNow()
   });
 
@@ -2929,31 +3050,13 @@ async function markMessageStopped(store, id, content) {
   return saved ? next : null;
 }
 
-// ═══════════════════════════════════════
-// 【错误消息】把 placeholder 更新为可爱报错文案
-// ═══════════════════════════════════════
-
 async function markMessageError(store, id, content) {
-  if (!store || !id) return null;
-
-  const message = await getMessageByIdFromStore(store, id).catch(() => null);
-  if (!message) return null;
-
-  const next = cleanForDB({
-    ...message,
-    content: String(content || '我刚刚出了点小状况'),
-    isPending: false,
-    isStreaming: false,
-    isStopped: false,
-    isError: true,
+  return finalizeMessageState(store, id, {
     status: 'error',
-    thinking: '',
-    thinkingSummary: '',
-    updatedAt: getNow()
+    content: String(content || '我刚刚出了点小状况'),
+    thinking: '这次回复没有顺利完成。',
+    thinkingSummary: '回复失败'
   });
-
-  const saved = await setDBChecked(store, next);
-  return saved ? next : null;
 }
 
 async function getMessageByIdFromStore(store, id) {
@@ -3319,6 +3422,34 @@ function getChatConfig(characterId) {
   };
 }
 
+
+function isProactiveConfigEnabled(config) {
+  return Boolean(config?.proactiveMode1Enabled || config?.proactiveMode2Enabled);
+}
+
+function isProactiveDueNow(config, now = Date.now()) {
+  const next = Date.parse(config?.proactiveNextCheckAt || '');
+  if (Number.isFinite(next) && next > now) return false;
+  return true;
+}
+
+function computeNextProactiveDelayMs(config, options = {}) {
+  if (options.failed) return 10 * 60 * 1000;
+  const min1 = config?.proactiveMode1Enabled ? clampNumber(config.proactiveMode1Minutes, 1, 240) : 0;
+  const min2 = config?.proactiveMode2Enabled ? clampNumber(config.proactiveMode2MinMinutes, 1, 240) : 0;
+  const minutes = Math.min(...[min1, min2].filter(Boolean));
+  return (minutes || DEFAULT_PROACTIVE_CONFIG.proactiveMode1Minutes) * 60 * 1000;
+}
+
+function scheduleNextProactiveCheck(characterId, config, options = {}) {
+  if (!characterId) return;
+  const delay = computeNextProactiveDelayMs(config, options);
+  saveChatConfig(characterId, {
+    ...config,
+    proactiveNextCheckAt: new Date(Date.now() + delay).toISOString()
+  });
+}
+
 function normalizeMemoryWriteIntensity(value) {
   const intensity = String(value || '').trim().toLowerCase();
   if (['weak', 'low', 'strong', 'high'].includes(intensity)) return intensity;
@@ -3359,15 +3490,12 @@ function markProactiveSent(characterId) {
 
 async function updateUnreadCount(characterId, delta = 0) {
   if (!characterId) return;
-
-  const key = 'chat_unread_counts';
-  // 串行化 read-modify-write，避免多个并发 +1 覆盖回退
-  await enqueueUnreadWrite(key, () => {
-    const counts = getData(key) || {};
-    const current = Number(counts[characterId] || 0);
-    const next = { ...counts, [characterId]: Math.max(0, current + Number(delta || 0)) };
-    setData(key, next);
-    if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  await adjustChatUnread({
+    type: 'private',
+    threadId: characterId,
+    delta,
+    source: 'chat-ai',
+    eventType: 'ai-message'
   });
 }
 
@@ -3379,13 +3507,14 @@ function incrementGroupUnreadIfClosed(groupId, state) {
   // 该群聊正处于打开状态：不增加未读
   if (state && state.mounted && state.mode === 'group' && String(state.groupId || '') === id) return;
 
-  const key = 'chat_group_unread_counts';
-  // 串行化 read-modify-write，避免多个并发 +1 覆盖回退
-  enqueueUnreadWrite(key, () => {
-    const counts = getData(key) || {};
-    const current = Number(counts[id] || 0);
-    setData(key, { ...counts, [id]: current + 1 });
-    if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+  adjustChatUnread({
+    type: 'group',
+    threadId: id,
+    delta: 1,
+    source: 'chat-ai',
+    eventType: 'group-message'
+  }).catch((error) => {
+    console.warn('[chat-ai] group unread update failed', error?.message || error);
   });
 }
 
@@ -3575,6 +3704,8 @@ export const __testHooks = {
   buildModePrompt,
   buildGrudgePrompt,
   buildProactivePrompt,
+  formatMessageForPrompt,
+  isFinalMessageState,
   // 记仇判断
   detectGrudgeSignal,
   // MCP 工具调用解析（供 BUG1/BUG2 测试）

@@ -140,6 +140,39 @@ export const APP_DATA_REGISTRY = Object.freeze({
   }
 });
 
+
+export const CHAT_CHARACTER_LOCAL_CLEANUP = Object.freeze({
+  mapKeys: [
+    'chat_unread_counts',
+    'chat_group_unread_counts',
+    'chat_hidden_private_threads',
+    'chat_draft_map',
+    'chat_pinned_threads',
+    'chat_archived_threads',
+    'chat_active_thread'
+  ],
+  directKeyTemplates: [
+    'chat_{id}_config',
+    'chat_{id}_visible_count',
+    'last_moment_{id}',
+    'app_bg_chat_opacity_{id}',
+    'push_msg_watermark_{id}'
+  ],
+  prefixTemplates: [
+    'chat_ask_user_state_{id}_'
+  ]
+});
+
+export function getChatCharacterLocalCleanupSpec(characterId = '') {
+  const id = String(characterId || '').trim();
+  const apply = (template) => String(template || '').replace('{id}', id);
+  return {
+    mapKeys: [...CHAT_CHARACTER_LOCAL_CLEANUP.mapKeys],
+    directKeys: CHAT_CHARACTER_LOCAL_CLEANUP.directKeyTemplates.map(apply),
+    prefixes: CHAT_CHARACTER_LOCAL_CLEANUP.prefixTemplates.map(apply)
+  };
+}
+
 export const BACKUP_LOCAL_STORAGE_KEYS = Object.freeze(uniqueFlat(
   Object.values(APP_DATA_REGISTRY)
     .filter((item) => item.backup !== false)
@@ -245,7 +278,7 @@ export const APP_EVENT_SPECS = Object.freeze([
   {
     eventName: 'chat:external-message-failed',
     sourceApp: 'chat-event-bridge',
-    payload: ['eventId', 'sourceEventId', 'sourceApp', 'sourceType', 'characterId', 'error'],
+    payload: ['eventId', 'sourceEventId', 'sourceApp', 'sourceType', 'characterId', 'error', 'stage', 'recoverable', 'messageId'],
     consumers: [],
     consumerStatus: 'record-only',
     note: '外部消息落库或未读保存失败时发出，当前仅事件记录，供后续通知中心或上层兜底订阅。'

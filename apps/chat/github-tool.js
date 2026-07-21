@@ -4,7 +4,7 @@
 //   from '../../core/storage.js': getData, setData
 
 import { showBottomSheet, hideBottomSheet, showToast, showConfirm, createIcon } from '../../core/ui.js';
-import { getData, setData } from '../../core/storage.js';
+import { getData, setData, removeData } from '../../core/storage.js';
 
 // ═══════════════════════════════════════
 // 【配置存储】敏感数据隔离：Token 单独存键，不与 owner/repo/branch 混存
@@ -14,9 +14,40 @@ import { getData, setData } from '../../core/storage.js';
 
 const CONFIG_KEY = 'github_tool_config';
 const TOKEN_KEY = 'github_tool_token';
+const LAST_OPERATION_KEY = 'github_tool_last_operation';
 
 // 导出存储键常量，供数据管理（清空全部数据等）统一清理，避免散写
-export const GITHUB_TOOL_STORAGE_KEYS = [CONFIG_KEY, TOKEN_KEY];
+export const GITHUB_TOOL_STORAGE_KEYS = [CONFIG_KEY, TOKEN_KEY, LAST_OPERATION_KEY];
+
+export function clearGithubToken() {
+  return removeData(TOKEN_KEY) === true;
+}
+
+function getLastGithubOperation() {
+  const saved = getData(LAST_OPERATION_KEY, null);
+  return saved && typeof saved === 'object' ? saved : null;
+}
+
+function saveLastGithubOperation(record = {}) {
+  const clean = {
+    owner: String(record.owner || ''),
+    repo: String(record.repo || ''),
+    branch: String(record.branch || ''),
+    baseBranch: String(record.baseBranch || ''),
+    commitSha: String(record.commitSha || ''),
+    paths: Array.isArray(record.paths) ? record.paths.map((p) => String(p || '')).filter(Boolean) : [],
+    createdAt: record.createdAt || new Date().toISOString(),
+    prStatus: String(record.prStatus || 'pending'),
+    prUrl: String(record.prUrl || ''),
+    retryError: String(record.retryError || '').slice(0, 500)
+  };
+  setData(LAST_OPERATION_KEY, clean);
+  return clean;
+}
+
+function clearLastGithubOperation() {
+  removeData(LAST_OPERATION_KEY);
+}
 
 const DEFAULT_CONFIG = {
   owner: '',
@@ -59,8 +90,10 @@ function getConfig() {
 }
 
 function saveConfig(config) {
-  // token 单独存键；CONFIG_KEY 只保留非敏感字段
-  setData(TOKEN_KEY, String(config.token || ''));
+  // token 单独存键；CONFIG_KEY 只保留非敏感字段。空 token 表示清除，避免继续复用旧凭据。
+  const nextToken = String(config.token || '');
+  if (nextToken) setData(TOKEN_KEY, nextToken);
+  else removeData(TOKEN_KEY);
   setData(CONFIG_KEY, {
     owner: String(config.owner || ''),
     repo: String(config.repo || ''),
@@ -606,8 +639,8 @@ function buildConfigView(config, onSave, onContinue) {
     label.textContent = f.label;
     const input = document.createElement('input');
     input.type = f.type;
-    input.value = config[f.key] || '';
-    input.placeholder = f.placeholder;
+    input.value = f.key === 'token' ? '' : (config[f.key] || '');
+    input.placeholder = f.key === 'token' && config.token ? '已保存，可输入新 Token 替换' : f.placeholder;
     inputs[f.key] = input;
     field.append(label, input);
     wrap.appendChild(field);
@@ -619,11 +652,16 @@ function buildConfigView(config, onSave, onContinue) {
   saveBtn.type = 'button';
   saveBtn.className = 'gh-btn gh-btn-secondary';
   saveBtn.textContent = '保存配置';
+  const clearTokenBtn = document.createElement('button');
+  clearTokenBtn.type = 'button';
+  clearTokenBtn.className = 'gh-btn gh-btn-secondary';
+  clearTokenBtn.textContent = '清除 Token';
+  clearTokenBtn.disabled = !config.token;
   const loadBtn = document.createElement('button');
   loadBtn.type = 'button';
   loadBtn.className = 'gh-btn gh-btn-primary';
   loadBtn.textContent = '加载文件树';
-  actions.append(saveBtn, loadBtn);
+  actions.append(saveBtn, clearTokenBtn, loadBtn);
   wrap.appendChild(actions);
 
   const hint = document.createElement('div');
@@ -631,19 +669,70 @@ function buildConfigView(config, onSave, onContinue) {
   hint.textContent = '编辑文件后提交到新分支并自动创建 PR，不直接推 main。';
   wrap.appendChild(hint);
 
-  saveBtn.addEventListener('click', function() {
+  const lastOperation = getLastGithubOperation();
+  if (lastOperation && lastOperation.prStatus !== 'done') {
+    const restore = document.createElement('div');
+    restore.className = 'gh-branch-info';
+    restore.textContent = `上次 PR 还没完成：${lastOperation.owner}/${lastOperation.repo} · ${lastOperation.branch} · ${lastOperation.commitSha}`;
+    const retryBtn = document.createElement('button');
+    retryBtn.type = 'button';
+    retryBtn.className = 'gh-btn gh-btn-secondary';
+    retryBtn.textContent = '重试创建 PR';
+    retryBtn.addEventListener('click', async () => {
+      const cfg = getConfig();
+      try {
+        const pr = await createPullRequest(cfg, {
+          title: `继续创建 PR：${lastOperation.branch}`,
+          head: lastOperation.branch,
+          base: lastOperation.baseBranch || cfg.branch,
+          body: '由小手机 GitHub 工具继续创建'
+        });
+        saveLastGithubOperation({ ...lastOperation, prStatus: 'done', prUrl: pr?.html_url || '', retryError: '' });
+        showToast('PR 已继续创建好啦');
+      } catch (error) {
+        saveLastGithubOperation({ ...lastOperation, prStatus: 'failed', retryError: error?.message || String(error) });
+        showToast('PR 还是没创建成功，分支信息已经留好');
+      }
+    });
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'gh-btn gh-btn-secondary';
+    clearBtn.textContent = '清除记录';
+    clearBtn.addEventListener('click', () => { clearLastGithubOperation(); restore.remove(); });
+    restore.append(document.createElement('br'), retryBtn, clearBtn);
+    wrap.appendChild(restore);
+  }
+
+  function readConfigFromInputs() {
     const newConfig = {};
     Object.keys(inputs).forEach(function(k) { newConfig[k] = inputs[k].value.trim(); });
+    if (!newConfig.token && config.token) newConfig.token = config.token;
+    return newConfig;
+  }
+
+  saveBtn.addEventListener('click', function() {
+    const newConfig = readConfigFromInputs();
     saveConfig(newConfig);
+    config.token = newConfig.token || '';
     showToast('配置已保存');
-    if (typeof onSave === 'function') onSave(newConfig);
+    if (typeof onSave === 'function') onSave(getConfig());
+  });
+
+  clearTokenBtn.addEventListener('click', function() {
+    clearGithubToken();
+    config.token = '';
+    inputs.token.value = '';
+    inputs.token.placeholder = 'ghp_... 或 github_pat_...';
+    clearTokenBtn.disabled = true;
+    showToast('Token 已清除');
+    if (typeof onSave === 'function') onSave(getConfig());
   });
 
   loadBtn.addEventListener('click', function() {
-    const newConfig = {};
-    Object.keys(inputs).forEach(function(k) { newConfig[k] = inputs[k].value.trim(); });
+    const newConfig = readConfigFromInputs();
     saveConfig(newConfig);
-    if (typeof onContinue === 'function') onContinue(newConfig);
+    config.token = newConfig.token || '';
+    if (typeof onContinue === 'function') onContinue(getConfig());
   });
 
   return wrap;
@@ -1026,9 +1115,14 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
     if (aborted() || isClosed()) return;
 
     // 更新 sha
+    const commitSha = putResult?.commit?.sha || putResult?.content?.sha || '';
     if (putResult && putResult.content && putResult.content.sha) {
       fileState.sha = putResult.content.sha;
     }
+    saveLastGithubOperation({
+      owner: config.owner, repo: config.repo, branch: branchName, baseBranch: config.branch,
+      commitSha, paths: [fileState.path], prStatus: 'pending'
+    });
 
     // 步骤 4: 创建 PR
     showStatus('正在创建 Pull Request…');
@@ -1051,6 +1145,10 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
       branchInfo.className = 'gh-branch-info';
       branchInfo.textContent = '分支: ' + branchName;
       statusEl.appendChild(branchInfo);
+      saveLastGithubOperation({
+        owner: config.owner, repo: config.repo, branch: branchName, baseBranch: config.branch,
+        commitSha, paths: [fileState.path], prStatus: 'failed', retryError: prErr.message || '未知错误'
+      });
       // 提交成功后更新原始内容，允许继续编辑
       fileState.originalText = newText;
       commitInput.disabled = false;
@@ -1067,8 +1165,10 @@ async function commitAndCreatePR(config, fileState, newText, message, submitBtn,
       link.rel = 'noopener noreferrer';
       link.textContent = prUrl;
       statusEl.appendChild(link);
+      saveLastGithubOperation({ owner: config.owner, repo: config.repo, branch: branchName, baseBranch: config.branch, commitSha, paths: [fileState.path], prStatus: 'done', prUrl });
     } else {
       showStatus('提交成功，但未获取到 PR 链接。分支: ' + branchName, 'success');
+      saveLastGithubOperation({ owner: config.owner, repo: config.repo, branch: branchName, baseBranch: config.branch, commitSha, paths: [fileState.path], prStatus: 'done' });
     }
 
     // 提交成功后更新原始内容，禁用提交按钮直到再次修改

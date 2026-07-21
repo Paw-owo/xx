@@ -1265,10 +1265,7 @@ async function clearCurrentMessages() {
     }))
   );
 
-  const counts = getData('chat_unread_counts') || {};
-  delete counts[state.characterId];
-  setData('chat_unread_counts', counts);
-  window.refreshDesktopBadges?.();
+  await clearChatUnread('private', state.characterId, { source: 'chat-settings' }).catch(() => null);
 
   if (failedCount > 0) {
     console.warn(`[thread-settings] clearCurrentMessages: ${failedCount}/${messages.length} 条删除失败`);

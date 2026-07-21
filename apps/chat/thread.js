@@ -9,7 +9,6 @@
 //   from './thread-panels.js': openThreadToolsPanel, closeThreadPanels
 //   from './thread-relationship.js': loadRelationshipState, getRelationshipLockLevel, getRelationshipStatusText, createRelationshipLockBar, openRelationshipLockSheet
 //   from './thread-ai.js': checkThreadProactiveMessages
-//   from './thread-settings.js': mountThreadSettings, unmountThreadSettings
 
 import { getData, setData, getDB, getByIndexDB, compressImage } from '../../core/storage.js';
 import { showToast, hideBottomSheet } from '../../core/ui.js';
@@ -19,7 +18,7 @@ import { stopAll } from '../../core/tts.js';
 import { renderThreadMessages, resetVoicePlayer } from './thread-render.js';
 import { sendThreadMessage, stopThreadAIReply } from './thread-actions.js';
 import { openStickerSheet, closeStickerSheet } from './thread-stickers.js';
-import { openThreadToolsPanel, closeThreadPanels } from './thread-panels.js';
+import { openThreadToolsPanel, openThreadSettingsPanel, closeThreadPanels } from './thread-panels.js';
 import {
   loadRelationshipState,
   getRelationshipLockLevel,
@@ -27,8 +26,7 @@ import {
   createRelationshipLockBar,
   openRelationshipLockSheet
 } from './thread-relationship.js';
-import { checkThreadProactiveMessages, abortActiveAIJobsForUnmount } from './thread-ai.js';
-import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
+import { checkThreadProactiveMessages, abortActiveAIJobsForUnmount, repairStaleThreadPendingMessages } from './thread-ai.js';
 import {
   startRecording,
   stopRecording,
@@ -45,6 +43,7 @@ const DRAFT_KEY = 'chat_draft_map';
 
 // 壁纸变更监听取消句柄（mount 时注册，unmount 时移除）
 let offWallpaperListener = null;
+let searchRenderTimer = null;
 
 const state = {
   rootEl: null,
@@ -65,6 +64,7 @@ const state = {
   aiGenerating: false,
   stoppingAI: false,
   messageQueue: [],
+  queueConsuming: false,
   proactiveStartTimer: null,
   proactiveVisibleTimer: null,
   proactiveTimer: null,
@@ -158,6 +158,7 @@ export async function mountChatThread(containerEl, options = {}) {
   state.aiGenerating = false;
   state.stoppingAI = false;
   state.messageQueue = [];
+  state.queueConsuming = false;
   state.pendingImages = [];
   state.proactiveChecking = false;
   state.relationshipLock = null;
@@ -174,6 +175,8 @@ export async function mountChatThread(containerEl, options = {}) {
 
   injectStyle();
 
+  await loadThreadData();
+  await repairStaleThreadPendingMessages(state).catch(() => null);
   await loadThreadData();
   await loadWallpaperCache();
 
@@ -200,6 +203,7 @@ export function unmountChatThread() {
   state.aiGenerating = false;
   state.stoppingAI = false;
   state.messageQueue = [];
+  state.queueConsuming = false;
   state.pendingImages = [];
   // 卸载时清理录音：避免离开会话后录音仍在进行、麦克风轨道泄漏
   try {
@@ -209,6 +213,7 @@ export function unmountChatThread() {
   } catch (_) {}
   state.earState = 'idle';
   state.earElapsedMs = 0;
+  if (searchRenderTimer) { window.clearTimeout(searchRenderTimer); searchRenderTimer = null; }
   window.__chatActiveThread = null;
 
   // 移除壁纸变更监听，避免卸载后异步回写旧 state
@@ -269,26 +274,10 @@ export function unmountChatThread() {
 }
 
 function openSettingsPage() {
-  const containerEl = state.rootEl;
-  const savedAppState = state.appState;
-  const savedCharacterId = state.characterId;
-  const savedMode = state.mode;
-  const savedGroupId = state.groupId;
-
-  unmountChatThread();
-
-  mountThreadSettings(containerEl, {
-    characterId: savedCharacterId,
-    appState: {
-      goThread: () => {
-        unmountThreadSettings();
-        mountChatThread(containerEl, {
-          appState: savedAppState,
-          characterId: savedCharacterId,
-          groupId: savedGroupId,
-          mode: savedMode
-        });
-      }
+  // 设置是线程内 bottom sheet，不应走完整 unmount，避免误中止正在回复的 AI job。
+  openThreadSettingsPanel(state, {
+    settings: {
+      appState: state.appState
     }
   });
 }
@@ -387,6 +376,8 @@ function render() {
 
 async function reloadAndRender() {
   await loadThreadData();
+  await repairStaleThreadPendingMessages(state).catch(() => null);
+  await loadThreadData();
   await loadWallpaperCache();
 
   if (state.mode === 'private') {
@@ -446,9 +437,12 @@ function createHeader() {
 
 function createTitleText() {
   const wrap = el('div', 'chat-thread-title-text');
+  const status = el('div', 'chat-thread-status', getStatusText());
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
   wrap.append(
     el('div', 'chat-thread-name', getTargetName()),
-    el('div', 'chat-thread-status', getStatusText())
+    status
   );
   return wrap;
 }
@@ -466,7 +460,11 @@ function createSearchCard() {
 
   input.addEventListener('input', () => {
     state.searchValue = input.value.trim();
-    refreshMessageAreaOnly();
+    if (searchRenderTimer) window.clearTimeout(searchRenderTimer);
+    searchRenderTimer = window.setTimeout(() => {
+      searchRenderTimer = null;
+      refreshMessageAreaOnly();
+    }, 120);
   });
 
 
@@ -847,9 +845,28 @@ async function pickPendingImages() {
   input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
 
   return new Promise((resolve) => {
-    input.addEventListener('change', async () => {
+    let settled = false;
+    let cleanupTimer = null;
+    const cleanup = () => {
+      if (cleanupTimer) { window.clearTimeout(cleanupTimer); cleanupTimer = null; }
+      input.removeEventListener('change', handleChange);
+      window.removeEventListener('focus', handleFocusReturn);
+      if (input.parentNode) input.remove();
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve();
+    };
+    const handleFocusReturn = () => {
+      cleanupTimer = window.setTimeout(() => {
+        if (!settled && (!input.files || input.files.length === 0)) finish();
+      }, 600);
+    };
+    const handleChange = async () => {
       const files = Array.from(input.files || []);
-      if (files.length === 0) { resolve(); return; }
+      if (files.length === 0) { finish(); return; }
 
       for (const file of files) {
         try {
@@ -866,12 +883,12 @@ async function pickPendingImages() {
         }
       }
       render();
-      resolve();
-    });
+      finish();
+    };
+    input.addEventListener('change', handleChange, { once: true });
+    window.addEventListener('focus', handleFocusReturn);
     document.body.appendChild(input);
     input.click();
-    // 清理 DOM 节点
-    setTimeout(() => { input.remove(); }, 1000);
   });
 }
 
@@ -906,18 +923,29 @@ async function handleSend(input) {
         console.warn('[chat-thread] dynamic import thread-actions failed (queue branch):', importErr?.message || importErr);
       }
 
+      let queuedMessage = null;
+      const queuedThreadKey = getThreadQueueKey();
+      const queuedQuoteId = state.quotedMessageId;
       if (images.length > 0 && typeof sendImageTextMessage === 'function') {
-        await sendImageTextMessage(state, { text, images, quoteMessageId: state.quotedMessageId });
+        queuedMessage = await sendImageTextMessage(state, { text, images, quoteMessageId: queuedQuoteId, triggerAI: false });
       } else if (typeof saveMessageOnly === 'function') {
-        await saveMessageOnly(state, text, {
-          quoteMessageId: state.quotedMessageId
+        queuedMessage = await saveMessageOnly(state, text, {
+          quoteMessageId: queuedQuoteId
         });
       } else {
-        await sendThreadMessage(state, text, { triggerAI: false });
+        queuedMessage = await sendThreadMessage(state, text, { triggerAI: false, quoteMessageId: queuedQuoteId });
       }
 
       state.quotedMessageId = '';
-      state.messageQueue.push(text || '[图片]');
+      if (queuedMessage?.id) {
+        state.messageQueue.push({
+          id: queuedMessage.id,
+          mode: state.mode,
+          threadKey: queuedThreadKey,
+          type: queuedMessage.type || 'text',
+          createdAt: queuedMessage.createdAt || queuedMessage.timestamp || getNow()
+        });
+      }
       render();
       showToast('排队中，等 TA 回完就接着');
     } catch (error) {
@@ -961,7 +989,7 @@ async function handleSend(input) {
     }
 
     if (images.length > 0 && typeof sendImageTextMessage === 'function') {
-      await sendImageTextMessage(state, { text, images, quoteMessageId: state.quotedMessageId });
+      await sendImageTextMessage(state, { text, images, quoteMessageId: state.quotedMessageId, triggerAI: false });
     } else if (typeof saveMessageOnly === 'function') {
       await saveMessageOnly(state, text, {
         quoteMessageId: state.quotedMessageId
@@ -993,26 +1021,44 @@ async function handleSend(input) {
   } finally {
     state.aiGenerating = false;
 
-    // 处理排队消息：用稳定消费模式，成功一条才移除一条，期间新进入队列的消息不被覆盖
+    await consumeQueuedMessages();
+
+    render();
+  }
+}
+
+function getThreadQueueKey() {
+  return state.mode === 'group'
+    ? `group:${state.groupId || ''}`
+    : `private:${state.characterId || ''}`;
+}
+
+async function consumeQueuedMessages() {
+  if (state.queueConsuming) return;
+  state.queueConsuming = true;
+  try {
     while (state.mounted && state.messageQueue.length > 0) {
-      // 取队列首条作为本轮目标（不预先清空，避免 sendThreadMessage 抛错时丢消息）
+      const threadKey = getThreadQueueKey();
+      const batch = state.messageQueue.filter((item) => item && item.threadKey === threadKey);
+      if (!batch.length) break;
+
       state.aiGenerating = true;
       render();
       try {
-        await sendThreadMessage(state, '', { triggerAI: true, skipSave: true });
-        // 成功后才移除已消费的那一条；期间新 push 的消息保留在队列里下一轮处理
-        state.messageQueue.shift();
+        const queuedReply = await sendThreadMessage(state, '', { triggerAI: true, skipSave: true, queuedMessageIds: batch.map((item) => item.id) });
+        if (!queuedReply) throw new Error('queued_reply_empty');
+        const done = new Set(batch.map((item) => item.id));
+        state.messageQueue = state.messageQueue.filter((item) => !done.has(item?.id));
       } catch (error) {
         console.error('[chat-thread] queued AI reply failed', error);
         showToast('TA 刚刚走神了');
-        // 失败时保留队列，不再继续消费，避免丢消息；用户可手动停止或重试
         break;
       } finally {
         state.aiGenerating = false;
       }
     }
-
-    render();
+  } finally {
+    state.queueConsuming = false;
   }
 }
 
@@ -1120,7 +1166,7 @@ async function runProactiveCheck() {
 function getStatusText() {
   if (isAIWorking()) {
     if (state.messageQueue.length > 0) {
-      return `正在回复（还有 ${state.messageQueue.length} 条排队）`;
+      return `正在回复（还有 ${state.messageQueue.filter((item) => item?.threadKey === getThreadQueueKey()).length} 条排队）`;
     }
     return '正在输入';
   }
@@ -1541,6 +1587,13 @@ function injectStyle() {
       .chat-thread-status{ max-width:128px }
     }
 
+    .chat-thread-page button:focus-visible,
+    .chat-thread-page input:focus-visible,
+    .chat-thread-page textarea:focus-visible{
+      outline:2px solid var(--accent);
+      outline-offset:2px;
+    }
+
     @media(prefers-reduced-motion:reduce){
       .chat-thread-page, .chat-icon-btn, .chat-thread-send, .chat-load-more-btn{
         animation:none;
@@ -1552,5 +1605,5 @@ function injectStyle() {
   document.head.appendChild(style);
 }
 
-// 改了什么：handleSend 的 finally 块从 if 改成 while 循环，每次循环清空 messageQueue 再触发 AI 回复，确保排队消息全部处理完。
-// 依赖：../../core/storage.js(getData,setData,getDB,getByIndexDB)；../../core/ui.js(createIcon,showToast,hideBottomSheet)；../../core/tts.js(stopAll)；./thread-render.js(renderThreadMessages)；./thread-actions.js(sendThreadMessage,stopThreadAIReply)；./thread-stickers.js(openStickerSheet,closeStickerSheet)；./thread-panels.js(openThreadToolsPanel,closeThreadPanels)；./thread-relationship.js(loadRelationshipState,getRelationshipLockLevel,getRelationshipStatusText,createRelationshipLockBar,openRelationshipLockSheet)；./thread-ai.js(checkThreadProactiveMessages)；./thread-settings.js(mountThreadSettings,unmountThreadSettings)
+// 改了什么：连发队列保存已落库消息 ID 与会话 key，当前 AI 收尾后按会话批次触发下一轮，避免重复落库和跨会话消费。
+// 依赖：../../core/storage.js(getData,setData,getDB,getByIndexDB)；../../core/ui.js(createIcon,showToast,hideBottomSheet)；../../core/tts.js(stopAll)；./thread-render.js(renderThreadMessages)；./thread-actions.js(sendThreadMessage,stopThreadAIReply)；./thread-stickers.js(openStickerSheet,closeStickerSheet)；./thread-panels.js(openThreadToolsPanel,closeThreadPanels)；./thread-relationship.js(loadRelationshipState,getRelationshipLockLevel,getRelationshipStatusText,createRelationshipLockBar,openRelationshipLockSheet)；./thread-ai.js(checkThreadProactiveMessages)

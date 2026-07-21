@@ -4,8 +4,9 @@
 // 来自角色的外部私聊才写 chat_unread_counts；用户主动送出/转出不增加聊天角标
 // 角色隔离：无 characterId 不落库，不乱塞默认角色
 
-import { getData, setData, generateId, getNow, setDB, deleteDB } from './storage.js';
-import { on, emit, emitUnreadChanged } from './app-bus.js';
+import { generateId, getNow, setDB } from './storage.js';
+import { on, emit } from './app-bus.js';
+import { adjustChatUnread, isActiveChatThread, sumUnreadMap as sumChatUnreadMap } from './chat-unread.js';
 
 let initialized = false;
 
@@ -34,7 +35,7 @@ function isDuplicate(eventId) {
   return recentEventIds.has(eventId) || pendingEventIds.has(eventId);
 }
 
-function emitExternalMessageFailed(payload = {}, error) {
+function emitExternalMessageFailed(payload = {}, error, stage = 'message_write') {
   const sourceEventId = String(payload.sourceEventId || payload.eventId || '').trim();
   const errorMessage = error?.message || String(error || '外部消息还没写好');
   try {
@@ -44,7 +45,10 @@ function emitExternalMessageFailed(payload = {}, error) {
       sourceApp: String(payload.sourceApp || ''),
       sourceType: String(payload.sourceType || payload.type || ''),
       characterId: String(payload.characterId || ''),
-      error: errorMessage
+      error: errorMessage,
+      stage,
+      recoverable: stage === 'unread_update',
+      messageId: String(payload.messageId || '')
     });
   } catch (_) {}
 }
@@ -56,28 +60,8 @@ function sumUnreadMap(map) {
 }
 
 function emitChatUnreadChanged({ characterId, unreadMap, payload, nextCount }) {
-  try {
-    const emitted = emitUnreadChanged({
-      appId: 'chat',
-      source: String(payload.sourceApp || 'chat-event-bridge'),
-      type: 'external-message',
-      count: sumUnreadMap(unreadMap),
-      characterId,
-      threadId: characterId,
-      sourceType: String(payload.sourceType || payload.type || ''),
-      unread: Math.max(0, Number(nextCount) || 0)
-    });
-    if (!emitted && typeof window !== 'undefined' && typeof window.refreshDesktopBadges === 'function') {
-      window.refreshDesktopBadges();
-    }
-  } catch (error) {
-    console.warn('[chat-event-bridge] unread changed event failed', error);
-    try {
-      if (typeof window !== 'undefined' && typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
-    } catch (refreshError) {
-      console.warn('[chat-event-bridge] refreshDesktopBadges failed', refreshError);
-    }
-  }
+  // 兼容旧测试/调用说明：实际统一事件由 core/chat-unread.js 在写入成功后发出。
+  return { characterId, unreadMap, payload, nextCount, total: sumChatUnreadMap(unreadMap) };
 }
 
 function markEventHandled(eventId) {
@@ -147,6 +131,7 @@ async function handleShopGift(data) {
     markEventHandled(eventId);
   } catch (error) {
     console.error('[chat-event-bridge] handleShopGift 落库失败', error);
+    emitExternalMessageFailed({ ...data, sourceEventId: eventId, sourceApp: 'shop', sourceType: 'shop_gift', characterId }, error, 'message_write');
   } finally {
     pendingEventIds.delete(eventId);
   }
@@ -196,6 +181,7 @@ async function handleWalletTransfer(data) {
     markEventHandled(eventId);
   } catch (error) {
     console.error('[chat-event-bridge] handleWalletTransfer 落库失败', error);
+    emitExternalMessageFailed({ ...data, sourceEventId: eventId, sourceApp: 'wallet', sourceType: 'wallet_transfer', characterId }, error, 'message_write');
   } finally {
     pendingEventIds.delete(eventId);
   }
@@ -274,29 +260,27 @@ export async function appendExternalChatMessage(payload = {}) {
     return null;
   }
 
-  // 写未读：私聊用 chat_unread_counts，群聊不动 chat_group_unread_counts
-  // 若用户当前正在该私聊会话，不递增未读（chat.js 会 renderRoute 刷新显示）
-  // __chatActiveThread 为跨模块全局变量，做最小防御避免读取异常打崩整条链路
-  let isActivePrivate = false;
-  try {
-    const activeThread = window.__chatActiveThread;
-    isActivePrivate = Boolean(activeThread && activeThread.mode === 'private' &&
-      String(activeThread.characterId || '') === String(characterId || ''));
-  } catch (_) {}
-
+  // 写未读：消息已成功落库后再递增；未读失败不删除真实消息，保留失败事件供后续修正。
+  const isActivePrivate = isActiveChatThread({ type: 'private', threadId: characterId, characterId });
   const shouldIncrementUnread = payload.incrementUnread !== false;
   if (shouldIncrementUnread && !isActivePrivate) {
     try {
-      const unreadMap = getData('chat_unread_counts') || {};
-      const next = Math.max(0, Number(unreadMap[characterId] || 0) + 1);
-      const nextUnreadMap = { ...unreadMap, [characterId]: next };
-      const unreadSaved = setData('chat_unread_counts', nextUnreadMap);
-      if (!isDBWriteOk(unreadSaved)) throw new Error('聊天未读还没能保存');
-      emitChatUnreadChanged({ characterId, unreadMap: nextUnreadMap, payload, nextCount: next });
+      const unreadResult = await adjustChatUnread({
+        type: 'private',
+        threadId: characterId,
+        delta: 1,
+        source: String(payload.sourceApp || 'chat-event-bridge'),
+        eventType: 'external-message',
+        extra: { sourceType: String(payload.sourceType || payload.type || '') }
+      });
+      emitChatUnreadChanged({
+        characterId,
+        unreadMap: unreadResult?.unreadMap || {},
+        payload,
+        nextCount: unreadResult?.unread || 0
+      });
     } catch (error) {
-      try { await deleteDB('messages', message.id); } catch (_) {}
-      emitExternalMessageFailed(payload, error);
-      return null;
+      emitExternalMessageFailed({ ...payload, messageId: message.id }, error, 'unread_update');
     }
   }
 
