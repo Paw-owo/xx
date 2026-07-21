@@ -1589,6 +1589,7 @@
     let applyingImages = false;
     let imagesRefreshPending = false;
     let appOpenQueue = Promise.resolve();
+    let booting = false;
     let lastViewportWidth = window.innerWidth;
     let lastViewportHeight = window.innerHeight;
 
@@ -1652,38 +1653,65 @@
     window.refreshDesktop = refreshDesktop;
 
     boot();
-    initViewportManager();
-    let booting = false;
+    runBootOptionalStage('viewport-manager', () => initViewportManager());
 
     async function boot() {
       if (booting) return;
       booting = true;
       resetBootLoading();
+      const optionalFailures = [];
       try {
-        await initDB();
-        loadTheme();
-        await applyCustomFontFromStorage();
-        applyDesktopScale();
-        ensureDefaultSettings();
-        ensureFirstOpenSeed();
-        await seedDefaultCharacter();
-        await renderDesktop();
-        bindDesktopEvents();
-        bindLockScreen();
-        setupAppEvents();
-        initChatEventBridge();
-        initAnniversaryBridge();
-        initPushBridge();
-        initWidgets();
-        await applyAllImages();
-        refreshBadges();
-        updateLockState();
+        await runBootStage('storage:initDB', () => initDB());
+        await runBootStage('theme:load', () => loadTheme());
+        await runBootStage('font:custom', () => applyCustomFontFromStorage());
+        await runBootStage('desktop:scale', () => applyDesktopScale());
+        await runBootStage('settings:defaults', () => ensureDefaultSettings());
+        await runBootStage('first-open:seed-flag', () => ensureFirstOpenSeed());
+        await runBootStage('character:seed-default', () => seedDefaultCharacter());
+        await runBootStage('desktop:render', () => renderDesktop());
+        await runBootStage('desktop:bind-events', () => bindDesktopEvents());
+        await runBootStage('lock:bind', () => bindLockScreen());
+        await runBootStage('app-events:setup', () => setupAppEvents());
+        await runBootOptionalStage('bridge:chat-events', () => initChatEventBridge(), optionalFailures);
+        await runBootOptionalStage('bridge:anniversary', () => initAnniversaryBridge(), optionalFailures);
+        await runBootOptionalStage('bridge:push', () => initPushBridge(), optionalFailures);
+        await runBootOptionalStage('widgets:init', () => initWidgets(), optionalFailures);
+        await runBootOptionalStage('images:apply-all', () => applyAllImages(), optionalFailures);
+        await runBootOptionalStage('badges:refresh', () => refreshBadges(), optionalFailures);
+        await runBootStage('lock:update-state', () => updateLockState());
+        if (optionalFailures.length) {
+          console.warn('[boot] optional stages failed; desktop is still available', optionalFailures);
+        }
+        console.info('[boot] desktop ready');
         hideBootLoading();
       } catch (error) {
-        console.error(error);
-        renderBootError();
+        console.error('[boot] core stage failed', error);
+        renderBootError(error);
       } finally {
         booting = false;
+      }
+    }
+
+    async function runBootStage(stage, task) {
+      console.info(`[boot] start ${stage}`);
+      try {
+        const result = await task();
+        console.info(`[boot] done ${stage}`);
+        return result;
+      } catch (error) {
+        console.error(`[boot] failed ${stage}`, error);
+        if (error && typeof error === 'object') error.bootStage = stage;
+        throw error;
+      }
+    }
+
+    async function runBootOptionalStage(stage, task, failures = []) {
+      try {
+        return await runBootStage(stage, task);
+      } catch (error) {
+        failures.push({ stage, message: error?.message || String(error) });
+        console.warn(`[boot] optional stage skipped ${stage}`, error);
+        return null;
       }
     }
 
@@ -1701,7 +1729,7 @@
       }, 260);
     }
 
-    function renderBootError() {
+    function renderBootError(error) {
       if (!loadingEl) return;
       loadingEl.classList.remove('hide');
       loadingEl.innerHTML = '';
@@ -1711,14 +1739,37 @@
       mark.className = 'loading-mark';
       const text = document.createElement('div');
       text.className = 'loading-text';
-      text.textContent = '小手机刚刚没醒好，再试一次吧';
+      const stage = error?.bootStage ? `（${error.bootStage}）` : '';
+      text.textContent = `小手机刚刚没醒好${stage}，可以再轻轻试一次`;
       const retry = document.createElement('button');
       retry.type = 'button';
       retry.className = 'loading-retry';
-      retry.textContent = '重试';
+      retry.textContent = '刷新试试';
       retry.addEventListener('click', () => { boot(); });
-      card.append(mark, text, retry);
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'loading-retry';
+      clear.textContent = '清理缓存后刷新';
+      clear.addEventListener('click', clearBootCachesAndReload);
+      card.append(mark, text, retry, clear);
       loadingEl.append(card);
+    }
+
+    async function clearBootCachesAndReload() {
+      console.info('[boot] clear caches requested');
+      try {
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((item) => item.unregister()));
+        }
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((key) => caches.delete(key)));
+        }
+      } catch (error) {
+        console.warn('[boot] cache cleanup skipped', error);
+      }
+      window.location.reload();
     }
 
     async function refreshDesktop() {
