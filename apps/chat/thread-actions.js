@@ -17,7 +17,7 @@ import {
 } from '../../core/storage.js';
 
 import { showToast } from '../../core/ui.js';
-import { playTTS, stopAll, buildCharacterTtsOverride } from '../../core/tts.js';
+import { playTTS, stopAll, buildCharacterTtsOverride, isCharacterTtsDisabled } from '../../core/tts.js';
 import { deductBalance, getBalance } from '../wallet.js';
 import { stripAskUserBlocks, buildAskUserStateKey } from './ask-user-pure.js';
 
@@ -739,7 +739,7 @@ export async function playThreadTTS(state, message) {
 
   // 角色 TTS 配置：enabled:false 时跳过播放，否则作为 override 传入
   const ttsOverride = buildCharacterTtsOverride(state.character);
-  if (ttsOverride === null && state.character?.ttsConfig && state.character.ttsConfig.enabled === false) {
+  if (isCharacterTtsDisabled(ttsOverride)) {
     showToast('这个角色关闭了语音');
     state.activeTtsMessageId = '';
     state.activeTts = false;
@@ -747,7 +747,7 @@ export async function playThreadTTS(state, message) {
   }
 
   try {
-    await playTTS(text, ttsOverride || undefined);
+    await playTTS(text, ttsOverride ?? undefined);
     return true;
   } catch (_) {
     showToast('朗读失败');

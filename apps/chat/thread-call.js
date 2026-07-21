@@ -15,7 +15,7 @@ import {
 import { showToast } from '../../core/ui.js';
 import { createChatIcon } from './icons.js';
 import { silentRequest } from '../../core/api.js';
-import { playTTS, stopAll, buildCharacterTtsOverride } from '../../core/tts.js';
+import { playTTS, stopAll, buildCharacterTtsOverride, isCharacterTtsDisabled } from '../../core/tts.js';
 import { addMemory } from '../../core/memory.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
@@ -657,12 +657,12 @@ function speakText(text) {
 
   // 角色 TTS 配置：enabled:false 时跳过播放，否则作为 override 传入
   const ttsOverride = buildCharacterTtsOverride(callState.character);
-  if (ttsOverride === null && callState.character?.ttsConfig && callState.character.ttsConfig.enabled === false) {
+  if (isCharacterTtsDisabled(ttsOverride)) {
     return;
   }
 
   stopAll();
-  playTTS(content, ttsOverride || undefined).catch(() => {
+  playTTS(content, ttsOverride ?? undefined).catch(() => {
     // TTS 失败不影响通话文字
   });
 }

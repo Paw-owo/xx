@@ -14,17 +14,27 @@ export function normalizeHttpImageUrl(value) {
   }
 }
 
+const REMOTE_IMAGE_VERIFY_TIMEOUT = 9000;
+
 export function verifyRemoteImage(url) {
   return new Promise((resolve) => {
     const image = new Image();
+    let timer = null;
     let settled = false;
     const finish = (ok) => {
       if (settled) return;
       settled = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
       image.onload = null;
       image.onerror = null;
+      // 清掉 src，避免超时后浏览器继续保持半开的图片请求。
+      try { image.src = ''; } catch (_) {}
       resolve(ok);
     };
+    timer = setTimeout(() => finish(false), REMOTE_IMAGE_VERIFY_TIMEOUT);
     image.onload = () => finish(image.naturalWidth > 0 && image.naturalHeight > 0);
     image.onerror = () => finish(false);
     image.src = url;

@@ -121,13 +121,24 @@ function cleanTextForSpeech(text) {
 // 【配置解析】合并全局 TTS 配置和角色覆盖
 // ═══════════════════════════════════════
 
+// 角色 TTS 配置需要表达三种状态：
+// - null：角色没有专属配置，调用方可以回退全局 TTS
+// - CHARACTER_TTS_DISABLED：角色明确关闭语音，调用方必须跳过播放
+// - object：角色启用专属配置，作为 playTTS 的 configOverride
+export const CHARACTER_TTS_DISABLED = Object.freeze({ enabled: false, explicitDisabled: true });
+
+export function isCharacterTtsDisabled(ttsOverride) {
+  return ttsOverride === CHARACTER_TTS_DISABLED
+    || (ttsOverride && ttsOverride.enabled === false && ttsOverride.explicitDisabled === true);
+}
+
 // 统一把角色 ttsConfig 转成 playTTS 第二参数 configOverride
-// enabled:false 或无配置 → 返回 null（调用方应跳过播放）
 // 字段映射：ttsConfig.{provider,voice,apiKey,endpoint,model} → override 同名
 //          ttsConfig 无 voiceId/language，留给全局兜底
 export function buildCharacterTtsOverride(character) {
   const cfg = character?.ttsConfig;
-  if (!cfg || cfg.enabled === false) return null;
+  if (!cfg) return null;
+  if (cfg.enabled === false) return CHARACTER_TTS_DISABLED;
   return {
     provider: cfg.provider || '',
     voice: cfg.voice || '',

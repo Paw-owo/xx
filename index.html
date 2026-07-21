@@ -2149,6 +2149,7 @@
         widgetEl.addEventListener('click', (event) => {
           if (editing || dragState || clickSuppressor.consume() || event.target.closest('button')) return;
           if (widgetEl.dataset.weatherAction === 'settings') openWeatherSettings();
+          else if (widgetEl.dataset.weatherAction === 'retry') updateWeather({ force: true });
           else updateWeather({ force: true });
         });
       }
@@ -2201,7 +2202,7 @@
         const artistEl = document.createElement('div');
         artistEl.className = 'vinyl-artist';
         artistEl.id = 'vinyl-artist';
-        artistEl.textContent = '去音乐里挑一首吧';
+        artistEl.textContent = '打开音乐库挑一首吧';
 
         const controls = document.createElement('div');
         controls.className = 'vinyl-controls';
@@ -2739,7 +2740,7 @@
       statusOnlineEl.classList.toggle('is-offline', !online);
     }
 
-    async function updateWeather({ force = false } = {}) {
+    async function updateWeather({ force = false, retry = false } = {}) {
       const weatherValueEl = document.getElementById('weather-value');
       if (!weatherValueEl) return null;
       const cached = getData('app_weather_cache') || getData('weather_cache');
@@ -2764,13 +2765,18 @@
           renderWeather(cache);
           return cache;
         } catch (error) {
+          if (!retry && error?.name !== 'AbortError') {
+            renderWeatherStatus('天气还在路上', '稍等一下，小手机会再试一次；点这里也能马上重试', () => updateWeather({ force: true }));
+            window.setTimeout(() => updateWeather({ force: true, retry: true }).catch(() => {}), 1200);
+            return cached || null;
+          }
           if (cached) {
-            renderWeather(cached, '天气刷新失败，点卡片去设置里看看');
+            renderWeather(cached, '天气刚刚没刷新好，点卡片再试一次');
             const widget = document.getElementById('weather-widget');
-            if (widget) widget.dataset.weatherAction = 'settings';
+            if (widget) widget.dataset.weatherAction = 'retry';
             return cached;
           }
-          renderWeatherStatus('暂时没有天气数据', error?.name === 'AbortError' ? '请求超时，点这里去设置里看看' : '点这里去设置里补一下城市', openWeatherSettings);
+          renderWeatherStatus('暂时没有天气数据', error?.name === 'AbortError' ? '请求超时，点这里再试一次' : '点这里再试一次，或去设置里补一下城市', () => updateWeather({ force: true }));
           return null;
         } finally {
           window.clearTimeout(timeoutId);
@@ -2855,7 +2861,7 @@
       const weatherValueEl = document.getElementById('weather-value');
       if (!weatherValueEl) return;
       const widget = document.getElementById('weather-widget');
-      if (widget) widget.dataset.weatherAction = action ? 'settings' : '';
+      if (widget) widget.dataset.weatherAction = action ? (action === openWeatherSettings ? 'settings' : 'retry') : '';
       weatherValueEl.innerHTML = '';
       const primary = document.createElement('div'); primary.className = 'widget-value'; primary.textContent = title;
       const meta = document.createElement(action ? 'button' : 'div');
@@ -2906,7 +2912,7 @@
 
 
     async function openMusicForSelection() {
-      showToast('先去音乐里挑一首吧');
+      showToast('先去音乐库挑一首吧');
       await openApp('music');
       getAPI('music')?.openPlayer?.();
     }

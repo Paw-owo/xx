@@ -41,7 +41,9 @@ const DYNAMIC_KEY_PREFIXES = collectBackupDynamicKeyPrefixes();
 
 const MEMORY_SUMMARY_CHECKPOINT_PREFIX = 'mem_sum_';
 
-const INDEXED_DB_STORES = [
+const DB_NAME = 'ai_phone_db';
+
+const FALLBACK_INDEXED_DB_STORES = [
   'characters',
   'messages',
   'moments',
@@ -71,6 +73,48 @@ const INDEXED_DB_STORES = [
   'ai_phone_action_logs'
 ];
 
+
+async function getIndexedDbStoreNames() {
+  if (restoreTestHooks.storeNames) return await restoreTestHooks.storeNames();
+  if (typeof indexedDB === 'undefined' || typeof indexedDB.open !== 'function') {
+    return [...FALLBACK_INDEXED_DB_STORES];
+  }
+
+  return await new Promise((resolve) => {
+    let request;
+    try {
+      request = indexedDB.open(DB_NAME);
+    } catch (_) {
+      resolve([...FALLBACK_INDEXED_DB_STORES]);
+      return;
+    }
+
+    request.onerror = () => resolve([...FALLBACK_INDEXED_DB_STORES]);
+    request.onsuccess = () => {
+      const db = request.result;
+      const names = Array.from(db.objectStoreNames || []);
+      try { db.close(); } catch (_) {}
+      if (names.length) {
+        warnIfStoreListDrift(names);
+        resolve(names);
+      } else {
+        resolve([...FALLBACK_INDEXED_DB_STORES]);
+      }
+    };
+  });
+}
+
+function warnIfStoreListDrift(storeNames) {
+  const fallback = new Set(FALLBACK_INDEXED_DB_STORES);
+  const live = new Set(storeNames);
+  const missing = [...live].filter((name) => !fallback.has(name));
+  const stale = [...fallback].filter((name) => !live.has(name));
+  if (!missing.length && !stale.length) return;
+  try {
+    console.warn('[storage-manager] IndexedDB store list differs from fallback', { missing, stale });
+  } catch (_) {}
+}
+
 const DEFAULT_CLOUD_CONFIG = {
   enabled: false,
   endpoint: '',
@@ -94,7 +138,8 @@ const restoreTestHooks = {
   clearStoreDB: null,
   setDB: null,
   setData: null,
-  removeData: null
+  removeData: null,
+  storeNames: null
 };
 
 let syncLock = false;
@@ -239,7 +284,8 @@ export async function buildLocalSnapshot() {
     // localStorage 不可用时静默，快照仍含静态键
   }
 
-  for (const storeName of INDEXED_DB_STORES) {
+  const indexedDbStores = await getIndexedDbStoreNames();
+  for (const storeName of indexedDbStores) {
     try {
       indexedDBData[storeName] = await getAllDB(storeName);
     } catch {
@@ -275,7 +321,7 @@ export async function applyLocalSnapshot(snapshot, options = {}) {
   };
 
   await restoreLocalSnapshot({ ...snapshot, localStorage: localStorageData }, {
-    stores: INDEXED_DB_STORES,
+    stores: await getIndexedDbStoreNames(),
     isAllowedLocalKey: isSnapshotLocalKey,
     overwrite: options.overwrite !== false,
     finalLocalStorage: { [SYNC_STATUS_KEY]: syncStatus }

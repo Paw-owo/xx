@@ -21,6 +21,7 @@ import {
   generateLocalReply,
   requestSiliconFlowReply
 } from '../../core/local-chat.js';
+import { getApiPoolItems } from '../../core/api.js';
 
 // ═══════════════════════════════════════
 // 【启动种子】首次打开自动塞入默认人设
@@ -83,18 +84,35 @@ export async function seedDefaultCharacter() {
 // 【API检测】用户是否配了可用的在线API
 // ═══════════════════════════════════════
 
-function hasUserAPI() {
+function hasUsableLegacyEndpoint() {
+  const settings = getData('app_settings') || {};
+  const endpoints = Array.isArray(settings.apiEndpoints) ? settings.apiEndpoints : [];
+  const defaultId = settings.defaultApiEndpointId || '';
+
+  if (defaultId) {
+    const found = endpoints.find((ep) => String(ep.id) === defaultId && ep.apiKey);
+    if (found) return true;
+  }
+
+  return endpoints.some((ep) => ep.apiKey && ep.enabled !== false);
+}
+
+async function hasUserAPI() {
   try {
-    const settings = getData('app_settings') || {};
-    const endpoints = Array.isArray(settings.apiEndpoints) ? settings.apiEndpoints : [];
-    const defaultId = settings.defaultApiEndpointId || '';
+    const poolItems = await getApiPoolItems();
+    const hasPoolApi = Array.isArray(poolItems) && poolItems.some((item) => {
+      if (!item || item.enabled === false || item.status === 'disabled') return false;
+      if (item.groupType === 'sensory_eye' || item.groupType === 'sensory_ear') return false;
+      const keys = Array.isArray(item.keys) ? item.keys : [];
+      return keys.some((key) => String(key || '').trim());
+    });
+    if (hasPoolApi) return true;
+  } catch (_) {
+    // api_pool 读取失败时继续兼容旧字段，避免检测异常直接误判。
+  }
 
-    if (defaultId) {
-      const found = endpoints.find((ep) => String(ep.id) === defaultId && ep.apiKey);
-      if (found) return true;
-    }
-
-    return endpoints.some((ep) => ep.apiKey && ep.enabled !== false);
+  try {
+    return hasUsableLegacyEndpoint();
   } catch (_) {
     return false;
   }
@@ -112,7 +130,7 @@ export async function tryLocalOrSiliconFlowReply(state, options = {}) {
   const character = options.character || state.character;
   if (!character?.useLocalChat) return null;
 
-  if (hasUserAPI()) return null;
+  if (await hasUserAPI()) return null;
 
   const characterId = character?.id || state.characterId;
   const messages = options.messages || state.messages || [];

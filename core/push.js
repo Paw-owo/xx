@@ -124,6 +124,7 @@ export async function pushCharacterState(stateOrEvent) {
 // ═══════════════════════════════════════
 
 const WATERMARK_PREFIX = 'push_msg_watermark_';
+const messagePushInFlight = new Map();
 
 function readWatermark(characterId) {
   const key = WATERMARK_PREFIX + String(characterId || '');
@@ -138,7 +139,7 @@ function writeWatermark(characterId, timestamp) {
   setData(key, timestamp);
 }
 
-export async function pushMessages(characterId, characterName, messages) {
+async function pushMessagesOnce(characterId, characterName, messages) {
   if (!characterId) return;
   if (!Array.isArray(messages) || messages.length === 0) return;
 
@@ -172,6 +173,22 @@ export async function pushMessages(characterId, characterName, messages) {
   if (Number.isFinite(lastTs)) {
     writeWatermark(characterId, lastTs);
   }
+}
+
+export async function pushMessages(characterId, characterName, messages) {
+  if (!characterId) return;
+  const key = String(characterId);
+  const current = messagePushInFlight.get(key);
+  if (current) return current;
+
+  const task = pushMessagesOnce(characterId, characterName, messages)
+    .finally(() => {
+      if (messagePushInFlight.get(key) === task) {
+        messagePushInFlight.delete(key);
+      }
+    });
+  messagePushInFlight.set(key, task);
+  return task;
 }
 
 // ═══════════════════════════════════════

@@ -18,7 +18,7 @@ import {
   listThemeOptimizationLog
 } from '../core/theme-ai-agent.js';
 import { getData, setData } from '../core/storage.js';
-import { showToast, showConfirm } from '../core/ui.js';
+import { showToast, showConfirm, showBottomSheet, hideBottomSheet } from '../core/ui.js';
 
 export const THEME_CENTER_FAVORITES_KEY = 'theme_center_favorites';
 
@@ -224,18 +224,59 @@ async function handleWearTheme(theme) {
   setStatus(result.ok ? `已经换上：${result.theme.themeConfig.themeName}` : `还没换好：${(result.errors || []).join('、')}`);
 }
 
+
+function askThemeInfo(cfg = {}) {
+  return new Promise((resolve) => {
+    const panel = el('div', 'theme-center-edit-sheet');
+    panel.append(el('h3', '', '整理小世界名片'));
+    panel.append(el('p', 'theme-center-soft', '给它补上名字和一句轻轻的介绍，不会打断小手机的页面。'));
+
+    const nameInput = el('input', 'theme-center-input');
+    nameInput.type = 'text';
+    nameInput.value = cfg.themeName || '未命名小世界';
+    nameInput.placeholder = '小世界名字';
+
+    const descInput = el('textarea', 'theme-center-textarea');
+    descInput.value = cfg.description || '';
+    descInput.placeholder = '一句小介绍';
+
+    panel.append(fieldWrap('名字', nameInput), fieldWrap('介绍', descInput));
+    const actions = actionRow([
+      actionButton('收好名片', 'check', () => {
+        const value = {
+          themeName: String(nameInput.value || '').trim() || cfg.themeName || '未命名小世界',
+          description: String(descInput.value || '').trim()
+        };
+        hideBottomSheet();
+        resolve(value);
+      }),
+      actionButton('先不改', 'close', () => {
+        hideBottomSheet();
+        resolve(null);
+      })
+    ]);
+    panel.append(actions);
+    showBottomSheet(panel);
+    window.setTimeout(() => nameInput.focus?.(), 0);
+  });
+}
+
+function fieldWrap(label, input) {
+  const wrap = el('label', 'theme-center-field');
+  wrap.append(el('span', '', label), input);
+  return wrap;
+}
+
 async function handleEditThemeInfo(theme) {
   const cfg = theme?.themeConfig || {};
-  const nextName = prompt('给这个小世界取个温柔名字吧', cfg.themeName || '未命名小世界');
-  if (nextName === null) return;
-  const nextDesc = prompt('给它留一句小介绍吧', cfg.description || '');
-  if (nextDesc === null) return;
+  const nextInfo = await askThemeInfo(cfg);
+  if (!nextInfo) return;
   const result = await saveThemeVersionAsync({
     ...theme,
     themeConfig: {
       ...cfg,
-      themeName: String(nextName || '').trim() || cfg.themeName || '未命名小世界',
-      description: String(nextDesc || '').trim()
+      themeName: nextInfo.themeName,
+      description: nextInfo.description
     }
   });
   setStatus(result.ok ? '小世界信息已经收好。' : `这次还没写好：${(result.errors || []).join('、')}`);
@@ -390,7 +431,7 @@ function injectStyle() {
     .theme-center::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at top left,color-mix(in srgb,var(--accent-light) 36%,transparent),transparent 42%);pointer-events:none}.theme-center-nav{position:relative;z-index:1;display:flex;align-items:center;gap:var(--spacing-sm);padding:14px 16px 8px}.theme-center-back,.theme-center-action,.theme-center-mini{border:1px solid color-mix(in srgb,var(--border-soft) 68%,transparent);border-radius:var(--radius-full);background:color-mix(in srgb,var(--surface-paper) 88%,var(--accent-light));color:var(--text-primary);box-shadow:var(--shadow-sm),var(--inner-highlight);font:inherit;display:inline-flex;align-items:center;justify-content:center;gap:6px}.theme-center-back{min-width:92px;padding:9px 12px}.theme-center-title{min-width:0}.theme-center-title .nav-title{font-weight:800}.theme-center-title .nav-subtitle{font-size:12px;color:var(--text-secondary)}
     .theme-center-content{position:relative;z-index:1;flex:1;overflow:auto;padding:8px 14px 24px}.theme-center-room{max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:14px}.theme-center-hero,.theme-center-card,.theme-center-preview-note{border:1px solid color-mix(in srgb,var(--border-soft) 72%,transparent);border-radius:var(--radius-lg);background:linear-gradient(145deg,color-mix(in srgb,var(--bg-card) 94%,transparent),color-mix(in srgb,var(--accent-light) 18%,var(--bg-card)));box-shadow:var(--shadow-card),var(--inner-highlight);padding:16px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}.theme-center-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:var(--spacing-md)}.theme-center-hero h2{margin:4px 0;font-size:24px}.theme-center-hero p,.theme-center-soft,.theme-center-theme span,.theme-center-theme small,.theme-center-preview-note span{color:var(--text-secondary);font-size:13px}.theme-center-hero small{color:var(--accent-dark);font-weight:700}.theme-center-actions{display:flex;gap:8px;flex-wrap:wrap}.theme-center-action{padding:10px 13px}.theme-center-mini{padding:7px 10px;font-size:12px}.theme-center-import-file,.theme-center-none{display:none}
     .theme-center-preview-note{display:flex;align-items:center;justify-content:space-between;gap:var(--spacing-sm)}.theme-center-sections{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.theme-center-card{display:flex;flex-direction:column;gap:10px}.theme-center-card h3{margin:0;font-size:17px}.theme-center-soft{margin:0}.theme-center-theme-list{display:flex;flex-direction:column;gap:10px}.theme-center-theme{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;border-radius:var(--radius-md);background:color-mix(in srgb,var(--surface-muted) 68%,var(--bg-card));border:1px solid color-mix(in srgb,var(--border-soft) 58%,transparent);box-shadow:inset 0 1px 0 color-mix(in srgb,white 70%,transparent);padding:10px}.theme-center-theme.is-active{outline:2px solid color-mix(in srgb,var(--accent) 44%,transparent)}.theme-center-theme-body{display:flex;flex-direction:column;gap:3px;min-width:0}.theme-center-theme .theme-center-actions{grid-column:1 / -1}.theme-center-cover{width:58px;height:58px;border-radius:var(--radius-md);background:linear-gradient(145deg,var(--room-bg),var(--room-card));border:1px solid color-mix(in srgb,var(--border-soft) 72%,transparent);box-shadow:var(--shadow-sm),var(--inner-highlight);position:relative;overflow:hidden}.theme-center-cover i,.theme-center-cover b,.theme-center-cover em{position:absolute;display:block;border-radius:var(--radius-full)}.theme-center-cover i{inset:11px;background:var(--room-card)}.theme-center-cover b{width:18px;height:18px;right:8px;bottom:8px;background:var(--room-accent)}.theme-center-cover em{width:9px;height:9px;left:10px;top:10px;background:color-mix(in srgb,var(--room-accent) 48%,var(--bg-card))}
-    .theme-center-empty,.theme-center-log{border-radius:var(--radius-md);background:color-mix(in srgb,var(--accent-light) 28%,var(--bg-card));padding:11px;color:var(--text-secondary);font-size:13px}.theme-center-log{grid-column:1 / -1;display:flex;flex-direction:column;gap:5px;color:var(--text-primary)}.theme-center-log span{color:var(--text-secondary)}
+    .theme-center-edit-sheet{display:flex;flex-direction:column;gap:12px}.theme-center-edit-sheet h3{margin:0;color:var(--text-primary)}.theme-center-field{display:flex;flex-direction:column;gap:6px;color:var(--text-secondary);font-size:13px}.theme-center-input,.theme-center-textarea{width:100%;border-radius:var(--radius-md);background:var(--surface-muted);color:var(--text-primary);padding:11px 13px;font:inherit}.theme-center-textarea{min-height:96px;resize:none;line-height:1.55}.theme-center-empty,.theme-center-log{border-radius:var(--radius-md);background:color-mix(in srgb,var(--accent-light) 28%,var(--bg-card));padding:11px;color:var(--text-secondary);font-size:13px}.theme-center-log{grid-column:1 / -1;display:flex;flex-direction:column;gap:5px;color:var(--text-primary)}.theme-center-log span{color:var(--text-secondary)}
     @media (max-width:720px){.theme-center-hero,.theme-center-preview-note{align-items:flex-start;flex-direction:column}.theme-center-sections{grid-template-columns:1fr}}
   `;
   document.head.append(styleEl);
