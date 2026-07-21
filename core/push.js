@@ -125,6 +125,11 @@ export async function pushCharacterState(stateOrEvent) {
 
 const WATERMARK_PREFIX = 'push_msg_watermark_';
 
+// per-characterId 的 in-flight 锁：同一角色同一时刻只允许一个 pushMessages 在跑。
+// 并发第二次调用直接跳过，避免读到同一 watermark 后 POST 相同批次造成重复推送。
+// 不同角色互不影响（不同 key），可以并行。
+const inflightPushMessages = new Set();
+
 function readWatermark(characterId) {
   const key = WATERMARK_PREFIX + String(characterId || '');
   const raw = getData(key);
@@ -142,35 +147,46 @@ export async function pushMessages(characterId, characterName, messages) {
   if (!characterId) return;
   if (!Array.isArray(messages) || messages.length === 0) return;
 
-  // 只推 watermark 之后的新消息，避免重复推
-  const watermark = readWatermark(characterId);
-  const newMessages = messages
-    .filter((msg) => {
-      const ts = new Date(msg.timestamp || 0).getTime();
-      return Number.isFinite(ts) && ts > watermark;
-    })
-    .map((msg) => ({
-      id: String(msg.id || ''),
-      role: msg.role === 'user' ? 'user' : 'assistant',
-      content: truncate(msg.content, 2000),
-      timestamp: msg.timestamp || ''
-    }));
+  // 同一角色已有 pushMessages 在跑：直接跳过，不重复 POST 同一批消息。
+  // 跳过的调用方拿不到结果，但 pushMessages 本就是 fire-and-forget，
+  // 下次切出会话/触发推送时会读到推进后的 watermark，补不上的消息会留在下次批次里。
+  if (inflightPushMessages.has(characterId)) return;
+  inflightPushMessages.add(characterId);
 
-  if (newMessages.length === 0) return;
+  try {
+    // 只推 watermark 之后的新消息，避免重复推
+    const watermark = readWatermark(characterId);
+    const newMessages = messages
+      .filter((msg) => {
+        const ts = new Date(msg.timestamp || 0).getTime();
+        return Number.isFinite(ts) && ts > watermark;
+      })
+      .map((msg) => ({
+        id: String(msg.id || ''),
+        role: msg.role === 'user' ? 'user' : 'assistant',
+        content: truncate(msg.content, 2000),
+        timestamp: msg.timestamp || ''
+      }));
 
-  const payload = {
-    characterId: String(characterId),
-    characterName: String(characterName || ''),
-    messages: newMessages
-  };
+    if (newMessages.length === 0) return;
 
-  const pushed = await sendPush('/push/messages', payload);
-  if (!pushed) return;
+    const payload = {
+      characterId: String(characterId),
+      characterName: String(characterName || ''),
+      messages: newMessages
+    };
 
-  // 推送成功后更新 watermark 到最后一条消息的 timestamp
-  const lastTs = new Date(newMessages[newMessages.length - 1].timestamp || 0).getTime();
-  if (Number.isFinite(lastTs)) {
-    writeWatermark(characterId, lastTs);
+    const pushed = await sendPush('/push/messages', payload);
+    if (!pushed) return;
+
+    // 推送成功后更新 watermark 到最后一条消息的 timestamp
+    // 保留「只有成功才推进 watermark」的逻辑：失败/跳过都不推进，下次会重试这批
+    const lastTs = new Date(newMessages[newMessages.length - 1].timestamp || 0).getTime();
+    if (Number.isFinite(lastTs)) {
+      writeWatermark(characterId, lastTs);
+    }
+  } finally {
+    inflightPushMessages.delete(characterId);
   }
 }
 

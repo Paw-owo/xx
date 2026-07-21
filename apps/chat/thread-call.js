@@ -15,7 +15,7 @@ import {
 import { showToast } from '../../core/ui.js';
 import { createChatIcon } from './icons.js';
 import { silentRequest } from '../../core/api.js';
-import { playTTS, stopAll, buildCharacterTtsOverride } from '../../core/tts.js';
+import { playTTS, stopAll, buildCharacterTtsOverride, isCharacterTtsDisabled } from '../../core/tts.js';
 import { addMemory } from '../../core/memory.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
@@ -655,13 +655,15 @@ function speakText(text) {
   // 挂断/卸载后不再朗读；abort 之外保留状态守卫，避免极端竞态下的晚到结果播放
   if (!callState.mounted || callState.callEnded) return;
 
-  // 角色 TTS 配置：enabled:false 时跳过播放，否则作为 override 传入
+  // 角色 TTS 三态：
+  //   - 显式关闭（disabled:true）：跳过播放，不回退全局
+  //   - 无配置（null）：回退全局
+  //   - 有专属配置：作为 override 传入
   const ttsOverride = buildCharacterTtsOverride(callState.character);
-  if (ttsOverride === null && callState.character?.ttsConfig && callState.character.ttsConfig.enabled === false) {
-    return;
-  }
+  if (isCharacterTtsDisabled(ttsOverride)) return;
 
   stopAll();
+  // ttsOverride 为 null 时传 undefined（让 playTTS 走全局）；显式关闭已在上面 return
   playTTS(content, ttsOverride || undefined).catch(() => {
     // TTS 失败不影响通话文字
   });

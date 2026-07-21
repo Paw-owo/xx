@@ -215,6 +215,11 @@ async function ensureSseSession(serverId) {
     pending: new Map()
   };
 
+  // 立即注册到 sessions 表（ready:false），让 pump 的 done/error 回调能通过
+  // cleanupSession(serverId) 找到并清理当前 session，避免断流后坏会话留在表里。
+  // ensureSession 仍会因 ready:false 跳过它，不会返回未就绪会话。
+  sessions.set(serverId, session);
+
   try {
     // 建立 SSE 流：用 fetch GET + ReadableStream 手动解析（避免 EventSource 不支持自定义头）
     const controller = new AbortController();
@@ -253,9 +258,14 @@ async function ensureSseSession(serverId) {
         reader.read().then(({ done, value }) => {
           if (done) {
             clearTimeout(endpointTimer);
-            // 流正常结束但未拿到 endpoint
             if (!session.messageUrl) {
+              // 流关闭时还没拿到 endpoint：reject endpointPromise 让上层走重连
               reject(new Error('SSE 流关闭，未收到 endpoint'));
+            } else {
+              // endpoint 已拿到后流关闭：清理当前 session，让下次调用重建连接，
+              // 而不是复用这个 ready:true 但 SSE 已断的坏会话（POST 还能发出去，
+              // 但永远收不到 SSE 响应，直到 20s 超时）
+              cleanupSession(serverId);
             }
             return;
           }
@@ -324,8 +334,9 @@ async function ensureSseSession(serverId) {
     }
     // initialize 失败不阻塞，兼容不要求初始化的服务器
 
+    // 会话已就绪；session 在创建时就已注册到 sessions 表（ready:false），
+    // 这里只翻转 ready 标志，让 ensureSession 能复用，不再重复 set
     session.ready = true;
-    sessions.set(serverId, session);
     return session;
   } catch (error) {
     cleanupSession(serverId);

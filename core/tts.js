@@ -121,13 +121,17 @@ function cleanTextForSpeech(text) {
 // 【配置解析】合并全局 TTS 配置和角色覆盖
 // ═══════════════════════════════════════
 
-// 统一把角色 ttsConfig 转成 playTTS 第二参数 configOverride
-// enabled:false 或无配置 → 返回 null（调用方应跳过播放）
+// 把角色 ttsConfig 转成 playTTS 第二参数 configOverride，并显式区分三种状态。
+// 返回值约定（调用方必须先判定 disabled，再决定是否回退全局）：
+//   null                       → 角色无专属 TTS 配置；调用方应回退全局
+//   { disabled: true }         → 角色显式关闭 TTS；调用方必须跳过播放，不得回退全局
+//   { provider, voice, ... }   → 角色有专属配置且启用；作为 override 传入 playTTS
 // 字段映射：ttsConfig.{provider,voice,apiKey,endpoint,model} → override 同名
 //          ttsConfig 无 voiceId/language，留给全局兜底
 export function buildCharacterTtsOverride(character) {
   const cfg = character?.ttsConfig;
-  if (!cfg || cfg.enabled === false) return null;
+  if (!cfg) return null;
+  if (cfg.enabled === false) return { disabled: true };
   return {
     provider: cfg.provider || '',
     voice: cfg.voice || '',
@@ -135,6 +139,12 @@ export function buildCharacterTtsOverride(character) {
     endpoint: cfg.endpoint || '',
     model: cfg.model || ''
   };
+}
+
+// 判定 buildCharacterTtsOverride 结果是否为「显式关闭」。
+// 调用侧用这个 helper 而不是直接读 ttsConfig.enabled，避免漏判和散落的 enabled 检查。
+export function isCharacterTtsDisabled(override) {
+  return Boolean(override && override.disabled === true);
 }
 
 function resolveConfig(configOverride = {}) {

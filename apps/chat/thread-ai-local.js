@@ -4,6 +4,7 @@
 // imports:
 //   from '../../core/storage.js': getData, getDB, setDB, getAllDB, generateId, getNow, getByIndexDB
 //   from '../../core/local-chat.js': DEFAULT_CHARACTER, WELCOME_MESSAGES, generateLocalReply, requestSiliconFlowReply
+//   from '../../core/api.js': getApiPoolItems
 
 import {
   getData,
@@ -21,6 +22,8 @@ import {
   generateLocalReply,
   requestSiliconFlowReply
 } from '../../core/local-chat.js';
+
+import { getApiPoolItems } from '../../core/api.js';
 
 // ═══════════════════════════════════════
 // 【启动种子】首次打开自动塞入默认人设
@@ -81,10 +84,27 @@ export async function seedDefaultCharacter() {
 
 // ═══════════════════════════════════════
 // 【API检测】用户是否配了可用的在线API
+// 优先读 api_pool（当前真实数据源，由 core/api.js 维护）；
+// 兼容旧字段 app_settings.apiEndpoints（迁移前的历史数据），但不能只看旧字段。
+// 复用 getApiPoolItems 而不是复制判断逻辑，避免和 api.js 的数据源定义漂移。
 // ═══════════════════════════════════════
 
-function hasUserAPI() {
+async function hasUserAPI() {
   try {
+    // 优先读 api_pool：当前真实数据源
+    // 只看聊天分组（paid/free），感官分组（sensory_eye/sensory_ear）的 endpoint 不能用于聊天主链路
+    const poolItems = await getApiPoolItems().catch(() => []);
+    if (Array.isArray(poolItems) && poolItems.some((item) => {
+      if (!item || (item.groupType !== 'paid' && item.groupType !== 'free')) return false;
+      if (item.status === 'disabled') return false;
+      // endpoint 必填；apiKey 可空（anonymous/free 分组允许无 key）
+      return Boolean(item.endpoint);
+    })) {
+      return true;
+    }
+
+    // 兼容旧字段：app_settings.apiEndpoints（迁移前的历史数据）
+    // 旧字段只在 api_pool 为空时兜底，避免误判「已配 api_pool 但旧字段为空」为「没配 API」
     const settings = getData('app_settings') || {};
     const endpoints = Array.isArray(settings.apiEndpoints) ? settings.apiEndpoints : [];
     const defaultId = settings.defaultApiEndpointId || '';
@@ -112,7 +132,7 @@ export async function tryLocalOrSiliconFlowReply(state, options = {}) {
   const character = options.character || state.character;
   if (!character?.useLocalChat) return null;
 
-  if (hasUserAPI()) return null;
+  if (await hasUserAPI()) return null;
 
   const characterId = character?.id || state.characterId;
   const messages = options.messages || state.messages || [];
@@ -159,4 +179,4 @@ export async function tryLocalOrSiliconFlowReply(state, options = {}) {
   };
 }
 
-// 依赖：../../core/storage.js(getData,getDB,setDB,getAllDB,generateId,getNow,getByIndexDB)；../../core/local-chat.js(DEFAULT_CHARACTER,WELCOME_MESSAGES,generateLocalReply,requestSiliconFlowReply)
+// 依赖：../../core/storage.js(getData,getDB,setDB,getAllDB,generateId,getNow,getByIndexDB)；../../core/local-chat.js(DEFAULT_CHARACTER,WELCOME_MESSAGES,generateLocalReply,requestSiliconFlowReply)；../../core/api.js(getApiPoolItems)
