@@ -376,32 +376,35 @@
     .cozy-app-icon {
       width: calc(var(--desktop-icon-svg-size) * var(--desktop-icon-scale));
       height: calc(var(--desktop-icon-svg-size) * var(--desktop-icon-scale));
-      --icon-line: color-mix(in srgb, var(--text-primary) 54%, var(--accent-dark));
-      --icon-fur: color-mix(in srgb, var(--bg-card) 94%, var(--accent-light));
-      --icon-accent: color-mix(in srgb, var(--accent) 74%, var(--bg-card));
-      --icon-soft: color-mix(in srgb, var(--accent-light) 70%, var(--bg-card));
-      --icon-blush: color-mix(in srgb, var(--accent) 52%, var(--accent-light));
+      --icon-line: var(--icon-line-stable);
+      --icon-base: var(--icon-body-stable);
+      --icon-paper: var(--icon-layer-stable);
+      --icon-highlight: var(--icon-highlight-stable);
+      --icon-charm: var(--icon-charm-theme);
       overflow: visible;
     }
 
     .cozy-app-icon g {
       fill: none;
       stroke: var(--icon-line);
-      stroke-width: 4;
+      stroke-width: 3.2;
+      vector-effect: non-scaling-stroke;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
 
-    .cozy-app-icon .fur { fill: var(--icon-fur); }
-    .cozy-app-icon .accent { fill: var(--icon-accent); }
-    .cozy-app-icon .soft { fill: var(--icon-soft); }
+    .cozy-app-icon .base, .cozy-app-icon .fur { fill: var(--icon-base); }
+    .cozy-app-icon .paper, .cozy-app-icon .soft { fill: var(--icon-paper); }
+    .cozy-app-icon .highlight { fill: var(--icon-highlight); }
+    .cozy-app-icon .charm, .cozy-app-icon .accent, .cozy-app-icon .sparkle { fill: var(--icon-charm); }
+    .cozy-app-icon .line-only { fill: none; }
     .cozy-app-icon .face { fill: var(--icon-line); stroke: none; }
-    .cozy-app-icon .blush { stroke: var(--icon-blush); }
+    .cozy-app-icon .blush { stroke: var(--icon-charm); }
     .cozy-app-icon .icon-decoration {
       stroke: var(--icon-detail);
       stroke-width: 2.8;
     }
-    .cozy-app-icon .icon-decoration .sparkle { fill: var(--icon-soft); }
+    .cozy-app-icon .icon-decoration .sparkle { fill: var(--icon-charm); }
 
     .placeholder-icon .cozy-app-icon {
       width: 54px;
