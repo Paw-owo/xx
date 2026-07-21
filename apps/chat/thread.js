@@ -1256,7 +1256,19 @@ function el(tag, className = '', text = '') {
   return node;
 }
 
+
+function ensureThreadStyleSheet() {
+  const href = './apps/chat/thread-style.css';
+  if (document.querySelector(`link[data-chat-thread-style="base"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  link.dataset.chatThreadStyle = 'base';
+  document.head.appendChild(link);
+}
+
 function injectStyle() {
+  ensureThreadStyleSheet();
   if (document.getElementById(STYLE_ID)) return;
 
   const style = document.createElement('style');
@@ -1425,73 +1437,6 @@ function injectStyle() {
       -webkit-overflow-scrolling:touch;
       overscroll-behavior:contain;
     }
-
-    .chat-thread-input-bar{
-      flex:0 0 auto;
-      display:grid;
-      grid-template-columns:auto minmax(0,1fr) auto auto auto;
-      align-items:end;
-      gap:8px;
-      padding:12px 20px calc(14px + env(safe-area-inset-bottom));
-      background:color-mix(in srgb, var(--bg-primary) 90%, transparent);
-      backdrop-filter:blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      z-index:3;
-    }
-
-    .chat-thread-input-bar.is-relationship-locked{
-      display:block;
-    }
-
-    /* 待发送图片预览栏：跨整行，放在输入框上方 */
-    .chat-pending-images{
-      grid-column:1 / -1;
-      display:flex;
-      gap:8px;
-      padding:8px 2px 4px;
-      overflow-x:auto;
-      overflow-y:hidden;
-      scrollbar-width:none;
-      -webkit-overflow-scrolling:touch;
-    }
-    .chat-pending-images::-webkit-scrollbar{display:none}
-    .chat-pending-image{
-      position:relative;
-      flex:0 0 auto;
-      width:64px;
-      height:64px;
-      border-radius:12px;
-      overflow:hidden;
-      background:var(--surface-muted);
-    }
-    .chat-pending-image img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .chat-pending-image-remove{
-      position:absolute;
-      top:2px;
-      right:2px;
-      width:20px;
-      height:20px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      border:none;
-      border-radius:50%;
-      background:var(--bg-overlay);
-      color:var(--bubble-user-text);
-      cursor:pointer;
-      padding:0;
-      -webkit-tap-highlight-color:transparent;
-    }
-    .chat-pending-image-remove:active{transform:scale(0.9)}
-    .chat-pending-image-remove svg{width:12px;height:12px}
-    .chat-thread-input-bar.has-pending-images{
-      grid-template-rows:auto 1fr;
-    }
     .chat-thread-send.has-content{
       opacity:1;
     }
@@ -1558,71 +1503,6 @@ function injectStyle() {
       50%{transform:scale(1.06);}
     }
 
-    /* 录音状态栏：跨整行，放在输入框上方（与图片预览栏并列） */
-    .chat-recording-bar{
-      grid-column:1 / -1;
-      display:flex;
-      align-items:center;
-      gap:8px;
-      padding:6px 4px 2px;
-      font-size:12px;
-      color:var(--text-secondary);
-      min-height:0;
-    }
-    .chat-recording-bar.is-recording{
-      color:var(--color-danger);
-    }
-    .chat-recording-bar.is-transcribing{
-      color:var(--text-secondary);
-    }
-    .chat-recording-dot{
-      width:8px;
-      height:8px;
-      border-radius:50%;
-      background:var(--color-danger);
-      flex:0 0 auto;
-      animation:chatRecDot 900ms ease-in-out infinite;
-    }
-    @keyframes chatRecDot{
-      0%,100%{opacity:1;transform:scale(1)}
-      50%{opacity:.4;transform:scale(0.7)}
-    }
-    .chat-recording-timer{
-      font-variant-numeric:tabular-nums;
-      flex:0 0 auto;
-      font-weight:600;
-    }
-    .chat-recording-cancel{
-      margin-left:auto;
-      width:28px;
-      height:28px;
-      border:none;
-      border-radius:50%;
-      background:var(--surface-muted);
-      color:var(--text-secondary);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      cursor:pointer;
-      -webkit-tap-highlight-color:transparent;
-      flex:0 0 auto;
-    }
-    .chat-recording-cancel:active{transform:scale(0.9)}
-    .chat-recording-cancel svg{width:14px;height:14px}
-    .chat-recording-spinner{
-      width:14px;
-      height:14px;
-      border:2px solid var(--surface-muted);
-      border-top-color:var(--accent);
-      border-radius:50%;
-      flex:0 0 auto;
-      animation:chatRecSpin 800ms linear infinite;
-    }
-    @keyframes chatRecSpin{to{transform:rotate(360deg)}}
-    .chat-thread-input-bar.has-recording{
-      grid-template-rows:auto 1fr;
-    }
-
     .chat-load-more-wrap{
       display:flex;
       justify-content:center;
@@ -1650,7 +1530,7 @@ function injectStyle() {
     }
 
     @media(max-width:680px){
-      .chat-thread-header, .chat-thread-search-card, .chat-thread-area, .chat-thread-input-bar{
+      .chat-thread-header, .chat-thread-search-card, .chat-thread-area{
         padding-left:20px;
         padding-right:20px;
       }

@@ -4,7 +4,7 @@
 //   from '../../core/api.js': getPoolGroups, setPoolGroups, getApiPoolItems, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, testPoolEndpoint, testAllPoolEndpoints
 //   from '../chat/sensory-ear.js': testEarEndpoint（耳朵接口走 Whisper STT，不能用 chat completions 测试）
 //   from '../../core/ui.js': showToast, showConfirm
-//   from '../../core/storage.js': generateId, getNow
+//   from '../../core/storage.js': generateId, getData, setData
 
 import {
   getPoolGroups,
@@ -19,7 +19,7 @@ import {
 } from '../../core/api.js';
 import { testEarEndpoint } from '../chat/sensory-ear.js';
 import { showToast, showConfirm } from '../../core/ui.js';
-import { generateId } from '../../core/storage.js';
+import { generateId, getData, setData } from '../../core/storage.js';
 
 let container = null;
 let options = null;
@@ -29,6 +29,8 @@ let groups = {};
 let testingAll = false;
 
 const STYLE_ID = 'api-pool-settings-style';
+const SETTINGS_KEY = 'app_settings';
+const ANONYMOUS_FALLBACK_KEY = 'anonymousFallbackEnabled';
 
 function el(tag, className = '', text = '') {
   const node = document.createElement(tag);
@@ -72,6 +74,36 @@ function injectStyle() {
       background: var(--bg-card);
       color: var(--text-primary);
       box-shadow: var(--shadow-sm);
+    }
+
+    .api-pool-privacy-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-radius: var(--radius-lg);
+      background: var(--bg-card);
+      box-shadow: var(--shadow-sm);
+      padding: 14px;
+    }
+
+    .api-pool-privacy-text {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+
+    .api-pool-privacy-title {
+      color: var(--text-primary);
+      font-size: var(--font-size-base);
+      font-weight: 700;
+    }
+
+    .api-pool-privacy-desc {
+      color: var(--text-secondary);
+      font-size: var(--font-size-small);
+      line-height: 1.55;
     }
 
     .api-pool-group {
@@ -196,8 +228,20 @@ function injectStyle() {
       white-space: nowrap;
     }
 
-    .api-pool-endpoint-model {
+    .api-pool-endpoint-model,
+    .api-pool-endpoint-meta {
       font-size: var(--font-size-small);
+      color: var(--text-secondary);
+    }
+
+    .api-pool-endpoint-details {
+      font-size: var(--font-size-small);
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .api-pool-endpoint-details summary {
+      cursor: pointer;
       color: var(--text-secondary);
     }
 
@@ -380,8 +424,42 @@ async function loadData() {
 function renderAll() {
   if (!container) return;
   container.replaceChildren();
-  // 感官分类作为独立大区放在 paid/free 之后，眼睛复用分组编辑 UI，耳朵仅占位
-  container.append(renderActions(), renderGroup('paid'), renderGroup('free'), renderSensorySection());
+  // 感官分类作为独立大区放在 paid/free 之后；眼睛是图片识别接口，耳朵是语音转文字接口
+  container.append(renderActions(), renderAnonymousFallbackCard(), renderGroup('paid'), renderGroup('free'), renderSensorySection());
+}
+
+
+function getAnonymousFallbackEnabled() {
+  const settings = getData(SETTINGS_KEY) || {};
+  return settings[ANONYMOUS_FALLBACK_KEY] === true;
+}
+
+function setAnonymousFallbackEnabled(enabled) {
+  const settings = getData(SETTINGS_KEY) || {};
+  setData(SETTINGS_KEY, { ...settings, [ANONYMOUS_FALLBACK_KEY]: enabled === true });
+  window.dispatchEvent(new CustomEvent('app-settings-updated'));
+}
+
+function renderAnonymousFallbackCard() {
+  const enabled = getAnonymousFallbackEnabled();
+  const card = el('div', 'api-pool-privacy-card');
+  const text = el('div', 'api-pool-privacy-text');
+  text.append(
+    el('div', 'api-pool-privacy-title', '匿名公益接口兜底'),
+    el('div', 'api-pool-privacy-desc', '没有可用接口时，允许临时使用匿名公益接口兜底。开启后，对话内容可能发送到第三方公益接口，请只在你愿意时打开。')
+  );
+  const toggle = el('button', `api-pool-toggle ${enabled ? 'on' : ''}`);
+  toggle.type = 'button';
+  toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+  toggle.setAttribute('aria-label', enabled ? '关闭匿名公益接口兜底' : '开启匿名公益接口兜底');
+  toggle.addEventListener('click', () => {
+    const next = !getAnonymousFallbackEnabled();
+    setAnonymousFallbackEnabled(next);
+    showToast(next ? '匿名公益兜底已开启，会在没有可用接口时轻轻接住' : '匿名公益兜底已关闭，会优先守住你的选择');
+    renderAll();
+  });
+  card.append(text, toggle);
+  return card;
 }
 
 function renderActions() {
@@ -430,7 +508,7 @@ function renderGroup(groupType) {
     } else if (isSensoryEye) {
       emptyText = '小眼睛需要什么：一个支持图片识别的接口。可以填 Gemini、Pollinations、OpenAI-compatible 中转站或任何公益接口。Model 名按你接口的实际模型填写。';
     } else {
-      emptyText = '小耳朵需要什么：一个兼容 OpenAI Whisper 格式的语音转文字接口，填 baseURL+模型名+Key 就行。';
+      emptyText = '小耳朵是语音转文字接口，不参与聊天模型轮换。填兼容 OpenAI Whisper 格式的 baseURL、模型名和 Key 就好。';
     }
     wrap.append(el('div', 'api-pool-empty', emptyText));
   } else {
@@ -482,7 +560,8 @@ function renderEndpoint(item) {
   const modelText = [item.model, ...(item.models || [])].filter(Boolean)[0] || '';
   if (modelText) wrap.append(el('div', 'api-pool-endpoint-model', `模型：${modelText}`));
   if (item.lastLatencyMs > 0) wrap.append(el('div', 'api-pool-endpoint-model', `延迟：${item.lastLatencyMs}ms`));
-  if (item.lastErrorMessage) wrap.append(el('div', 'api-pool-endpoint-error', item.lastErrorMessage));
+  const statusDetail = buildEndpointStatusDetail(item);
+  if (statusDetail) wrap.append(statusDetail);
 
   const actions = el('div', 'api-pool-endpoint-actions');
   const testBtn = el('button', '', '测试');
@@ -655,6 +734,7 @@ function openEditor(item, options = {}) {
 
   // 拉取模型区域：用当前表单的地址+key+类型真实请求模型列表，成功展示可选、失败给提示且不清空手填
   let draftModels = Array.isArray(item?.models) ? item.models : [];
+  let modelFetchState = item?.models?.length ? 'hasModels' : 'notFetched';
   const modelArea = el('div', 'api-pool-model-area');
 
   function renderModelPicker() {
@@ -662,7 +742,7 @@ function openEditor(item, options = {}) {
     const title = el('div', 'api-pool-group-meta', '模型列表');
     modelArea.append(title);
     if (!draftModels.length) {
-      modelArea.append(el('div', 'settings-free-note', '还没拉到模型，可以直接手填模型名保存'));
+      modelArea.append(el('div', 'settings-free-note', getModelFetchEmptyText(modelFetchState)));
       return;
     }
     const current = modelField.input.value.trim();
@@ -695,10 +775,13 @@ function openEditor(item, options = {}) {
     try {
       const models = await fetchModelList({ endpoint: endpointValue, apiKey: key, provider: providerValue });
       if (!models.length) {
-        showToast('没找到模型，可以手填模型名保存');
+        modelFetchState = 'empty';
+        renderModelPicker();
+        showToast('这次没拉到模型，可以先手填模型名保存');
         return;
       }
       draftModels = models;
+      modelFetchState = 'hasModels';
       renderModelPicker();
       // 眼睛分组：同步刷新模型下拉选项，让用户能从下拉里选到刚拉到的模型
       if (typeof modelField.refreshDatalist === 'function') {
@@ -706,6 +789,8 @@ function openEditor(item, options = {}) {
       }
       showToast(`拉到 ${models.length} 个模型啦`);
     } catch (err) {
+      modelFetchState = classifyModelFetchFailure(err);
+      renderModelPicker();
       showToast(formatPoolEditorError(err));
     } finally {
       fetchBtn.disabled = false;
@@ -807,7 +892,47 @@ function formatPoolEditorError(err) {
   if (/401|unauthorized|invalid.*key/i.test(msg)) {
     return 'Key 不对或没权限拉模型，可以手填模型名继续';
   }
-  return msg ? `拉取失败：${msg}` : '拉取失败，可以手填模型名继续';
+  if (/404|not found|405|method not allowed|not support|unsupported/i.test(msg)) {
+    return '这个接口可能不支持列模型，可以手填模型名继续';
+  }
+  return msg ? `这次没拉到：${msg}` : '这次没拉到模型，可以手填模型名继续';
+}
+
+function buildEndpointStatusDetail(item) {
+  const bits = [];
+  if (item.lastSuccessAt) bits.push(`最近测通：${formatShortTime(item.lastSuccessAt)}`);
+  if (item.lastErrorAt) bits.push(`最近没连上：${formatShortTime(item.lastErrorAt)}`);
+  if (!bits.length && !item.lastErrorMessage) return null;
+  const details = el('details', 'api-pool-endpoint-details');
+  const summary = el('summary', '', bits[0] || '最近状态');
+  details.append(summary);
+  if (bits.length > 1) details.append(el('div', 'api-pool-endpoint-meta', bits.slice(1).join(' · ')));
+  if (item.lastErrorMessage) details.append(el('div', 'api-pool-endpoint-error', `最近原因：${item.lastErrorMessage}`));
+  return details;
+}
+
+function formatShortTime(value) {
+  if (!value) return '刚刚';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16);
+  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function getModelFetchEmptyText(state) {
+  if (state === 'empty') return '这次没有读到模型列表。可能接口不支持列模型，也可以直接手填模型名保存。';
+  if (state === 'auth') return '这次没拉到，可能 Key 或权限不对。可以检查后再试，也能先手填模型名。';
+  if (state === 'network') return '这次没拉到，可能地址或网络有点卡。检查 Endpoint 后再试试吧。';
+  if (state === 'unsupported') return '这个接口可能不支持列模型，可以直接手填模型名保存。';
+  if (state === 'failed') return '这次没拉到模型，可以看一眼地址、Key 或接口类型，也能先手填模型名。';
+  return '还没拉过模型。可以点上面的按钮试试，也可以直接手填模型名保存。';
+}
+
+function classifyModelFetchFailure(err) {
+  const msg = String(err?.message || '');
+  if (/401|unauthorized|invalid.*key|forbidden|403/i.test(msg)) return 'auth';
+  if (/404|not found|405|method not allowed|not support|unsupported/i.test(msg)) return 'unsupported';
+  if (/Failed to fetch|NetworkError|load failed|timeout|ECONN/i.test(msg)) return 'network';
+  return 'failed';
 }
 
 function createField(label, value, placeholder, isTextarea) {

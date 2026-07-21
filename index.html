@@ -865,6 +865,22 @@
       line-height: 1.7;
     }
 
+    .placeholder-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    .placeholder-actions .btn-ghost,
+    .placeholder-actions .btn-primary {
+      min-height: 38px;
+      padding: 0 16px;
+      border-radius: var(--radius-full);
+      font: inherit;
+      font-weight: 600;
+    }
+
     .lock-screen {
       position: fixed;
       inset: 0;
@@ -1483,7 +1499,7 @@
     import { loadTheme } from './core/theme.js';
     import { createIcon, showToast } from './core/ui.js';
     import { seedDefaultCharacter } from './apps/chat/thread-ai-local.js';
-    import { registerAPI, getAPI, emit as busEmit, on as busOn, openApp as busOpenApp, recordExternalInteraction as busRecordExternalInteraction, subscribe as busSubscribe } from './core/app-bus.js';
+    import { registerAPI, getAPI, emit as busEmit, on as busOn, openApp as busOpenApp, recordExternalInteraction as busRecordExternalInteraction, subscribe as busSubscribe, UNREAD_CHANGED_EVENT } from './core/app-bus.js';
     import { initChatEventBridge } from './core/chat-event-bridge.js';
     import { initAnniversaryBridge } from './core/anniversary-bridge.js';
     import { initPushBridge } from './core/push.js';
@@ -1895,9 +1911,7 @@
         .desktop-icon-art.background-cleared,.desktop-icon-art.background-cleared:hover,.desktop-icon-art.background-cleared:focus,.desktop-icon-art.background-cleared:focus-visible,.desktop-icon-art.background-cleared:active{background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
         .desktop-icon-image{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;margin:0!important;padding:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important;pointer-events:none!important}
         .desktop-item,.desktop-widget,.desktop-icon{touch-action:none!important;user-select:none!important;-webkit-user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important}
-        #app-layer *:focus,#app-layer *:focus-visible,.placeholder-app *:focus,.placeholder-app *:focus-visible{outline:0!important}
-        #app-layer button,#app-layer input,#app-layer textarea,#app-layer select,#app-layer [role="button"],#app-layer .app-back,#app-layer .placeholder-icon,#app-layer .placeholder-card,#app-layer .desktop-icon,#app-layer .desktop-icon-art,#app-layer .desktop-widget,.placeholder-app button,.placeholder-app input,.placeholder-app textarea,.placeholder-app select{-webkit-appearance:none!important;appearance:none!important;outline:0!important}
-        #app-layer button:focus,#app-layer button:focus-visible,#app-layer button:active,#app-layer input:focus,#app-layer input:focus-visible,#app-layer textarea:focus,#app-layer textarea:focus-visible,#app-layer select:focus,#app-layer select:focus-visible,#app-layer [role="button"]:focus,#app-layer [role="button"]:focus-visible,#app-layer [role="button"]:active,.placeholder-app button:focus,.placeholder-app button:focus-visible,.placeholder-app button:active{outline:0!important}
+        #app-layer button,#app-layer input,#app-layer textarea,#app-layer select,#app-layer [role="button"],#app-layer .app-back,.placeholder-app button,.placeholder-app input,.placeholder-app textarea,.placeholder-app select{-webkit-appearance:none!important;appearance:none!important}
       `;
       document.head.appendChild(style);
     }
@@ -2975,11 +2989,16 @@
 
     async function openAppNow(appId, options = {}) {
       const app = APPS.find((item) => item.id === appId);
-      if (!app) return;
+      if (!app) {
+        console.warn('[desktop] openApp missing registration', { appId });
+        openPlaceholderApp({ id: String(appId || 'unknown'), name: '这个小窝' }, '这个入口还没找到，可以先回到桌面，或者刷新后再试一次。', { retryAppId: appId });
+        return;
+      }
       editing = false;
       silentEdit = false;
       updateEditingClass();
-      if (!app.ready || !app.module) { openPlaceholderApp(app); return; }
+      if (!app.ready || !app.module) { openPlaceholderApp(app, '这个小窝还在整理，可以先回到桌面，稍后再来看看。'); return; }
+      let stage = 'import';
       try {
         closeCurrentApp({ silent: true });
         appLayerEl.classList.add('has-app');
@@ -2989,13 +3008,29 @@
         currentAppId = app.id;
         const context = createAppContext(app, options);
         const mountOptions = { ...context, ...options };
+        stage = 'mount';
         if (typeof module.mount === 'function') { await module.mount(appLayerEl, mountOptions); }
         else if (typeof module.render === 'function') { await module.render(appLayerEl, mountOptions); }
         else if (typeof module.open === 'function') { await module.open(appLayerEl, mountOptions); }
         else if (typeof module.default === 'function') { await module.default(appLayerEl, mountOptions); }
-        else { openPlaceholderApp(app); }
+        else { throw new Error('app entry missing'); }
         await applyAllImages();
-      } catch (error) { console.error(error); openPlaceholderApp(app, '哎呀，出了点小问题'); }
+      } catch (error) {
+        console.error('[desktop] openApp failed', { appId: app.id, stage, error });
+        const message = getAppOpenFailureMessage(stage, error);
+        openPlaceholderApp(app, message, { retryAppId: app.id });
+      }
+    }
+
+
+    function getAppOpenFailureMessage(stage, error) {
+      const message = String(error?.message || '');
+      if (stage === 'import') {
+        if (/Failed to fetch|Load failed|network|fetch/i.test(message)) return '这个小窝刚刚没载入，可能是网络或缓存卡住了。可以刷新试试，或者先回到桌面。';
+        return '这个小窝刚刚没打开，可以刷新试试，或先回到桌面稍后再来。';
+      }
+      if (stage === 'mount') return '这个小窝刚刚没摆稳，可以回到桌面后再点一次，或刷新试试。';
+      return '这个小窝刚刚没醒好，可以先回到桌面，稍后再试一次。';
     }
 
     function createAppContext(app, options = {}) {
@@ -3013,7 +3048,7 @@
       };
     }
 
-    function openPlaceholderApp(app, message = '马上就好，先别急') {
+    function openPlaceholderApp(app, message = '马上就好，先别急', options = {}) {
       closeCurrentApp({ silent: true });
       appLayerEl.classList.add('has-app');
       currentAppId = app.id;
@@ -3046,6 +3081,23 @@
 
       topbar.append(backButton, title, spacer);
       card.append(icon, heading, text);
+      const actions = document.createElement('div');
+      actions.className = 'placeholder-actions';
+      const homeBtn = document.createElement('button');
+      homeBtn.type = 'button';
+      homeBtn.className = 'btn-ghost';
+      homeBtn.textContent = '回到桌面';
+      homeBtn.addEventListener('click', () => closeCurrentApp());
+      actions.appendChild(homeBtn);
+      if (options.retryAppId) {
+        const retryBtn = document.createElement('button');
+        retryBtn.type = 'button';
+        retryBtn.className = 'btn-primary';
+        retryBtn.textContent = '再试一次';
+        retryBtn.addEventListener('click', () => openApp(options.retryAppId));
+        actions.appendChild(retryBtn);
+      }
+      card.appendChild(actions);
       body.appendChild(card);
       root.append(topbar, body);
 
@@ -3080,7 +3132,10 @@
     function setupAppEvents() {
       window.addEventListener('app-close', () => closeCurrentApp());
       window.addEventListener('app-lock', () => { setData('app_lock_unlocked', false); updateLockState(); });
-      busOn('games:unread-updated', () => refreshBadges());
+      busOn(UNREAD_CHANGED_EVENT, () => refreshBadges());
+      busOn('games:unread-updated', (detail) => {
+        busEmit(UNREAD_CHANGED_EVENT, { appId: 'games', source: detail?.source || 'games', type: detail?.action || 'changed', count: detail?.count ?? null });
+      });
     }
 
     function refreshBadges() {

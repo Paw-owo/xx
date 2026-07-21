@@ -12,11 +12,12 @@ const ANTHROPIC_VERSION = '2023-06-01';
 const API_POOL_MIGRATED_KEY = 'app_api_pool_migrated';
 const API_POOL_LAST_SUCCESS_KEY = 'app_api_pool_last_success';
 const API_POOL_GROUPS_KEY = 'app_api_pool_groups';
+const ANONYMOUS_FALLBACK_KEY = 'anonymousFallbackEnabled';
 
 const DEFAULT_GROUPS = {
   paid: { id: 'paid', name: '付费组', type: 'paid', enabled: true },
   free: { id: 'free', name: '免费组', type: 'free', enabled: true },
-  // 感官分组底座：眼睛可配 endpoint（默认关，避免误调用），耳朵仅占位（禁止配 endpoint）
+  // 感官分组底座：眼睛用于图片识别，耳朵用于语音转文字；默认关闭，避免未配置时误调用。
   // endpoints/models 仍存 IndexedDB api_pool（按 groupType 关联），分组对象只存元数据，不另建双份数据源
   sensory_eye: { id: 'sensory_eye', name: '感官-眼睛', type: 'sensory', enabled: false },
   sensory_ear: { id: 'sensory_ear', name: '感官-耳朵', type: 'sensory', enabled: false }
@@ -242,6 +243,7 @@ function getSettings() {
     fontSize: Number(settings.fontSize) || 15,
     user: settings.user || { name: '', avatar: '' },
     widgets: settings.widgets || { time: true, weather: true, anniversary: true },
+    anonymousFallbackEnabled: settings[ANONYMOUS_FALLBACK_KEY] === true,
     apiEndpoints
   };
 }
@@ -587,9 +589,11 @@ export async function deletePoolEndpoint(id) {
 // 【Fallback 源管理】
 // ═══════════════════════════════════════
 
-export function getFallbackSources() {
+export function getFallbackSources(options = {}) {
   const settings = getSettings();
-  const freeEndpoints = settings.apiEndpoints.filter((api) => api.source === 'free' && api.apiKey);
+  const allowAnonymous = options.allowAnonymous === true || settings.anonymousFallbackEnabled === true;
+  const includeFree = options.includeFree !== false;
+  const freeEndpoints = includeFree ? settings.apiEndpoints.filter((api) => api.source === 'free' && api.apiKey) : [];
   const sources = [];
   freeEndpoints.forEach((ep) => {
     sources.push({
@@ -598,28 +602,36 @@ export function getFallbackSources() {
       isUser: false, isAnonymous: false
     });
   });
-  ANONYMOUS_SOURCES.forEach((anon) => {
-    sources.push({
-      id: anon.id, name: anon.name, endpoint: anon.endpoint, model: anon.model,
-      apiKey: '', provider: 'openai', isUser: false, isAnonymous: true
+  if (allowAnonymous) {
+    ANONYMOUS_SOURCES.forEach((anon) => {
+      sources.push({
+        id: anon.id, name: anon.name, endpoint: anon.endpoint, model: anon.model,
+        apiKey: '', provider: 'openai', isUser: false, isAnonymous: true
+      });
     });
-  });
+  }
   return sources;
 }
 
-function getAvailableSources(endpointId = '') {
+function getAvailableSources(endpointId = '', options = {}) {
+  const settings = getSettings();
+  const includePaid = options.includePaid !== false;
+  const includeFree = options.includeFree !== false;
+  const allowAnonymous = options.allowAnonymous === true || settings.anonymousFallbackEnabled === true;
   const sources = [];
   try {
     const ep = findEndpoint(endpointId);
-    sources.push({
-      id: ep.id, name: ep.name || '我的API', endpoint: ep.endpoint,
-      apiKey: ep.apiKey, model: ep.model, provider: ep.provider,
-      isUser: true, isAnonymous: false
-    });
+    const sourceType = ep.source === 'free' || ep.source === 'anonymous' ? 'free' : 'paid';
+    if ((sourceType === 'paid' && includePaid) || (sourceType === 'free' && includeFree)) {
+      sources.push({
+        id: ep.id, name: ep.name || '我的API', endpoint: ep.endpoint,
+        apiKey: ep.apiKey, model: ep.model, provider: ep.provider,
+        isUser: true, isAnonymous: false
+      });
+    }
   } catch {}
-  const settings = getSettings();
   const usedIds = new Set(sources.map((s) => s.id));
-  settings.apiEndpoints
+  if (includeFree) settings.apiEndpoints
     .filter((api) => api.source === 'free' && api.apiKey && !usedIds.has(api.id))
     .forEach((ep) => {
       usedIds.add(ep.id);
@@ -629,15 +641,17 @@ function getAvailableSources(endpointId = '') {
         isUser: false, isAnonymous: false
       });
     });
-  ANONYMOUS_SOURCES
-    .filter((anon) => !usedIds.has(anon.id))
-    .forEach((anon) => {
-      sources.push({
-        id: anon.id, name: anon.name, endpoint: anon.endpoint,
-        apiKey: '', model: anon.model, provider: 'openai',
-        isUser: false, isAnonymous: true
+  if (allowAnonymous && includeFree) {
+    ANONYMOUS_SOURCES
+      .filter((anon) => !usedIds.has(anon.id))
+      .forEach((anon) => {
+        sources.push({
+          id: anon.id, name: anon.name, endpoint: anon.endpoint,
+          apiKey: '', model: anon.model, provider: 'openai',
+          isUser: false, isAnonymous: true
+        });
       });
-    });
+  }
   return sources;
 }
 
@@ -649,7 +663,7 @@ function getAvailableSources(endpointId = '') {
 
 async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['paid', 'free'] } = {}) {
   await ensureApiPoolMigrated();
-  const poolItems = await getApiPoolItems();
+  const poolItems = await (__testHooks.getApiPoolItems || getApiPoolItems)();
   // effectiveModel：失效回退到全局时清空，让全局各 source 用自己的默认模型，不串用原模型
   let effectiveModel = model;
 
@@ -697,8 +711,15 @@ async function resolveApiSources({ endpointId = '', model = '', groupTypes = ['p
   const poolSources = [...paidSources, ...freeSources];
   if (poolSources.length) return { sources: poolSources, fromPool: true };
 
-  // 3. 池空 → 回退旧 apiEndpoints（保留兼容）
-  return { sources: getAvailableSources(endpointId), fromPool: false };
+  // 3. 池空 → 回退旧 apiEndpoints（保留兼容），但继续尊重 paid/free 分组开关与匿名兜底显式开关
+  return {
+    sources: getAvailableSources(endpointId, {
+      includePaid: paidWanted && paidEnabled,
+      includeFree: freeWanted && freeEnabled,
+      allowAnonymous: getSettings().anonymousFallbackEnabled === true
+    }),
+    fromPool: false
+  };
 }
 
 // ═══════════════════════════════════════
@@ -1375,7 +1396,8 @@ export async function callAPI({
 
   if (!paidSources.length && !freeSources.length) {
     return await callLegacyFallback({
-      messages, systemPrompt, model: effectiveModel, stream, timeout, temperature, maxTokens, onChunk, onDone, onError, signal
+      messages, systemPrompt, model: effectiveModel, stream, timeout, temperature, maxTokens, onChunk, onDone, onError, signal,
+      includePaid: paidWanted && paidEnabled, includeFree: freeWanted && freeEnabled
     });
   }
 
@@ -1434,11 +1456,19 @@ export async function callAPI({
 }
 
 async function callLegacyFallback({
-  messages, systemPrompt, model, stream, timeout, temperature, maxTokens, onChunk, onDone, onError, signal
+  messages, systemPrompt, model, stream, timeout, temperature, maxTokens, onChunk, onDone, onError, signal,
+  includePaid = true, includeFree = true
 }) {
-  const sources = getAvailableSources('');
+  const settings = getSettings();
+  const sources = getAvailableSources('', {
+    includePaid,
+    includeFree,
+    allowAnonymous: settings.anonymousFallbackEnabled === true
+  });
   if (!sources.length) {
-    const message = '还没有配置 API 接口，先去设置里加一个吧';
+    const message = settings.anonymousFallbackEnabled === true
+      ? '还没有可用的 API 接口，先去设置里接一个吧'
+      : '还没有可用的 API 接口，可以去设置里接一个，或手动打开匿名公益接口兜底';
     notifyPoolHint(message);
     onError?.({ message, status: 0 });
     return null;
@@ -1724,7 +1754,7 @@ export async function testAllPoolEndpoints() {
   const items = await getApiPoolItems();
   const results = [];
   for (const item of items) {
-    // 耳朵分组只解析保存不参与任何请求：跳过 sensory_ear，避免"全部测试"触发耳朵 endpoint
+    // 耳朵分组是语音转文字接口，不能用聊天 completions 测试；设置页会走专门的 STT 测试
     if (item.groupType === 'sensory_ear') continue;
     const result = await testPoolEndpoint(item.id);
     results.push({ id: item.id, name: item.name || '未命名', groupType: item.groupType, ...result });

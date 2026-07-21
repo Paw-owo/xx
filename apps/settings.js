@@ -1,11 +1,11 @@
 // apps/settings.js
 // imports:
-//   from '../core/storage.js': getData, setData, removeData, generateId, getNow, getStorageUsage, getDB, setDB, getAllDB, deleteDB, clearStoreDB
+//   from '../core/storage.js': getData, setData, removeData, generateId, getNow, getStorageUsage, getDB, setDB, deleteDB, clearStoreDB
 //   from '../core/theme.js': getThemePresets, getCurrentTheme, setPreset, setThemeMode, applyTheme, saveTheme, exportTheme, importTheme
 //   from '../core/ui.js': showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 //   from '../core/api.js': fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolEndpoint, getPoolGroups
 //   from '../core/mcp.js': resetSession, getMcpServers, listMcpTools
-//   from '../core/storage-manager.js': testCloudConnection, restoreLocalSnapshot
+//   from '../core/storage-manager.js': testCloudConnection, buildLocalSnapshot, restoreLocalSnapshot
 
 import {
   getData,
@@ -16,7 +16,6 @@ import {
   getStorageUsage,
   getDB,
   setDB,
-  getAllDB,
   deleteDB,
   clearStoreDB,
   compressImage,
@@ -39,8 +38,8 @@ import { fetchModels, smartModelsUrl, parseErrorResponse, buildHeaders, addPoolE
 import { resetSession, getMcpServers, listMcpTools, listMcpToolsWithDraft } from '../core/mcp.js';
 import {
   testCloudConnection,
+  buildLocalSnapshot,
   restoreLocalSnapshot,
-  getBackupLocalKeys,
   isBackupLocalKey
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
@@ -103,6 +102,7 @@ const IMAGE_BLOB_KEYS = [
 const DEFAULT_SETTINGS = {
   defaultApiEndpointId: '',
   defaultModel: '',
+  anonymousFallbackEnabled: false,
   ttsGlobal: { provider: 'openai', apiKey: '', endpoint: '', voice: 'alloy', model: 'tts-1', modelList: [] },
   mcpServers: [],
   bubbleMode: 'bubble',
@@ -154,12 +154,19 @@ let ttsModule = null;
 // 【生命周期】mount / unmount
 // ═══════════════════════════════════════
 
-export async function mount(containerEl) {
+export async function mount(containerEl, context = {}) {
   rootEl = containerEl;
   injectStyle();
   await restoreCustomFont();
   applyGlobalFontSize(getSettings().fontSize || 15, false);
-  render('home');
+  const initialSection = normalizeInitialSection(context?.section || context?.options?.section);
+  render(initialSection || 'home');
+}
+
+function normalizeInitialSection(section) {
+  const value = String(section || '').trim();
+  const allowed = new Set(['home', 'theme', 'display', 'apiTest', 'apiPool', 'tts', 'mcp', 'cloud', 'desktop', 'widgets', 'icons', 'data']);
+  return allowed.has(value) ? value : '';
 }
 
 export function unmount() {
@@ -2038,18 +2045,11 @@ function toggleIconHidden(id) {
 // ═══════════════════════════════════════
 
 async function exportAll() {
-  const data = { localStorage: {}, indexedDB: {} };
-
-  getBackupLocalKeys().forEach((key) => {
-    data.localStorage[key] = getData(key);
-  });
-
-  for (const store of DB_STORES) {
-    try {
-      data.indexedDB[store] = await getAllDB(store);
-    } catch {
-      data.indexedDB[store] = [];
-    }
+  const data = await buildLocalSnapshot();
+  if (data.partial === true) {
+    console.warn('[settings] backup snapshot partial', data.failedStores || []);
+    showToast('这次备份没抱紧，有几块数据没打包成功，请刷新后再试一次。');
+    return;
   }
 
   downloadJson(`ai-phone-backup-${getNow().slice(0, 10)}.json`, data);
@@ -4035,4 +4035,4 @@ function injectStyle() {
   document.head.appendChild(styleEl);
 }
 
-// depends: ../core/storage.js(getData,setData,removeData,generateId,getNow,getStorageUsage,getDB,setDB,getAllDB,deleteDB,clearStoreDB)；../core/theme.js(getThemePresets,getCurrentTheme,setPreset,setThemeMode,applyTheme,saveTheme,exportTheme,importTheme)；../core/ui.js(showToast,showBottomSheet,hideBottomSheet,showConfirm,createIcon)；../core/api.js(fetchModels,smartModelsUrl,parseErrorResponse,buildHeaders,addPoolEndpoint,getPoolGroups)；../core/mcp.js(resetSession,getMcpServers,listMcpTools)；../core/storage-manager.js(testCloudConnection,restoreLocalSnapshot)；./settings/api-pool-settings.js；./settings/tts-settings.js
+// depends: ../core/storage.js(getData,setData,removeData,generateId,getNow,getStorageUsage,getDB,setDB,deleteDB,clearStoreDB)；../core/theme.js(getThemePresets,getCurrentTheme,setPreset,setThemeMode,applyTheme,saveTheme,exportTheme,importTheme)；../core/ui.js(showToast,showBottomSheet,hideBottomSheet,showConfirm,createIcon)；../core/api.js(fetchModels,smartModelsUrl,parseErrorResponse,buildHeaders,addPoolEndpoint,getPoolGroups)；../core/mcp.js(resetSession,getMcpServers,listMcpTools)；../core/storage-manager.js(testCloudConnection,buildLocalSnapshot,restoreLocalSnapshot)；./settings/api-pool-settings.js；./settings/tts-settings.js

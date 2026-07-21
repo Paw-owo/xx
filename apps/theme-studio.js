@@ -45,6 +45,45 @@ let appContext = {};
 let state = null;
 let styleEl = null;
 
+
+const STARTER_THEME_TOKENS = Object.freeze({
+  pink: Object.freeze({
+    accent: '#EFA6C1',
+    'accent-light': '#F8D9E5',
+    'accent-dark': '#C97898',
+    light: Object.freeze({
+      'bg-primary': '#FFF1F6',
+      'bg-secondary': '#FBE1EB',
+      'bg-card': '#FFF9FB',
+      'text-primary': '#674D58',
+      'text-secondary': '#987383',
+      'bubble-ai-bg': '#FFF7FA'
+    }),
+    dark: Object.freeze({
+      'bg-primary': '#30242A',
+      'bg-secondary': '#3B2B33',
+      'bg-card': '#44333B',
+      'text-primary': '#F7E8EF',
+      'text-secondary': '#D7B8C6',
+      'bubble-ai-bg': '#493640'
+    }),
+    'bubble-user-bg': '#F4BED2'
+  }),
+  mint: Object.freeze({
+    accent: '#89AAA9',
+    'accent-light': '#D7E8E5',
+    'accent-dark': '#668B8A',
+    'bg-primary': '#F2F6F3',
+    'bg-secondary': '#E2EEE9',
+    'bg-card': '#FCFAF5',
+    'text-primary': '#536360'
+  })
+});
+
+// 这里的 hex 是 AI 主题草案 token 预设，只用于生成/预览主题 JSON，不作为页面运行样式散写。
+const THEME_JSON_EXAMPLE = '{\n  "themeVariables": { "accent": "#F3A7C4" },\n  "themeConfig": { "themeName": "粉色猫窝" }\n}';
+
+
 export async function mount(containerEl, context = {}) {
   rootEl = containerEl;
   appContext = context || {};
@@ -170,7 +209,7 @@ function renderConversationPanel() {
 
   const editor = el('textarea', 'theme-studio-code');
   editor.value = state.editorText;
-  editor.placeholder = '{\n  "themeVariables": { "accent": "#F3A7C4" },\n  "themeConfig": { "themeName": "粉色猫窝" }\n}';
+  editor.placeholder = THEME_JSON_EXAMPLE;
   editor.addEventListener('input', () => { state.editorText = editor.value; });
 
   const importInput = el('input', 'theme-studio-import-file');
@@ -264,7 +303,7 @@ function renderComposer() {
 
   const editor = el('textarea', 'theme-studio-code');
   editor.value = state.editorText;
-  editor.placeholder = '{\n  "themeVariables": { "accent": "#F3A7C4" },\n  "themeConfig": { "themeName": "粉色猫窝" }\n}';
+  editor.placeholder = THEME_JSON_EXAMPLE;
   editor.addEventListener('input', () => { state.editorText = editor.value; });
 
   const importInput = el('input', 'theme-studio-import-file');
@@ -833,27 +872,22 @@ function createStarterTheme(prompt) {
   const dark = text.includes('夜') || text.includes('深色') || text.includes('暗');
   return {
     themeVariables: pink ? {
-      accent: '#EFA6C1',
-      'accent-light': '#F8D9E5',
-      'accent-dark': '#C97898',
-      'bg-primary': dark ? '#30242A' : '#FFF1F6',
-      'bg-secondary': dark ? '#3B2B33' : '#FBE1EB',
-      'bg-card': dark ? '#44333B' : '#FFF9FB',
-      'text-primary': dark ? '#F7E8EF' : '#674D58',
-      'text-secondary': dark ? '#D7B8C6' : '#987383',
-      'bubble-user-bg': '#F4BED2',
-      'bubble-ai-bg': dark ? '#493640' : '#FFF7FA',
+      accent: STARTER_THEME_TOKENS.pink.accent,
+      'accent-light': STARTER_THEME_TOKENS.pink['accent-light'],
+      'accent-dark': STARTER_THEME_TOKENS.pink['accent-dark'],
+      ...(dark ? STARTER_THEME_TOKENS.pink.dark : STARTER_THEME_TOKENS.pink.light),
+      'bubble-user-bg': STARTER_THEME_TOKENS.pink['bubble-user-bg'],
       'radius-md': '24px',
       'radius-lg': '32px',
       'shadow-card': '0 8px 24px color-mix(in srgb, var(--accent) 18%, transparent)'
     } : {
-      accent: '#89AAA9',
-      'accent-light': '#D7E8E5',
-      'accent-dark': '#668B8A',
-      'bg-primary': '#F2F6F3',
-      'bg-secondary': '#E2EEE9',
-      'bg-card': '#FCFAF5',
-      'text-primary': '#536360',
+      accent: STARTER_THEME_TOKENS.mint.accent,
+      'accent-light': STARTER_THEME_TOKENS.mint['accent-light'],
+      'accent-dark': STARTER_THEME_TOKENS.mint['accent-dark'],
+      'bg-primary': STARTER_THEME_TOKENS.mint['bg-primary'],
+      'bg-secondary': STARTER_THEME_TOKENS.mint['bg-secondary'],
+      'bg-card': STARTER_THEME_TOKENS.mint['bg-card'],
+      'text-primary': STARTER_THEME_TOKENS.mint['text-primary'],
       'radius-md': '22px'
     },
     imageSlots: {
