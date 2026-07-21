@@ -360,15 +360,15 @@ export async function transcribeAudio(audioBlob, opts = {}) {
     endpointMeta = await resolveEarEndpoint();
   } catch (err) {
     earDebug('resolve_endpoint_error', { error: String(err?.message || err).slice(0, 120) });
-    return { ok: false, reason: 'no_endpoint', message: '耳朵还没配置好，去设置-API配置-感官-耳朵里加一个语音转文字接口' };
+    return { ok: false, reason: 'no_endpoint', message: '耳朵还没配置好，去设置中心的 API 轮换池里，给感官-耳朵加一个语音转文字接口' };
   }
   if (!endpointMeta) {
     earDebug('resolve_endpoint_failed', { reason: 'no_endpoint_or_group_disabled' });
-    return { ok: false, reason: 'no_endpoint', message: '耳朵还没配置好，去设置-API配置-感官-耳朵里加一个语音转文字接口' };
+    return { ok: false, reason: 'no_endpoint', message: '耳朵还没配置好，去设置中心的 API 轮换池里，给感官-耳朵加一个语音转文字接口' };
   }
   if (!endpointMeta.model) {
     earDebug('resolve_endpoint_no_model', {});
-    return { ok: false, reason: 'no_model', message: '耳朵接口没填模型名，去设置里补一下' };
+    return { ok: false, reason: 'no_model', message: '耳朵接口还没填模型名，去设置中心的感官-耳朵里补一下' };
   }
 
   earDebug('resolve_endpoint_ok', {

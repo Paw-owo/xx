@@ -7,6 +7,35 @@ import { createThemeConfig, previewThemeAsync } from '../../core/theme-ai-agent.
 
 let registered = false;
 
+const THEME_DRAFT_PALETTES = Object.freeze({
+  night: Object.freeze({
+    accent: '#8f7cf7', accentLight: '#403a68', accentDark: '#d8d0ff', accentStrong: '#b8a8ff',
+    bg: '#25243a', card: '#32304a', muted: '#2b2942', paper: '#373551',
+    text: '#fff8ff', secondary: '#d8d2ee', hint: '#aaa2c8', border: '#4b4770', shadow: 'rgba(9, 8, 20, 0.34)',
+    userBubble: '#6f61d7', aiBubble: '#373551'
+  }),
+  green: Object.freeze({
+    accent: '#8bc9a8', accentLight: '#dff3e7', accentDark: '#3f7d59', accentStrong: '#5aa878',
+    bg: '#f1fbf4', card: '#ffffff', muted: '#e8f5ed', paper: '#fffdf8',
+    text: '#385345', secondary: '#66796d', hint: '#8da296', border: '#cfe5d7', shadow: 'rgba(65, 108, 80, 0.16)',
+    userBubble: '#cfeedd', aiBubble: '#fffdf8'
+  }),
+  warm: Object.freeze({
+    accent: '#e8ae70', accentLight: '#fff0d8', accentDark: '#9a6636', accentStrong: '#c98448',
+    bg: '#fff7eb', card: '#fffdf8', muted: '#f7ead8', paper: '#fffaf1',
+    text: '#5a4938', secondary: '#806d58', hint: '#a89278', border: '#ead8bf', shadow: 'rgba(123, 89, 48, 0.16)',
+    userBubble: '#ffe3ba', aiBubble: '#fffaf1'
+  }),
+  softPink: Object.freeze({
+    accent: '#f3a7c4', accentLight: '#ffe3ee', accentDark: '#a85b7a', accentStrong: '#d8789e',
+    bg: '#fff3f7', card: '#fffafa', muted: '#f9e9ef', paper: '#fffdfc',
+    text: '#5b4650', secondary: '#806a74', hint: '#aa8f9a', border: '#efd2dd', shadow: 'rgba(128, 74, 96, 0.16)',
+    userBubble: '#ffd9e8', aiBubble: '#fffdfc'
+  })
+});
+
+// 这里的 hex 是 AI 生成主题草案的设计 token 预设，不直接作为 APP 运行样式散写。
+
 export function ensureThemeAgentRegistered() {
   if (registered) return true;
   registerSubAgent({
@@ -41,32 +70,12 @@ function buildThemeDraft(prompt) {
   const isGreen = /绿|森林|薄荷|mint|green/.test(lower);
   const isWarm = /奶油|暖|橙|黄|cream|warm|sun/.test(lower);
   const palette = isNight
-    ? {
-        accent: '#8f7cf7', accentLight: '#403a68', accentDark: '#d8d0ff', accentStrong: '#b8a8ff',
-        bg: '#25243a', card: '#32304a', muted: '#2b2942', paper: '#373551',
-        text: '#fff8ff', secondary: '#d8d2ee', hint: '#aaa2c8', border: '#4b4770', shadow: 'rgba(9, 8, 20, 0.34)',
-        userBubble: '#6f61d7', aiBubble: '#373551'
-      }
+    ? THEME_DRAFT_PALETTES.night
     : isGreen
-      ? {
-          accent: '#8bc9a8', accentLight: '#dff3e7', accentDark: '#3f7d59', accentStrong: '#5aa878',
-          bg: '#f1fbf4', card: '#ffffff', muted: '#e8f5ed', paper: '#fffdf8',
-          text: '#385345', secondary: '#66796d', hint: '#8da296', border: '#cfe5d7', shadow: 'rgba(65, 108, 80, 0.16)',
-          userBubble: '#cfeedd', aiBubble: '#fffdf8'
-        }
+      ? THEME_DRAFT_PALETTES.green
       : isWarm
-        ? {
-            accent: '#e8ae70', accentLight: '#fff0d8', accentDark: '#9a6636', accentStrong: '#c98448',
-            bg: '#fff7eb', card: '#fffdf8', muted: '#f7ead8', paper: '#fffaf1',
-            text: '#5a4938', secondary: '#806d58', hint: '#a89278', border: '#ead8bf', shadow: 'rgba(123, 89, 48, 0.16)',
-            userBubble: '#ffe3ba', aiBubble: '#fffaf1'
-          }
-        : {
-            accent: '#f3a7c4', accentLight: '#ffe3ee', accentDark: '#a85b7a', accentStrong: '#d8789e',
-            bg: '#fff3f7', card: '#fffafa', muted: '#f9e9ef', paper: '#fffdfc',
-            text: '#5b4650', secondary: '#806a74', hint: '#aa8f9a', border: '#efd2dd', shadow: 'rgba(128, 74, 96, 0.16)',
-            userBubble: '#ffd9e8', aiBubble: '#fffdfc'
-          };
+        ? THEME_DRAFT_PALETTES.warm
+        : THEME_DRAFT_PALETTES.softPink;
   return {
     themeVariables: {
       accent: palette.accent,

@@ -5,7 +5,7 @@
 // 角色隔离：无 characterId 不落库，不乱塞默认角色
 
 import { getData, setData, generateId, getNow, setDB, deleteDB } from './storage.js';
-import { on, emit } from './app-bus.js';
+import { on, emit, emitUnreadChanged } from './app-bus.js';
 
 let initialized = false;
 
@@ -47,6 +47,37 @@ function emitExternalMessageFailed(payload = {}, error) {
       error: errorMessage
     });
   } catch (_) {}
+}
+
+
+function sumUnreadMap(map) {
+  if (!map || typeof map !== 'object') return 0;
+  return Object.values(map).reduce((total, value) => total + Math.max(0, Number(value) || 0), 0);
+}
+
+function emitChatUnreadChanged({ characterId, unreadMap, payload, nextCount }) {
+  try {
+    const emitted = emitUnreadChanged({
+      appId: 'chat',
+      source: String(payload.sourceApp || 'chat-event-bridge'),
+      type: 'external-message',
+      count: sumUnreadMap(unreadMap),
+      characterId,
+      threadId: characterId,
+      sourceType: String(payload.sourceType || payload.type || ''),
+      unread: Math.max(0, Number(nextCount) || 0)
+    });
+    if (!emitted && typeof window !== 'undefined' && typeof window.refreshDesktopBadges === 'function') {
+      window.refreshDesktopBadges();
+    }
+  } catch (error) {
+    console.warn('[chat-event-bridge] unread changed event failed', error);
+    try {
+      if (typeof window !== 'undefined' && typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
+    } catch (refreshError) {
+      console.warn('[chat-event-bridge] refreshDesktopBadges failed', refreshError);
+    }
+  }
 }
 
 function markEventHandled(eventId) {
@@ -258,20 +289,15 @@ export async function appendExternalChatMessage(payload = {}) {
     try {
       const unreadMap = getData('chat_unread_counts') || {};
       const next = Math.max(0, Number(unreadMap[characterId] || 0) + 1);
-      const unreadSaved = setData('chat_unread_counts', { ...unreadMap, [characterId]: next });
+      const nextUnreadMap = { ...unreadMap, [characterId]: next };
+      const unreadSaved = setData('chat_unread_counts', nextUnreadMap);
       if (!isDBWriteOk(unreadSaved)) throw new Error('聊天未读还没能保存');
+      emitChatUnreadChanged({ characterId, unreadMap: nextUnreadMap, payload, nextCount: next });
     } catch (error) {
       try { await deleteDB('messages', message.id); } catch (_) {}
       emitExternalMessageFailed(payload, error);
       return null;
     }
-  }
-
-  // 角标刷新只影响 UI，不回滚已经落好的外部消息。
-  try {
-    if (typeof window.refreshDesktopBadges === 'function') window.refreshDesktopBadges();
-  } catch (error) {
-    console.warn('[chat-event-bridge] refreshDesktopBadges failed', error);
   }
 
   // 通知 chat.js 刷新 UI（chat.js 可选监听，不强制）

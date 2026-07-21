@@ -34,18 +34,34 @@ export function hasAPI(appId) {
 // 【事件总线】包装 window.AppEvents，加命名约定和事件日志
 // ═══════════════════════════════════════
 
+export const UNREAD_CHANGED_EVENT = 'app:unread-updated';
+
 const EVENT_LOG_KEY = 'app_bus_event_log';
 const EVENT_LOG_LIMIT = 50;
 
 export function emit(event, data) {
   const name = String(event || '').trim();
-  if (!name) return;
+  if (!name) return false;
   logEvent(name, data);
   if (typeof window !== 'undefined' && window.AppEvents) {
     window.AppEvents.emit(name, data);
-  } else if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(name, { detail: data }));
+    return true;
   }
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(name, { detail: data }));
+    return true;
+  }
+  return false;
+}
+
+export function emitUnreadChanged({ appId = '', source = '', type = 'changed', count = null, ...detail } = {}) {
+  return emit(UNREAD_CHANGED_EVENT, {
+    appId: String(appId || '').trim(),
+    source: String(source || '').trim(),
+    type: String(type || 'changed').trim() || 'changed',
+    count: Number.isFinite(Number(count)) ? Number(count) : null,
+    ...detail
+  });
 }
 
 export function on(event, fn) {

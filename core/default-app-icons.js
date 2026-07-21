@@ -57,16 +57,17 @@ export function createDefaultAppIcon(app, size = 28, documentRef = document) {
   svg.setAttribute('height', String(size));
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
+  const showTinyDecoration = Number(size || 0) > 32;
   svg.innerHTML = `<g class="icon-badge-frame" aria-hidden="true">
       <path class="badge-paper" d="M16 22c0-4 4-7 8-6 1-5 7-8 12-5 3-5 10-5 13 0 5-3 11 0 12 5 5-1 9 2 9 6 5 1 8 7 5 12 5 3 5 10 0 13 3 5 0 11-5 12 1 5-3 9-8 9-1 5-7 8-12 5-3 5-10 5-13 0-5 3-11 0-12-5-5 1-9-3-8-8-5-1-8-7-5-12-5-3-5-10 0-13-3-5 0-11 5-12Z"/>
       <path class="badge-stitch" d="M23 27c3-5 8-7 13-5 4-5 12-5 16 0 6-2 12 1 14 7 5 3 7 9 4 15 3 6 1 12-4 15-2 6-8 9-14 7-4 5-12 5-16 0-6 2-12-1-14-7-5-3-7-9-4-15-3-6-1-12 5-17Z"/>
       <circle class="cookie-dot" cx="25" cy="31" r="2"/><circle class="cookie-dot" cx="70" cy="34" r="2"/><circle class="cookie-dot" cx="27" cy="62" r="2"/>
     </g>
     <g class="icon-character">${drawing}</g>
-    <g class="icon-decoration" aria-hidden="true">
+    ${showTinyDecoration ? `<g class="icon-decoration" aria-hidden="true">
       <path class="sparkle" d="m13 17 1.8 4.2L19 23l-4.2 1.8L13 29l-1.8-4.2L7 23l4.2-1.8Z"/>
       <circle class="cookie-dot" cx="74" cy="20" r="3"/>
-    </g>`;
+    </g>` : ''}`;
   return svg;
 }
 

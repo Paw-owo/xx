@@ -1,12 +1,11 @@
 // core/storage-manager.js
 // imports:
-//   from './storage.js': getData, setData, removeData, getAllDB, getAllDBStrict, setDB, clearStoreDB, generateId, getNow
+//   from './storage.js': getData, setData, removeData, getAllDBStrict, setDB, clearStoreDB, generateId, getNow
 
 import {
   getData,
   setData,
   removeData,
-  getAllDB,
   getAllDBStrict,
   setDB,
   clearStoreDB,
@@ -27,6 +26,7 @@ const SNAPSHOT_VERSION = 1;
 const CLOUD_TIMEOUT_MS = 10000;
 
 const LOCAL_STORAGE_KEYS = collectBackupLocalStorageKeys();
+const snapshotTestHooks = { getAllDBStrict: null };
 
 const BACKUP_EXCLUDED_LOCAL_KEYS = new Set([
   'app_lock_unlocked',
@@ -254,6 +254,8 @@ export async function testCloudConnection(config = getCloudConfig()) {
 export async function buildLocalSnapshot() {
   const localStorageData = {};
   const indexedDBData = {};
+  const failedStores = [];
+  const warnings = [];
 
   // 静态白名单键
   LOCAL_STORAGE_KEYS.forEach((key) => {
@@ -287,16 +289,22 @@ export async function buildLocalSnapshot() {
   const indexedDbStores = await getIndexedDbStoreNames();
   for (const storeName of indexedDbStores) {
     try {
-      indexedDBData[storeName] = await getAllDB(storeName);
-    } catch {
-      indexedDBData[storeName] = [];
+      indexedDBData[storeName] = await callSnapshotOperation('getAllDBStrict', storeName);
+    } catch (error) {
+      const failure = { storeName, message: sanitizeSnapshotError(error) };
+      failedStores.push(failure);
+      warnings.push(`数据表 ${storeName} 这次没能打包成功`);
     }
   }
 
+  const partial = failedStores.length > 0;
   return {
     version: SNAPSHOT_VERSION,
     createdAt: getNow(),
     deviceId: getDeviceId(),
+    partial,
+    warnings,
+    failedStores,
     localStorage: localStorageData,
     indexedDB: indexedDBData
   };
@@ -412,6 +420,11 @@ export async function uploadSnapshotToCloud(options = {}) {
     });
 
     const snapshot = options.snapshot || await buildLocalSnapshot();
+    if (isPartialSnapshot(snapshot)) {
+      const message = getPartialSnapshotMessage(snapshot);
+      setSyncStatus({ running: false, lastError: message });
+      throw new Error(message);
+    }
 
     try {
       const response = await cloudFetch('/api/snapshot', {
@@ -776,6 +789,35 @@ async function rollbackRestore(originalStores, originalLocal, mutatedStores, tou
   return recovered;
 }
 
+
+function isPartialSnapshot(snapshot) {
+  return snapshot?.partial === true || (Array.isArray(snapshot?.failedStores) && snapshot.failedStores.length > 0);
+}
+
+function getPartialSnapshotMessage(snapshot) {
+  const count = Array.isArray(snapshot?.failedStores) ? snapshot.failedStores.length : 0;
+  return count > 0
+    ? `这次备份没抱紧，有 ${count} 块数据没打包成功，请刷新后再试一次。`
+    : '这次备份没抱紧，有几块数据没打包成功，请刷新后再试一次。';
+}
+
+function sanitizeSnapshotError(error) {
+  const name = String(error?.name || 'Error').replace(/[^\w.-]/g, '').slice(0, 40) || 'Error';
+  const message = String(error?.message || '')
+    .replace(/https?:\/\/\S+/gi, '<url>')
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, '<email>')
+    .replace(/([?&](?:key|token|api_key|apikey|authorization|password|secret)=)[^&\s]+/gi, '$1<masked>')
+    .replace(/\b(key|token|api_key|apikey|authorization|password|secret)=\S+/gi, '$1=<masked>')
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer <masked>')
+    .slice(0, 160);
+  return message ? `${name}: ${message}` : name;
+}
+
+async function callSnapshotOperation(name, ...args) {
+  const operation = snapshotTestHooks[name] || { getAllDBStrict }[name];
+  return await operation(...args);
+}
+
 function getPrimaryKey(storeName, record) {
   if (!record || typeof record !== 'object') return '';
 
@@ -787,6 +829,7 @@ function getPrimaryKey(storeName, record) {
 }
 
 export const __restoreTestHooks = restoreTestHooks;
+export const __snapshotTestHooks = snapshotTestHooks;
 
 // ═══════════════════════════════════════
 // 【错误提示】把各种异常翻译成人话

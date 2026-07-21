@@ -16,11 +16,13 @@ export const APP_DATA_REGISTRY = Object.freeze({
       'app_grudge_settings'
     ],
     dynamicKeyPrefixes: ['chat_', 'app_bg_chat_opacity_', 'push_msg_watermark_'],
+    indexedDBStores: ['messages', 'group_messages', 'memories', 'stickers', 'groups'],
     backup: true
   },
   moments: {
     localStorageKeys: ['moments_unread_count', 'moment_interaction_state'],
     dynamicKeyPrefixes: ['last_moment_'],
+    indexedDBStores: ['moments'],
     backup: true
   },
   gallery: {
@@ -32,11 +34,13 @@ export const APP_DATA_REGISTRY = Object.freeze({
   characters: {
     localStorageKeys: ['user_profiles', 'app_user_profiles', 'active_user_profile_id'],
     dynamicKeyPrefixes: [],
+    indexedDBStores: ['characters'],
     backup: true
   },
   worldbook: {
     localStorageKeys: ['app_worldbook_visuals'],
     dynamicKeyPrefixes: [],
+    indexedDBStores: ['worldbook'],
     backup: true
   },
   wallet: {
@@ -47,6 +51,7 @@ export const APP_DATA_REGISTRY = Object.freeze({
   shop: {
     localStorageKeys: ['shop_items'],
     dynamicKeyPrefixes: [],
+    indexedDBStores: ['inventory', 'pet'],
     backup: true
   },
   memo: {
@@ -85,11 +90,13 @@ export const APP_DATA_REGISTRY = Object.freeze({
   music: {
     localStorageKeys: ['music_app_settings', 'music_current_song'],
     dynamicKeyPrefixes: [],
+    indexedDBStores: ['songs', 'playlists'],
     backup: true
   },
   dream: {
     localStorageKeys: ['app_dream_last_gen', 'app_dream_config'],
     dynamicKeyPrefixes: [],
+    indexedDBStores: ['dreams'],
     backup: true
   },
   'theme-center': {
@@ -123,6 +130,7 @@ export const APP_DATA_REGISTRY = Object.freeze({
       'weather_settings'
     ],
     dynamicKeyPrefixes: [],
+    indexedDBStores: ['api_pool', 'blobs'],
     backup: true
   },
   cloud: {
@@ -172,6 +180,13 @@ export const APP_UNREAD_SOURCES = Object.freeze([
 ]);
 
 export const APP_EVENT_SPECS = Object.freeze([
+  {
+    eventName: 'app:unread-updated',
+    sourceApp: 'system',
+    payload: ['appId', 'source', 'type', 'count'],
+    consumers: ['index.html'],
+    note: '统一未读更新事件；写端仍以各自 unread key 为事实来源，桌面收到后重新汇总刷新角标。'
+  },
   {
     eventName: 'moments:published',
     sourceApp: 'moments',

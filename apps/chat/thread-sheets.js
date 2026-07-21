@@ -9,6 +9,7 @@
 
 import { getData, setData, getNow } from '../../core/storage.js';
 import { showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
+import { openApp } from '../../core/app-bus.js';
 import { createChatIcon } from './icons.js';
 import { sendThreadMessage, sendTransferMessage } from './thread-actions.js';
 import { openRelationshipLockSheet } from './thread-relationship.js';
@@ -561,7 +562,7 @@ function renderMcpServerList(state, options) {
   );
 
   if (!groups.length) {
-    sheet.append(createEmptyTip('这里还没有接入外部工具。'));
+    sheet.append(createMcpEmptyState(options));
     renderSheet(sheet, options.containerEl);
     return;
   }
@@ -576,6 +577,26 @@ function renderMcpServerList(state, options) {
 }
 
 // 单个 server 行：图标 + 名称 + 工具数胶囊 + 开关
+function createMcpEmptyState(options = {}) {
+  const box = el('div', 'thread-sheet-empty mcp-empty-state');
+  box.append(
+    el('div', 'mcp-empty-title', '外部工具还没放进来'),
+    el('div', 'mcp-empty-desc', '想让 TA 使用 MCP/外部工具时，可以先去设置中心把小工具接好。')
+  );
+  const action = el('button', 'thread-sheet-btn primary mcp-empty-action', '去设置中心');
+  action.type = 'button';
+  action.addEventListener('click', async () => {
+    if (options.containerEl) {
+      if (typeof options.onBack === 'function') options.onBack();
+    } else {
+      hideBottomSheet();
+    }
+    await openApp('settings', { section: 'mcp' });
+  });
+  box.append(action);
+  return box;
+}
+
 function createMcpServerRow(server, state, options) {
   const row = el('button', 'mcp-server-row');
   row.type = 'button';
@@ -933,6 +954,10 @@ function injectStyle() {
     .thread-chip-title{color:var(--text-primary);font-size:14px;font-weight:600;line-height:1.35;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
     .thread-chip-desc{color:var(--text-secondary);font-size:12px;line-height:1.45;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
     .thread-sheet-empty{padding:16px 12px;border-radius:18px;background:var(--surface-muted);color:var(--text-secondary);font-size:13px;line-height:1.6;text-align:center}
+    .mcp-empty-state{display:flex;flex-direction:column;align-items:center;gap:10px}
+    .mcp-empty-title{color:var(--text-primary);font-size:14px;font-weight:700}
+    .mcp-empty-desc{color:var(--text-secondary);font-size:12px;line-height:1.6}
+    .mcp-empty-action{width:100%;max-width:180px}
     .thread-sheet-field{margin-top:12px;display:flex;flex-direction:column;gap:8px}
     .thread-sheet-field-title{color:var(--text-primary);font-size:14px;font-weight:600;line-height:1.35}
     .thread-sheet-field-desc{color:var(--text-secondary);font-size:12px;line-height:1.5}

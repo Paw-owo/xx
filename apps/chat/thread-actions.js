@@ -454,7 +454,8 @@ export async function stopThreadAIReply(state, options = {}) {
   if (typeof fn !== 'function') {
     state.aiGenerating = false;
     state.isSending = false;
-    showToast('停止模块还没接上');
+    console.warn('[thread-actions] stop AI reply function missing');
+    showToast('这次没能停稳，刷新一下或稍后再试试');
     return false;
   }
 
@@ -1116,7 +1117,8 @@ async function requestAIReplySafely(state, options = {}) {
     } catch (error) {
       console.warn('[thread-actions] render without AI module failed', error);
     }
-    showToast('AI 回复模块还没接上');
+    console.warn('[thread-actions] AI reply function missing');
+    showToast('这次没能把回复请出来，可以刷新一下，或检查 API 设置后再试');
     return null;
   }
 
@@ -1125,8 +1127,8 @@ async function requestAIReplySafely(state, options = {}) {
   try {
     return await fn(state, options);
   } catch (error) {
-    console.error(error);
-    showToast('TA 刚刚走神了');
+    console.error('[thread-actions] AI reply failed', error);
+    showToast('TA 刚刚走神了，可以稍后再试，或去设置里看看接口是否安好');
     return null;
   } finally {
     state.aiGenerating = false;
