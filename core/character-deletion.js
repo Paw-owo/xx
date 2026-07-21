@@ -79,6 +79,7 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       ? normalizeList(await callDeletionOperation('getAllDBStrict', 'characters')).find((row) => String(row?.id || '') === id)
       : null;
     const checkpointMissing = Symbol('checkpoint-missing');
+    const anniversariesRollback = await prepareAnniversaryCleanup(id, checkpointMissing);
     const checkpointKey = `mem_sum_${id}`;
     const checkpoint = await callDeletionOperation('getData', checkpointKey, checkpointMissing);
 
@@ -103,6 +104,10 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       if (!saved) throw new Error('group-update-failed');
       rollback.push(() => callDeletionOperation('setDB', 'groups', group));
     }
+
+    rollback.push(anniversariesRollback);
+    const anniversariesCleaned = await callAnniversaryCleanup(id);
+    if (!anniversariesCleaned) throw new Error('anniversary-cleanup-failed');
 
     const checkpointRemoved = await callDeletionOperation('removeData', checkpointKey);
     if (checkpointRemoved !== true) throw new Error('checkpoint-delete-failed');
@@ -172,6 +177,61 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       }
     }
     return { success: false };
+  }
+}
+
+
+async function prepareAnniversaryCleanup(id, missing) {
+  const list = await callDeletionOperation('getData', 'anniversaries', missing);
+  const visuals = await callDeletionOperation('getData', 'app_anniversary_visuals', missing);
+  const greeted = await callDeletionOperation('getData', 'app_anniversary_greeted', missing);
+  return async () => {
+    if (list !== missing) await callDeletionOperation('setData', 'anniversaries', list);
+    if (visuals !== missing) await callDeletionOperation('setData', 'app_anniversary_visuals', visuals);
+    if (greeted !== missing) await callDeletionOperation('setData', 'app_anniversary_greeted', greeted);
+  };
+}
+
+async function callAnniversaryCleanup(id) {
+  const missing = Symbol('anniversary-missing');
+  try {
+    const current = await callDeletionOperation('getData', 'anniversaries', []);
+    const list = normalizeList(current);
+    const removed = list.filter((item) => String(item?.characterId || '') === id);
+    if (!removed.length) return true;
+
+    const saved = await callDeletionOperation('setData', 'anniversaries', list.filter((item) => String(item?.characterId || '') !== id));
+    if (saved !== true) return false;
+
+    const visuals = await callDeletionOperation('getData', 'app_anniversary_visuals', missing);
+    if (visuals !== missing && visuals && typeof visuals === 'object' && !Array.isArray(visuals)) {
+      const nextVisuals = { ...visuals };
+      let changed = false;
+      removed.forEach((item) => {
+        if (item?.id && nextVisuals[item.id]) {
+          delete nextVisuals[item.id];
+          changed = true;
+        }
+      });
+      if (changed) {
+        const visualsSaved = await callDeletionOperation('setData', 'app_anniversary_visuals', nextVisuals);
+        if (visualsSaved !== true) return false;
+      }
+    }
+
+    const greeted = await callDeletionOperation('getData', 'app_anniversary_greeted', missing);
+    if (Array.isArray(greeted)) {
+      const removedIds = new Set(removed.map((item) => String(item?.id || '')).filter(Boolean));
+      const greetedSaved = await callDeletionOperation('setData', 'app_anniversary_greeted', greeted.filter((key) => {
+        const value = String(key || '');
+        return ![...removedIds].some((removedId) => value.startsWith(`${removedId}_`));
+      }));
+      if (greetedSaved !== true) return false;
+    }
+
+    return true;
+  } catch (_) {
+    return false;
   }
 }
 

@@ -120,9 +120,23 @@ const BASE_VARIABLES = {
 // 【阴影常量】日间 / 夜间
 // ═══════════════════════════════════════
 
-const LIGHT_SHADOWS = {};
+const LIGHT_SHADOWS = {
+  'shadow-sm': '0 4px 12px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 8%, transparent)',
+  'shadow-md': '0 9px 24px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 10%, transparent)',
+  'shadow-lg': '0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent)',
+  'shadow-card': '0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent)',
+  'shadow-float': '0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent)',
+  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 76%, transparent)'
+};
 
-const DARK_SHADOWS = {};
+const DARK_SHADOWS = {
+  'shadow-sm': '0 5px 16px color-mix(in srgb, black 28%, transparent), 0 1px 0 color-mix(in srgb, white 5%, transparent)',
+  'shadow-md': '0 12px 30px color-mix(in srgb, black 34%, transparent), 0 1px 0 color-mix(in srgb, white 6%, transparent)',
+  'shadow-lg': '0 22px 48px color-mix(in srgb, black 42%, transparent), 0 1px 0 color-mix(in srgb, white 7%, transparent)',
+  'shadow-card': '0 10px 24px color-mix(in srgb, black 30%, transparent), inset 0 1px 0 color-mix(in srgb, white 6%, transparent)',
+  'shadow-float': '0 20px 46px color-mix(in srgb, black 40%, transparent), 0 0 0 1px color-mix(in srgb, white 6%, transparent)',
+  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 9%, transparent)'
+};
 
 // ═══════════════════════════════════════
 // 【主题预设】3 浅色 + 3 夜间

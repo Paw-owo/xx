@@ -1360,13 +1360,59 @@ function getInjectionName(id) {
   return INJECTION_MODES.find((item) => item.id === id)?.name || '一直参考';
 }
 
+
+async function collectWorldbookVisualBlobs(entries) {
+  const blobs = {};
+  await Promise.all((Array.isArray(entries) ? entries : []).map(async (entry) => {
+    const id = String(entry?.id || '').trim();
+    if (!id) return;
+    const pairs = [
+      ['cover', getCoverKey(id)],
+      ['icon', getIconKey(id)]
+    ];
+    await Promise.all(pairs.map(async ([kind, key]) => {
+      const record = await getDB('blobs', key).catch(() => null);
+      if (!record) return;
+      blobs[id] = blobs[id] || {};
+      blobs[id][kind] = {
+        ...record,
+        key
+      };
+    }));
+  }));
+  return blobs;
+}
+
+async function restoreWorldbookVisualBlobs(blobs, idMap) {
+  if (!blobs || typeof blobs !== 'object') return;
+  for (const [oldId, recordSet] of Object.entries(blobs)) {
+    const entryId = idMap.get(String(oldId)) || String(oldId);
+    if (!recordSet || typeof recordSet !== 'object' || !entryId) continue;
+    const pairs = [
+      ['cover', getCoverKey(entryId)],
+      ['icon', getIconKey(entryId)]
+    ];
+    for (const [kind, key] of pairs) {
+      const record = recordSet[kind];
+      if (!record || typeof record !== 'object') continue;
+      await setDB('blobs', key, {
+        ...record,
+        key,
+        updatedAt: getNow()
+      });
+    }
+  }
+}
+
 async function exportWorldbook() {
   const entries = await getWorldbookEntries();
   const visuals = getVisuals();
+  const visualBlobs = await collectWorldbookVisualBlobs(entries);
 
   const blob = new Blob([JSON.stringify({
     entries,
     visuals,
+    visualBlobs,
     exportedAt: getNow()
   }, null, 2)], {
     type: 'application/json'
@@ -1402,15 +1448,33 @@ function importWorldbook() {
         return;
       }
 
+      const idMap = new Map();
       for (const item of entries) {
+        const originalId = String(item?.id || '').trim();
         const entry = normalizeEntry({
           ...item,
           id: item.id || generateId(),
           createdAt: item.createdAt || getNow(),
           updatedAt: getNow()
         });
+        if (originalId) idMap.set(originalId, entry.id);
         await setDB('worldbook', entry.id, entry);
       }
+
+      if (json.visuals && typeof json.visuals === 'object') {
+        const visuals = getVisuals();
+        Object.entries(json.visuals).forEach(([oldId, meta]) => {
+          const entryId = idMap.get(String(oldId)) || String(oldId);
+          if (!entryId || !meta || typeof meta !== 'object') return;
+          visuals[entryId] = {
+            name: meta.name || '',
+            opacity: Number.isFinite(Number(meta.opacity)) ? Number(meta.opacity) : 1,
+            updatedAt: meta.updatedAt || getNow()
+          };
+        });
+        setData(VISUALS_KEY, visuals);
+      }
+      await restoreWorldbookVisualBlobs(json.visualBlobs || json.blobs, idMap);
 
       hideBottomSheet();
       showToast('导入完成');

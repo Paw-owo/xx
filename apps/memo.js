@@ -11,7 +11,7 @@ import {
   showToast, showBottomSheet, hideBottomSheet, showConfirm, createIcon
 } from '../core/ui.js';
 import { promptForRemoteImage } from '../core/image-url.js';
-import { editMemory } from '../core/memory.js';
+import { editMemory, deleteMemory } from '../core/memory.js';
 
 const MEMO_KEY = 'memos';
 const VISUALS_KEY = 'app_memo_visuals';
@@ -157,6 +157,31 @@ function setMemoSync(syncs, memoId, characterId, memoryId) {
   byMemo[characterId] = { memoryId: String(memoryId), updatedAt: getNow() };
   next[memoId] = byMemo;
   return next;
+}
+
+
+function removeMemoSync(syncs, memoId) {
+  const next = { ...(syncs || {}) };
+  delete next[memoId];
+  return next;
+}
+
+async function deleteSyncedMemoMemories(memoId) {
+  const syncs = readMemorySyncs();
+  const byMemo = syncs?.[memoId];
+  if (!byMemo || typeof byMemo !== 'object') return true;
+
+  const records = Object.entries(byMemo)
+    .map(([characterId, sync]) => ({ characterId, memoryId: sync?.memoryId || '' }))
+    .filter((item) => item.characterId && item.memoryId);
+
+  for (const item of records) {
+    const ok = await deleteMemory(item.characterId, item.memoryId);
+    if (!ok) return false;
+  }
+
+  saveMemorySyncs(removeMemoSync(syncs, memoId));
+  return true;
 }
 
 function getVisuals() {
@@ -828,6 +853,12 @@ async function togglePinned(memo) {
 async function deleteMemo(memo) {
   const ok = await showConfirm(`确定删除「${memo.title || '未命名'}」吗？`);
   if (!ok) return;
+
+  const removedSyncs = await deleteSyncedMemoMemories(memo.id);
+  if (!removedSyncs) {
+    showToast('这条备忘录连着角色记忆，还没清干净，请稍后再试');
+    return;
+  }
 
   const list = readMemos().filter((item) => item.id !== memo.id);
   saveMemos(list);

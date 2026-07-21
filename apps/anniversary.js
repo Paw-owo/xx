@@ -198,6 +198,39 @@ function saveList(list) {
   setData(KEY, Array.isArray(list) ? list : []);
 }
 
+
+export function deleteAnniversariesForCharacter(characterId) {
+  const id = String(characterId || '').trim();
+  if (!id) return { removed: 0 };
+
+  const current = readList();
+  const removed = current.filter((item) => String(item.characterId || '') === id);
+  if (!removed.length) return { removed: 0 };
+
+  saveList(current.filter((item) => String(item.characterId || '') !== id));
+
+  const visuals = getVisuals();
+  let visualsChanged = false;
+  removed.forEach((item) => {
+    if (visuals[item.id]) {
+      delete visuals[item.id];
+      visualsChanged = true;
+    }
+  });
+  if (visualsChanged) setData(VISUALS_KEY, visuals);
+
+  const greeted = getData('app_anniversary_greeted');
+  if (Array.isArray(greeted)) {
+    const removedIds = new Set(removed.map((item) => String(item.id || '')).filter(Boolean));
+    setData('app_anniversary_greeted', greeted.filter((key) => {
+      const value = String(key || '');
+      return ![...removedIds].some((removedId) => value.startsWith(`${removedId}_`));
+    }));
+  }
+
+  return { removed: removed.length };
+}
+
 function getVisuals() {
   const visuals = getData(VISUALS_KEY, {});
   return visuals && typeof visuals === 'object' ? visuals : {};

@@ -962,7 +962,7 @@ ${recentText || '（还没有对话记录）'}
       return false;
     }
     if (pageView === 'list') renderPage();
-    if (dream.generationStatus === 'parse_failed') return true;
+    if (dream.generationStatus === 'parse_failed') return;
     // 写入角色记忆 + 通知其他 APP
     try {
       const summaryText = dream.summary || dream.content.slice(0, 30);

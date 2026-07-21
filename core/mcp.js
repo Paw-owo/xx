@@ -253,8 +253,11 @@ async function ensureSseSession(serverId) {
         reader.read().then(({ done, value }) => {
           if (done) {
             clearTimeout(endpointTimer);
-            // 流正常结束但未拿到 endpoint
-            if (!session.messageUrl) {
+            // 流关闭后不能继续复用 ready 会话；已有 endpoint 时清理 pending，
+            // 下次调用会重新建立 SSE 连接。
+            if (session.messageUrl) {
+              cleanupSession(serverId);
+            } else {
               reject(new Error('SSE 流关闭，未收到 endpoint'));
             }
             return;
@@ -285,6 +288,8 @@ async function ensureSseSession(serverId) {
                 // 从 query 提取 sessionId 备用（实际认证靠 messageUrl 里的 sessionId query）
                 const sidMatch = messageUrl.match(/[?&]sessionId=([^&]+)/);
                 if (sidMatch) session.sessionId = decodeURIComponent(sidMatch[1]);
+                // 先放入 sessions，让后续任何断流都能清理这条半就绪会话和 pending。
+                sessions.set(serverId, session);
                 clearTimeout(endpointTimer);
                 resolve();
               }
