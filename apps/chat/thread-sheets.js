@@ -20,13 +20,47 @@ const SHEET_STYLE_ID = 'chat-thread-sheets-style';
 // 【数据读写】快捷回复/心情/接龙统一结构
 // ═══════════════════════════════════════
 
-function loadList(key) {
-  const raw = getData(key);
-  return Array.isArray(raw) ? raw.filter(Boolean) : [];
+
+const EDITABLE_LIST_KEYS = {
+  quickReply: 'quick_replies',
+  mood: 'mood_options',
+  relay: 'relay_presets'
+};
+
+function getThreadStorageId(state = {}) {
+  if (state?.mode === 'group') {
+    return String(state.groupId || state.threadId || '').trim();
+  }
+  return String(state?.characterId || state?.threadId || '').trim();
 }
 
-function saveList(key, list) {
-  setData(key, list.filter(Boolean));
+function buildThreadListKey(state, suffix) {
+  const id = getThreadStorageId(state);
+  return `chat_${id || 'default'}_${suffix}`;
+}
+
+function migrateListFromLegacyKey(state, suffix, legacyKey) {
+  const scopedKey = buildThreadListKey(state, suffix);
+  const scoped = getData(scopedKey);
+  if (Array.isArray(scoped) && scoped.filter(Boolean).length) return scoped.filter(Boolean);
+
+  const legacy = getData(legacyKey);
+  if (Array.isArray(legacy)) {
+    const migrated = legacy.filter(Boolean);
+    setData(scopedKey, migrated);
+    return migrated;
+  }
+  return [];
+}
+
+export function loadThreadEditableList(state, type) {
+  const suffix = EDITABLE_LIST_KEYS[type] || type;
+  return migrateListFromLegacyKey(state, suffix, `chat_${suffix}`);
+}
+
+export function saveThreadEditableList(state, type, list) {
+  const suffix = EDITABLE_LIST_KEYS[type] || type;
+  setData(buildThreadListKey(state, suffix), Array.isArray(list) ? list.filter(Boolean) : []);
 }
 
 // ═══════════════════════════════════════
@@ -39,7 +73,7 @@ export function openQuickReplySheet(state, options = {}) {
     title: '快捷回复',
     desc: '自定义常用指令，点一下就发出去。',
     emptyTip: '还没有快捷回复，点"添加"开始吧~',
-    storageKey: 'chat_quick_replies',
+    storageType: 'quickReply',
     sendLabel: '发出去',
   });
 }
@@ -54,7 +88,7 @@ export function openMoodSheet(state, options = {}) {
     title: '心情',
     desc: '告诉AI你现在想要什么感觉。',
     emptyTip: '还没有心情卡片，点"添加"开始吧~',
-    storageKey: 'chat_mood_options',
+    storageType: 'mood',
     sendLabel: '发出去',
   });
 }
@@ -69,7 +103,7 @@ export function openRelaySheet(state, options = {}) {
     title: '接龙',
     desc: '自定义接龙内容，点一下就把话题丢出去。',
     emptyTip: '还没有接龙内容，点"添加"开始吧~',
-    storageKey: 'chat_relay_presets',
+    storageType: 'relay',
     sendLabel: '发出去',
   });
 }
@@ -79,7 +113,7 @@ export function openRelaySheet(state, options = {}) {
 // ═══════════════════════════════════════
 
 function renderEditableSheet(state, options, config) {
-  const { title, desc, emptyTip, storageKey, sendLabel } = config;
+  const { title, desc, emptyTip, storageType, sendLabel } = config;
   const sheet = el('div', 'thread-sheet-wrap');
 
   const head = el('div', 'thread-sheet-head');
@@ -108,7 +142,7 @@ function renderEditableSheet(state, options, config) {
   const addBtn = el('button', 'editable-toolbar-btn primary', '添加');
 
   let mode = 'view';
-  let items = loadList(storageKey);
+  let items = loadThreadEditableList(state, storageType);
 
   function rerender() {
     // 受控单次刷新：只重建列表与工具栏状态，不递归重建整个 sheet，
@@ -136,7 +170,7 @@ function renderEditableSheet(state, options, config) {
         delBtn.appendChild(createDeleteIconSvg());
         delBtn.addEventListener('click', function() {
           items.splice(index, 1);
-          saveList(storageKey, items);
+          saveThreadEditableList(state, storageType, items);
           refreshList();
         });
         card.appendChild(delBtn);
@@ -269,7 +303,7 @@ function openAddItemSheet(state, options, config, items, rerender) {
       return;
     }
     items.push({ title: t || '未命名', content: c || '' });
-    saveList(config.storageKey, items);
+    saveThreadEditableList(state, config.storageType, items);
     showToast('已添加~');
     if (options.containerEl) {
       rerender();
@@ -348,7 +382,7 @@ function openEditItemSheet(state, options, config, items, index, rerender) {
       return;
     }
     items[index] = { title: t || '未命名', content: c || '' };
-    saveList(config.storageKey, items);
+    saveThreadEditableList(state, config.storageType, items);
     showToast('已保存~');
     if (options.containerEl) {
       rerender();

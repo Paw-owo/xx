@@ -184,7 +184,7 @@ async function applyBackground() {
 
   try {
     const record = await getDB('blobs', BG_KEY);
-    const image = record?.source || record?.value || record?.data || '';
+    const image = record?.value || record?.data || record?.source || '';
 
     if (image) {
       hostEl.classList.add('has-bg');

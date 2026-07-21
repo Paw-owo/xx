@@ -131,10 +131,7 @@ export function openThreadSettingsPanel(state, options) {
   injectStyle();
   panelState.lastState = state || null;
 
-  if (state?.mode === 'group') {
-    showToast('群聊设置晚点再接');
-    return;
-  }
+  if (state?.mode === 'group') return;
 
   if (!state?.characterId) {
     showToast('这个聊天还没有角色');

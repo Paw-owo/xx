@@ -8,7 +8,7 @@
 
 import { showBottomSheet, hideBottomSheet, showToast } from '../../core/ui.js';
 import { getData, setData } from '../../core/storage.js';
-import { openTransferSheet, openClearContextSheet, openMcpSheet } from './thread-sheets.js';
+import { openTransferSheet, openClearContextSheet, openMcpSheet, loadThreadEditableList, saveThreadEditableList } from './thread-sheets.js';
 import { openRelationshipLockSheet } from './thread-relationship.js';
 import { sendDiceMessage, sendRpsMessage } from './thread-actions.js';
 import { openGithubToolSheet } from './github-tool.js';
@@ -434,8 +434,14 @@ function getCharacterId(state) {
 }
 
 function getQuickReplies(state) {
-  var id = getCharacterId(state);
-  return getData('chat_' + id + '_quick_replies') || [
+  var saved = loadThreadEditableList(state, 'quickReply');
+  if (saved.length) {
+    return saved.map(function(item) {
+      if (typeof item === 'string') return item;
+      return item?.content || item?.title || '';
+    }).filter(Boolean);
+  }
+  return [
     '在忙吗~',
     '想你了',
     '晚安',
@@ -444,7 +450,7 @@ function getQuickReplies(state) {
 }
 
 function saveQuickReplies(state, replies) {
-  setData('chat_' + getCharacterId(state) + '_quick_replies', replies);
+  saveThreadEditableList(state, 'quickReply', replies);
 }
 
 function getRpsRecord(state) {

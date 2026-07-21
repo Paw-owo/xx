@@ -1026,6 +1026,17 @@
       font-size: var(--font-size-small);
     }
 
+    .loading-retry {
+      margin-top: 14px;
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 18px;
+      background: var(--accent);
+      color: var(--bubble-user-text);
+      font: inherit;
+      font-weight: 700;
+    }
+
     @keyframes icon-wiggle {
       0% { transform: rotate(-1deg); }
       50% { transform: rotate(1deg); }
@@ -1626,8 +1637,12 @@
 
     boot();
     initViewportManager();
+    let booting = false;
 
     async function boot() {
+      if (booting) return;
+      booting = true;
+      resetBootLoading();
       try {
         await initDB();
         loadTheme();
@@ -1647,15 +1662,47 @@
         await applyAllImages();
         refreshBadges();
         updateLockState();
+        hideBootLoading();
       } catch (error) {
         console.error(error);
-        showToast('哎呀，启动出了点问题');
+        renderBootError();
       } finally {
-        window.setTimeout(() => {
-          loadingEl.classList.add('hide');
-          window.setTimeout(() => loadingEl.remove(), 240);
-        }, 260);
+        booting = false;
       }
+    }
+
+    function resetBootLoading() {
+      if (!loadingEl) return;
+      loadingEl.classList.remove('hide');
+      loadingEl.innerHTML = '<div class="loading-card"><div class="loading-mark"></div><div class="loading-text">小手机正在醒来</div></div>';
+    }
+
+    function hideBootLoading() {
+      if (!loadingEl) return;
+      window.setTimeout(() => {
+        loadingEl.classList.add('hide');
+        window.setTimeout(() => loadingEl.remove(), 240);
+      }, 260);
+    }
+
+    function renderBootError() {
+      if (!loadingEl) return;
+      loadingEl.classList.remove('hide');
+      loadingEl.innerHTML = '';
+      const card = document.createElement('div');
+      card.className = 'loading-card';
+      const mark = document.createElement('div');
+      mark.className = 'loading-mark';
+      const text = document.createElement('div');
+      text.className = 'loading-text';
+      text.textContent = '小手机刚刚没醒好，再试一次吧';
+      const retry = document.createElement('button');
+      retry.type = 'button';
+      retry.className = 'loading-retry';
+      retry.textContent = '重试';
+      retry.addEventListener('click', () => { boot(); });
+      card.append(mark, text, retry);
+      loadingEl.append(card);
     }
 
     async function refreshDesktop() {
@@ -2101,7 +2148,8 @@
         widgetEl.innerHTML = `<div class="widget-top"><div class="widget-label">天气</div><div class="widget-mark" data-weather-icon></div></div><div id="weather-value" class="weather-content" aria-live="polite"><div class="widget-value">正在读取天气</div><div class="weather-meta">请稍候</div></div>`;
         widgetEl.addEventListener('click', (event) => {
           if (editing || dragState || clickSuppressor.consume() || event.target.closest('button')) return;
-          updateWeather({ force: true });
+          if (widgetEl.dataset.weatherAction === 'settings') openWeatherSettings();
+          else updateWeather({ force: true });
         });
       }
       if (widget.id === 'anniversary') {
@@ -2166,8 +2214,8 @@
         prevBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           const player = getAPI('music');
-          if (player) player.playPrevious?.();
-          else showToast('先从音乐库选一首歌吧');
+          if (player?.getCurrentSong?.()) player.playPrevious?.();
+          else openMusicForSelection();
         });
 
         const playBtn = document.createElement('button');
@@ -2179,8 +2227,8 @@
         playBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           const player = getAPI('music');
-          if (player) player.togglePlay?.();
-          else showToast('先从音乐库选一首歌吧');
+          if (player?.getCurrentSong?.()) player.togglePlay?.();
+          else openMusicForSelection();
         });
 
         const nextBtn = document.createElement('button');
@@ -2191,8 +2239,8 @@
         nextBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           const player = getAPI('music');
-          if (player) player.playNext?.();
-          else showToast('先从音乐库选一首歌吧');
+          if (player?.getCurrentSong?.()) player.playNext?.();
+          else openMusicForSelection();
         });
 
         controls.append(prevBtn, playBtn, nextBtn);
@@ -2628,7 +2676,8 @@
     }
 
     function updateLockState() {
-      const unlocked = getData('app_lock_unlocked') === true;
+      const savedLockState = getData('app_lock_unlocked');
+      const unlocked = savedLockState !== false;
       lockScreenEl.classList.toggle('hidden', unlocked);
       lockScreenEl.setAttribute('aria-hidden', String(unlocked));
       lockScreenEl.inert = unlocked;
@@ -2697,7 +2746,7 @@
       if (!force && isFreshWeatherCache(cached)) { renderWeather(cached); return cached; }
       if (weatherRequest) return weatherRequest;
 
-      renderWeatherStatus('正在刷新真实天气', '正在确认位置与天气数据');
+      renderWeatherStatus('正在刷新真实天气', '正在确认位置与天气数据', null);
       weatherController?.abort();
       weatherController = new AbortController();
       const controller = weatherController;
@@ -2716,10 +2765,12 @@
           return cache;
         } catch (error) {
           if (cached) {
-            renderWeather(cached, '天气刷新失败，先显示上次数据');
+            renderWeather(cached, '天气刷新失败，点卡片去设置里看看');
+            const widget = document.getElementById('weather-widget');
+            if (widget) widget.dataset.weatherAction = 'settings';
             return cached;
           }
-          renderWeatherStatus('暂时没有天气数据', error?.name === 'AbortError' ? '请求超时，点击卡片重试' : '请允许定位或先配置城市后重试');
+          renderWeatherStatus('暂时没有天气数据', error?.name === 'AbortError' ? '请求超时，点这里去设置里看看' : '点这里去设置里补一下城市', openWeatherSettings);
           return null;
         } finally {
           window.clearTimeout(timeoutId);
@@ -2785,8 +2836,10 @@
     function renderWeather(weather, notice = '') {
       const weatherValueEl = document.getElementById('weather-value');
       if (!weatherValueEl) return;
+      const widget = document.getElementById('weather-widget');
+      if (widget) widget.dataset.weatherAction = '';
       if (!Number.isFinite(Number(weather.temperature))) {
-        renderWeatherStatus(weather.text || '上次天气数据', notice || '旧缓存信息不完整，点击刷新');
+        renderWeatherStatus(weather.text || '上次天气数据', notice || '旧缓存信息不完整，点这里去设置里看看', openWeatherSettings);
         return;
       }
       weatherValueEl.innerHTML = '';
@@ -2798,12 +2851,16 @@
       renderWeatherIcon(weather.weatherCode, weather.isDay);
     }
 
-    function renderWeatherStatus(title, detail) {
+    function renderWeatherStatus(title, detail, action = null) {
       const weatherValueEl = document.getElementById('weather-value');
       if (!weatherValueEl) return;
+      const widget = document.getElementById('weather-widget');
+      if (widget) widget.dataset.weatherAction = action ? 'settings' : '';
       weatherValueEl.innerHTML = '';
       const primary = document.createElement('div'); primary.className = 'widget-value'; primary.textContent = title;
-      const meta = document.createElement('div'); meta.className = 'weather-meta'; meta.textContent = detail;
+      const meta = document.createElement(action ? 'button' : 'div');
+      meta.className = 'weather-meta'; meta.textContent = detail;
+      if (action) { meta.type = 'button'; meta.addEventListener('click', (event) => { event.stopPropagation(); action(); }); }
       weatherValueEl.append(primary, meta); renderWeatherIcon(null, true);
     }
 
@@ -2846,6 +2903,18 @@
     function getAnniversaries() { for (const key of ['anniversaries', 'app_anniversaries', 'anniversary_list']) { const value = getData(key); if (Array.isArray(value)) return value; } return []; }
     function parseAnniversaryDate(value) { if (!value) return null; const date = new Date(value); return Number.isNaN(date.getTime()) ? null : date; }
     function startOfDay(date) { return new Date(date.getFullYear(), date.getMonth(), date.getDate()); }
+
+
+    async function openMusicForSelection() {
+      showToast('先去音乐里挑一首吧');
+      await openApp('music');
+      getAPI('music')?.openPlayer?.();
+    }
+
+    async function openWeatherSettings() {
+      showToast('去设置里补一下天气小卡片');
+      await openApp('settings', { section: 'widgets', focus: 'weather' });
+    }
 
     function updateVinylWidget() {
       const disc = document.getElementById('vinyl-disc');

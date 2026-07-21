@@ -1047,7 +1047,7 @@ async function requestGroupReply(state, options = {}) {
     }
 
     const members = await resolveGroupMembers(group);
-    speakers = chooseGroupSpeakers(members, groupMessages);
+    speakers = await chooseGroupSpeakers(members, groupMessages);
   } catch (e) {
     preludeError = e;
   }
@@ -1712,7 +1712,8 @@ async function buildPrompt({
     mcpToolProtocol,
     buildSubAgentPrompt(),
     ASK_USER_PROMPT,
-    options.proactive ? buildProactivePrompt(options.proactiveReason, messages, userName, activeCharacter) : ''
+    options.proactive ? buildProactivePrompt(options.proactiveReason, messages, userName, activeCharacter) : '',
+    options.contextNote ? String(options.contextNote || '').trim() : ''
   ].filter(Boolean).join('\n\n');
 
   const chatMessages = [
@@ -3266,12 +3267,21 @@ async function resolveGroupMembers(group) {
   return normalizeList(characters).filter((item) => ids.includes(String(item.id)));
 }
 
-function chooseGroupSpeakers(members, messages) {
+async function chooseGroupSpeakers(members, messages) {
   const list = normalizeList(members);
   if (!list.length) return [];
 
+  const available = [];
+  for (const member of list) {
+    const lock = await getActiveRelationshipLock(member?.id).catch(() => null);
+    if (lock && isStrictRelationshipLocked({ relationshipLock: lock })) continue;
+    available.push(member);
+  }
+
+  if (!available.length) return [];
+
   const recentAssistantIds = normalizeList(messages).slice(-6).filter((item) => item.role === 'assistant').map((item) => item.characterId).filter(Boolean);
-  const sorted = [...list].sort((a, b) => {
+  const sorted = [...available].sort((a, b) => {
     const aRecent = recentAssistantIds.includes(a.id) ? 1 : 0;
     const bRecent = recentAssistantIds.includes(b.id) ? 1 : 0;
     return aRecent - bRecent;
