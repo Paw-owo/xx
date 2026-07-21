@@ -33,11 +33,16 @@
   --color-warning: #D99A35;
   --border-soft: #E7C99E;
   --border-charm: color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card));
-  --icon-color: #A5733B;
+  --icon-color: var(--icon-line-stable);
   --icon-tile-bg: var(--surface-paper);
   --icon-tile-alt-cool: color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card));
   --icon-tile-alt-warm: color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card));
-  --icon-detail: #AD7440;
+  --icon-detail: var(--icon-line-stable);
+  --icon-body-stable: color-mix(in srgb, var(--surface-paper) 82%, var(--decor-yellow));
+  --icon-line-stable: color-mix(in srgb, var(--text-primary) 72%, var(--accent-dark));
+  --icon-layer-stable: color-mix(in srgb, var(--bg-card) 88%, var(--decor-blue));
+  --icon-highlight-stable: color-mix(in srgb, var(--bg-card) 84%, white);
+  --icon-charm-theme: color-mix(in srgb, var(--accent) 66%, var(--bg-card));
   --button-primary-bg: linear-gradient(180deg, var(--accent-light), var(--accent));
   --button-primary-text: var(--bubble-user-text);
   --button-soft-bg: color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light));
@@ -2018,6 +2023,40 @@ body {
 
 
 
+/* 桌面 APP 图标统一色槽：主体和线稿保持稳定，仅小面积 charm 跟随主题。 */
+.cozy-app-icon {
+  --icon-line: var(--icon-line-stable);
+  --icon-base: var(--icon-body-stable);
+  --icon-paper: var(--icon-layer-stable);
+  --icon-highlight: var(--icon-highlight-stable);
+  --icon-charm: var(--icon-charm-theme);
+  overflow: visible;
+}
+
+.cozy-app-icon g {
+  fill: none;
+  stroke: var(--icon-line);
+  stroke-width: 3.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.cozy-app-icon .base,
+.cozy-app-icon .fur { fill: var(--icon-base); }
+.cozy-app-icon .paper,
+.cozy-app-icon .soft { fill: var(--icon-paper); }
+.cozy-app-icon .highlight { fill: var(--icon-highlight); }
+.cozy-app-icon .charm,
+.cozy-app-icon .accent,
+.cozy-app-icon .sparkle { fill: var(--icon-charm); }
+.cozy-app-icon .line-only { fill: none; }
+.cozy-app-icon .face { fill: var(--icon-line); stroke: none; }
+.cozy-app-icon .blush { stroke: var(--icon-charm); }
+.cozy-app-icon .badge-paper { fill: var(--icon-paper); stroke: var(--icon-line); }
+.cozy-app-icon .badge-stitch { fill: none; stroke: color-mix(in srgb, var(--icon-line) 46%, transparent); stroke-dasharray: 4 6; }
+.cozy-app-icon .cookie-dot { fill: var(--icon-charm); stroke: color-mix(in srgb, var(--icon-line) 55%, transparent); }
+
 /* 默认隐藏甜点主题 SVG 外框，只在默认甜点主题打开。 */
 .cozy-app-icon .icon-badge-frame { display: none; }
 :root[data-theme="cream-bell"] .cozy-app-icon .icon-badge-frame { display: var(--cream-bell-badge-display, block); }
@@ -2431,10 +2470,10 @@ body {
 
 :root[data-theme="cream-bell"] .cozy-app-icon {
   filter: none;
-  --icon-line: color-mix(in srgb, var(--text-primary) 66%, var(--accent-dark));
-  --icon-fur: color-mix(in srgb, var(--bg-card) 78%, var(--accent-light));
-  --icon-accent: color-mix(in srgb, var(--accent) 62%, var(--bg-card));
-  --icon-soft: color-mix(in srgb, var(--surface-paper) 78%, var(--accent-light));
+  --icon-line: var(--icon-line-stable);
+  --icon-fur: var(--icon-body-stable);
+  --icon-accent: var(--icon-charm-theme);
+  --icon-soft: var(--icon-layer-stable);
 }
 
 :root[data-theme="cream-bell"] .cozy-app-icon .badge-paper { fill: var(--icon-soft); stroke: var(--icon-line); }
