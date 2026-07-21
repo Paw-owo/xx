@@ -31,7 +31,7 @@ assert.deepEqual(
   ['cream-bell', 'cloud-soda', 'peach-pudding', 'cocoa-night', 'teddy-nest', 'blueberry-moon'],
   'preset ids describe six independent skins'
 );
-assert.ok(presets.some((preset) => preset.name === '焦糖小熊'), 'default caramel bear palette is a named theme, not anonymous global chrome');
+assert.deepEqual(presets.map((preset) => preset.name), ['奶粉糖霜', '奶蓝云朵', '奶黄布丁', '黑红莓夜', '奶棕暖窝', '黑粉莓月'], 'six preset names match the rewritten soft color families');
 
 const required = [
   'surface-paper',
@@ -52,11 +52,13 @@ const required = [
   'chat-fold-card-bg',
   'shadow-color',
   'toy-border',
-  'cream-bell-lace',
-  'cream-bell-dots',
-  'cream-bell-plaid',
-  'cream-bell-badge-display',
-  'cream-bell-charm-opacity'
+  'icon-paper-stable',
+  'icon-body-stable',
+  'icon-line-stable',
+  'icon-highlight-stable',
+  'icon-shadow-stable',
+  'icon-charm-theme',
+  'icon-charm-theme-2'
 ];
 
 for (const preset of presets) {
@@ -69,20 +71,16 @@ for (const preset of presets) {
 
 
 const cream = theme.setPreset('cream-bell');
-assert.equal(cream.variables['cream-bell-badge-display'], 'block', 'cream-bell turns on badge SVG frame');
-assert.equal(cream.variables['cream-bell-lace'], 'none', 'cream-bell does not add decorative background lace');
-assert.equal(cream.variables['cream-bell-dots'], 'none', 'cream-bell does not add decorative background dots');
-assert.equal(cream.variables['cream-bell-plaid'], 'none', 'cream-bell does not add decorative background plaid');
+assert.equal(cream.variables['icon-charm-theme'], '#D889A2', 'milk pink changes only the small icon accent token');
+assert.equal(cream.variables['icon-body-stable'], '#E8C9B8', 'stable icon body remains shared');
 
 const soda = theme.setPreset('cloud-soda');
-assert.equal(soda.variables['cream-bell-badge-display'], 'none', 'other themes turn off cream-bell badge SVG frame');
-assert.equal(soda.variables['cream-bell-lace'], 'none', 'other themes do not inherit lace resource');
-assert.equal(soda.variables['cream-bell-plaid'], 'none', 'other themes do not inherit plaid resource');
+assert.equal(soda.variables['icon-charm-theme'], '#8AB8D0', 'milk blue changes only the small icon accent token');
+assert.equal(soda.variables['icon-body-stable'], '#E8C9B8', 'stable icon body remains shared after theme switch');
 assert.equal(document.documentElement.attrs['data-theme'], 'cloud-soda', 'switching away updates data-theme');
 
 const creamAgain = theme.setPreset('cream-bell');
-assert.equal(creamAgain.variables['cream-bell-badge-display'], 'block', 'switching back restores badge SVG frame');
-assert.equal(creamAgain.variables['cream-bell-lace'], 'none', 'switching back keeps decorative background lace disabled');
+assert.equal(creamAgain.variables['icon-charm-theme'], '#D889A2', 'switching back restores the milk pink accent token');
 assert.equal(document.documentElement.attrs['data-theme'], 'cream-bell', 'switching back updates data-theme');
 
 const legacy = theme.setPreset('dark-chocolate');

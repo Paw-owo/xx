@@ -24,15 +24,15 @@ assert.doesNotMatch(changedText, /data:image\/(?:png|jpe?g|webp)|base64,[A-Za-z0
 assert.doesNotMatch(changedText, /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u, 'no emoji were introduced in touched theme files');
 
 const style = fs.readFileSync('style.css', 'utf8');
-const caramelStart = style.lastIndexOf('/* 焦糖小熊主题补齐层');
-assert.ok(caramelStart > 0, 'caramel bear scoped layer exists');
-const caramelBlock = style.slice(caramelStart);
-assert.doesNotMatch(caramelBlock, /(^|\n)(?!\s*(?:\/\*|\*|$|@keyframes))(?!(?:\s*:root\[data-theme="cream-bell"\]|\s*}\s*$|\s*[\w-]+:|\s*\)|\s*,|\s*radial-gradient|\s*linear-gradient|\s*color-mix|\s*var\(|\s*transparent|\s*from|\s*to))/m, 'new caramel selectors stay scoped to the target theme');
-assert.doesNotMatch(caramelBlock, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(|\b(?:red|blue|green|yellow|black|white)\b/i, 'new caramel layer has no hard-coded colors');
-assert.match(caramelBlock, /:root\[data-theme="cream-bell"\][^{}]*(?:\.phone-desktop|#app-layer > \*)[^{}]*\{\s*background:\s*var\(--bg-primary\);/s, 'cream-bell page backgrounds resolve to a pure theme color');
-assert.doesNotMatch(caramelBlock, /desktop-journal-layer[\s\S]*?radial-gradient/, 'cream-bell desktop journal layer has no decorative radial background');
-assert.match(caramelBlock, /theme-center::before[\s\S]*?content:\s*none/, 'cream-bell removes theme center decorative pseudo background');
-assert.match(caramelBlock, /dream-hero::before[\s\S]*?content:\s*none/, 'cream-bell removes dream hero decorative pseudo background');
+assert.match(style, /\/\* Rewritten desktop icon color system/, 'rewritten desktop icon system layer exists');
+assert.doesNotMatch(style, /cream-bell-badge-display|caramel-stitch|cookie-dot/, 'old caramel badge icon tokens are gone');
+assert.doesNotMatch(style, /\.cozy-app-icon \.icon-badge-frame/, 'old shared badge frame styling is gone');
+assert.match(style, /--icon-paper-stable/, 'stable paper token is present');
+assert.match(style, /--icon-body-stable/, 'stable body token is present');
+assert.match(style, /--icon-line-stable/, 'stable line token is present');
+assert.match(style, /--icon-highlight-stable/, 'stable highlight token is present');
+assert.match(style, /--icon-shadow-stable/, 'stable shadow token is present');
+assert.match(style, /--icon-charm-theme-2/, 'secondary small accent token is present');
 
 const icons = fs.readFileSync('core/default-app-icons.js', 'utf8');
 assert.equal((icons.match(/^[ ]{2}['\w-]+:/gm) || []).length, 14, 'icon drawing map covers all default app ids');

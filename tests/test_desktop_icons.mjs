@@ -24,14 +24,14 @@ const drawings = APPS.map((app) => {
   assert.ok(icon, `${app.id} has a default icon`);
   assert.equal(icon.attributes.get('viewBox'), '0 0 96 96');
   assert.ok(icon.classList.values.includes(`cozy-app-icon-${app.id}`));
-  assert.match(icon.innerHTML, /class="fur"/, `${app.id} includes a complete character body`);
+  assert.match(icon.innerHTML, /class="icon-(paper|body|highlight|accent)/, `${app.id} includes a layered illustrated body`);
   return icon.innerHTML;
 });
 assert.equal(new Set(drawings).size, APPS.length, 'all default silhouettes are distinct');
 
 const gallery = createDefaultAppIcon(APPS.find(({ id }) => id === 'gallery'), 28, fakeDocument).innerHTML;
 assert.doesNotMatch(gallery, /<image/i, 'gallery does not use external photo imagery');
-assert.match(gallery, /M17 25h62v56H17Z/, 'gallery keeps a distinct framed dessert-photo silhouette');
+assert.match(gallery, /<rect class="icon-paper"[^>]+width="60"[^>]+height="64"/, 'gallery keeps a distinct framed photo silhouette');
 
 const source = fs.readFileSync(new URL('../core/default-app-icons.js', import.meta.url), 'utf8');
 assert.doesNotMatch(source, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i, 'icon source contains no hard-coded colors');
@@ -47,8 +47,12 @@ console.log('desktop icon checks passed');
 
 
 const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
-assert.match(styleSource, /:root\[data-theme="cream-bell"\] \.desktop-icon-art/, 'cream-bell desktop icon styling is scoped to the preset');
-assert.match(styleSource, /\.cozy-app-icon \.icon-badge-frame \{ display: none; \}/, 'cream-bell badge frame is hidden outside the preset');
-assert.match(styleSource, /:root\[data-theme="cream-bell"\] \.cozy-app-icon \.icon-badge-frame/, 'cream-bell badge frame is restored only by the preset');
-assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
-console.log('caramel bear visual isolation checks passed');
+assert.match(styleSource, /--icon-paper-stable/, 'stable icon paper slot exists');
+assert.match(styleSource, /--icon-body-stable/, 'stable icon body slot exists');
+assert.match(styleSource, /--icon-line-stable/, 'stable icon line slot exists');
+assert.match(styleSource, /--icon-highlight-stable/, 'stable icon highlight slot exists');
+assert.match(styleSource, /--icon-shadow-stable/, 'stable icon shadow slot exists');
+assert.match(styleSource, /--icon-charm-theme-2/, 'secondary theme accent slot exists');
+assert.doesNotMatch(styleSource, /cream-bell-badge-display|caramel-stitch|cookie-dot/, 'old badge and caramel icon variables are removed');
+assert.doesNotMatch(styleSource, new RegExp('\n\.desktop-icon-art::before \{'), 'desktop pseudo-elements do not leak globally');
+console.log('rewritten desktop visual isolation checks passed');

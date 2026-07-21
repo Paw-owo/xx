@@ -17,47 +17,51 @@ const FONT_FALLBACK = "'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMac
 // ═══════════════════════════════════════
 
 const BASE_VARIABLES = {
-  'bg-main': '#FFF8E8',
-  'bg-light': '#F6E8C9',
-  'bg-card': '#FFFDF5',
-  'color-accent': '#E8B850',
-  'color-text': '#5F4631',
-  'color-success': '#85AA8C',
-  'color-danger': '#C87C72',
-  'bg-primary': '#FFF8E8',
-  'bg-secondary': '#F6E8C9',
-  'bg-overlay': 'color-mix(in srgb, var(--text-primary) 24%, transparent)',
+  'bg-main': '#FFF4F7',
+  'bg-light': '#F8E7EC',
+  'bg-primary': '#FFF4F7',
+  'bg-secondary': '#F8E7EC',
+  'bg-card': '#FFF9FA',
   'surface': 'var(--bg-card)',
   'surface-soft': 'color-mix(in srgb, var(--bg-card) 88%, transparent)',
   'surface-glass': 'color-mix(in srgb, var(--bg-primary) 86%, transparent)',
-  'surface-muted': '#F9EFD7',
-  'surface-paper': '#FFF9EA',
-  'surface-charm': '#FFEFC2',
-  'accent': '#E8B850',
-  'accent-light': '#FFE8A9',
-  'accent-dark': '#9B6A2E',
-  'accent-strong': '#D99A35',
-  'text-primary': '#5F4631',
-  'text-secondary': '#8F7358',
-  'text-hint': '#B9A58D',
+  'surface-muted': '#F7E6EA',
+  'surface-paper': '#FFF8F5',
+  'surface-charm': '#F9DCE5',
+  'bg-overlay': 'color-mix(in srgb, var(--text-primary) 26%, transparent)',
+  'accent': '#D889A2',
+  'accent-light': '#F6C8D6',
+  'accent-dark': '#A65D75',
+  'accent-strong': '#C9748E',
+  'color-accent': '#D889A2',
+  'text-primary': '#4E3A3B',
+  'text-secondary': '#80686A',
+  'text-hint': '#B69DA0',
   'text-soft': 'color-mix(in srgb, var(--text-primary) 68%, var(--text-secondary))',
-  'border-soft': '#E7C99E',
-  'border-charm': 'color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card))',
+  'color-text': 'var(--text-primary)',
+  'color-success': '#8EAD98',
+  'color-danger': '#C77B82',
+  'color-warning': '#D8A25E',
+  'border-soft': '#EBC8D1',
+  'border-charm': 'color-mix(in srgb, var(--accent-dark) 22%, var(--bg-card))',
   'icon-color': 'var(--icon-line-stable)',
+  'icon-tile-bg': 'transparent',
+  'icon-paper-stable': '#FFF6EF',
+  'icon-body-stable': '#E8C9B8',
+  'icon-line-stable': '#7A5A56',
+  'icon-highlight-stable': '#FFFDF8',
+  'icon-shadow-stable': '#D9B7A7',
+  'icon-charm-theme': '#E6A0B5',
+  'icon-charm-theme-2': '#F1C972',
   'icon-detail': 'var(--icon-line-stable)',
-  'icon-body-stable': 'color-mix(in srgb, #FFF9EA 82%, #F2CE72)',
-  'icon-line-stable': 'color-mix(in srgb, #5F4631 72%, #9B6A2E)',
-  'icon-layer-stable': 'color-mix(in srgb, #FFFDF5 88%, #C8D7E3)',
-  'icon-highlight-stable': 'color-mix(in srgb, #FFFDF5 84%, white)',
-  'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
-  'icon-tile-bg': 'var(--surface-paper)',
-  'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
-  'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
-  'decor-blue': '#C8D7E3',
-  'decor-yellow': '#F2CE72',
-  'decor-pink': '#F6C8BC',
-  'decor-green': '#C9D8BC',
-  'decor-lilac': '#D8CBE0',
+  'icon-layer-stable': 'var(--icon-paper-stable)',
+  'icon-tile-alt-cool': 'transparent',
+  'icon-tile-alt-warm': 'transparent',
+  'decor-blue': '#C7DAE8',
+  'decor-yellow': '#F1D58B',
+  'decor-pink': '#F0BACB',
+  'decor-green': '#C8DDBF',
+  'decor-lilac': '#D8CBE8',
   'decor-cream': 'var(--bg-card)',
   'media-ink': 'color-mix(in srgb, var(--text-primary) 76%, var(--bg-primary))',
   'media-ink-deep': 'color-mix(in srgb, var(--text-primary) 88%, var(--bg-primary))',
@@ -65,8 +69,8 @@ const BASE_VARIABLES = {
   'media-highlight': 'color-mix(in srgb, var(--decor-yellow) 72%, var(--bg-card))',
   'media-overlay-soft': 'color-mix(in srgb, var(--text-primary) 18%, transparent)',
   'media-overlay': 'color-mix(in srgb, var(--text-primary) 36%, transparent)',
-  'bubble-user-bg': '#FFE0A3',
-  'bubble-user-text': '#5D422C',
+  'bubble-user-bg': '#F6D4DE',
+  'bubble-user-text': '#4E3A3B',
   'bubble-ai-bg': 'var(--surface-paper)',
   'bubble-ai-text': 'var(--text-primary)',
   'bubble-radius': '24px',
@@ -98,10 +102,10 @@ const BASE_VARIABLES = {
   'shadow-lg': '0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent)',
   'shadow-card': '0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent)',
   'shadow-float': '0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent)',
-  'shadow-color': '#8A5A28',
+  'shadow-color': '#8A5A68',
   'shadow-neu-out': 'var(--shadow-sm)',
   'shadow-neu-in': 'inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent)',
-  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 76%, transparent)',
+  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, var(--icon-highlight-stable) 76%, transparent)',
   'toy-border': '1px solid color-mix(in srgb, var(--border-soft) 76%, transparent)',
   'motion': 'all 240ms cubic-bezier(.2,.8,.2,1)',
   'press-scale': '0.97',
@@ -131,16 +135,16 @@ const LIGHT_SHADOWS = {
   'shadow-lg': '0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent)',
   'shadow-card': '0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent)',
   'shadow-float': '0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent)',
-  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 76%, transparent)'
+  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, var(--icon-highlight-stable) 76%, transparent)'
 };
 
 const DARK_SHADOWS = {
-  'shadow-sm': '0 5px 16px color-mix(in srgb, black 28%, transparent), 0 1px 0 color-mix(in srgb, white 5%, transparent)',
-  'shadow-md': '0 12px 30px color-mix(in srgb, black 34%, transparent), 0 1px 0 color-mix(in srgb, white 6%, transparent)',
-  'shadow-lg': '0 22px 48px color-mix(in srgb, black 42%, transparent), 0 1px 0 color-mix(in srgb, white 7%, transparent)',
-  'shadow-card': '0 10px 24px color-mix(in srgb, black 30%, transparent), inset 0 1px 0 color-mix(in srgb, white 6%, transparent)',
-  'shadow-float': '0 20px 46px color-mix(in srgb, black 40%, transparent), 0 0 0 1px color-mix(in srgb, white 6%, transparent)',
-  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 9%, transparent)'
+  'shadow-sm': '0 5px 16px color-mix(in srgb, #120E10 28%, transparent), 0 1px 0 color-mix(in srgb, #FFF7EF 5%, transparent)',
+  'shadow-md': '0 12px 30px color-mix(in srgb, #120E10 34%, transparent), 0 1px 0 color-mix(in srgb, #FFF7EF 6%, transparent)',
+  'shadow-lg': '0 22px 48px color-mix(in srgb, #120E10 42%, transparent), 0 1px 0 color-mix(in srgb, #FFF7EF 7%, transparent)',
+  'shadow-card': '0 10px 24px color-mix(in srgb, #120E10 30%, transparent), inset 0 1px 0 color-mix(in srgb, #FFF7EF 6%, transparent)',
+  'shadow-float': '0 20px 46px color-mix(in srgb, #120E10 40%, transparent), 0 0 0 1px color-mix(in srgb, #FFF7EF 6%, transparent)',
+  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, #FFF7EF 9%, transparent)'
 };
 
 // ═══════════════════════════════════════
@@ -148,47 +152,47 @@ const DARK_SHADOWS = {
 // ═══════════════════════════════════════
 
 const PRESETS = {
-  'cream-bell': createPreset('cream-bell', '焦糖小熊', 'light', {
-    background: '#FFF6E6', secondary: '#E8C191', card: '#FFFDF6', paper: '#FFF8EA', charm: '#F4B966',
-    accent: '#C8772E', accentSoft: '#FFDDA3', accentDeep: '#6C3B1F', accentStrong: '#A75A25',
-    text: '#4C2B1A', textSoft: '#825B3E', hint: '#B18B69', border: '#D79B62', shadow: '#7A431E',
-    success: '#7EA36F', danger: '#C57964', blue: '#C9D7D9', yellow: '#F2C76D', pink: '#F2BDAE', green: '#C8D4A9', lilac: '#D4C4D8',
-    userBubble: '#F1C184', userText: '#4D2C1B', icon: '#8B4F26', iconDetail: '#6C3B1F'
+  'cream-bell': createPreset('cream-bell', '奶粉糖霜', 'light', {
+    background: '#FFF4F7', secondary: '#F8E7EC', card: '#FFF9FA', paper: '#FFF8F5', charm: '#F9DCE5',
+    accent: '#D889A2', accentSoft: '#F6C8D6', accentDeep: '#A65D75', accentStrong: '#C9748E', accent2: '#F0C56F',
+    text: '#4E3A3B', textSoft: '#80686A', hint: '#B69DA0', border: '#EBC8D1', shadow: '#8A5A68',
+    success: '#8EAD98', danger: '#C77B82', blue: '#C7DAE8', yellow: '#F1D58B', pink: '#F0BACB', green: '#C8DDBF', lilac: '#D8CBE8',
+    userBubble: '#F6D4DE', userText: '#4E3A3B'
   }),
-  'cloud-soda': createPreset('cloud-soda', '云朵苏打', 'light', {
-    background: '#F2F7F6', secondary: '#E1EEEA', card: '#FCFAF5', paper: '#F7FBF8', charm: '#DDF0EC',
-    accent: '#86AAA8', accentSoft: '#D7E8E5', accentDeep: '#5E8583', accentStrong: '#6B9996',
-    text: '#516360', textSoft: '#78908C', hint: '#A6B7B1', border: '#D5E4DF', shadow: '#416865',
-    success: '#86A58E', danger: '#C58B88', blue: '#BDD7DE', yellow: '#E8D9A9', pink: '#EBC6C3', green: '#CFE1D3', lilac: '#D7D0E2',
-    userBubble: '#DDF0EC', userText: '#47615F', icon: '#668B8A', iconDetail: '#5E8583'
+  'cloud-soda': createPreset('cloud-soda', '奶蓝云朵', 'light', {
+    background: '#F2F8FB', secondary: '#E2EEF5', card: '#FBFCF8', paper: '#FFF8F1', charm: '#DDEDF6',
+    accent: '#8AB8D0', accentSoft: '#CFE7F3', accentDeep: '#5D8294', accentStrong: '#77A8C2', accent2: '#EACB78',
+    text: '#3F4A4E', textSoft: '#6C7D84', hint: '#9EADB3', border: '#CDE0EA', shadow: '#54768A',
+    success: '#8EAA9B', danger: '#C48186', blue: '#BFDCEA', yellow: '#EED58B', pink: '#EEC4CF', green: '#C9DDC6', lilac: '#D5CEE8',
+    userBubble: '#D5EBF5', userText: '#3F4A4E'
   }),
-  'peach-pudding': createPreset('peach-pudding', '蜜桃布丁', 'light', {
-    background: '#FFF5ED', secondary: '#F8E4D8', card: '#FFFBF5', paper: '#FFF7EE', charm: '#F7DFD0',
-    accent: '#D59A86', accentSoft: '#F4D9CF', accentDeep: '#AD7465', accentStrong: '#C98770',
-    text: '#69534C', textSoft: '#92786E', hint: '#BCA69C', border: '#EDDDD4', shadow: '#8A5548',
-    success: '#91A78D', danger: '#C98282', blue: '#C8DADE', yellow: '#EED8A4', pink: '#F1C6C3', green: '#CBD8BC', lilac: '#D8CBE0',
-    userBubble: '#F4D9CF', userText: '#654C44', icon: '#AD7465', iconDetail: '#B47A67'
+  'peach-pudding': createPreset('peach-pudding', '奶黄布丁', 'light', {
+    background: '#FFF8E7', secondary: '#F5E8C9', card: '#FFFDF5', paper: '#FFF8EA', charm: '#FCE7B5',
+    accent: '#D8A75F', accentSoft: '#F5DCA2', accentDeep: '#8C6740', accentStrong: '#C6904C', accent2: '#E79BAE',
+    text: '#514337', textSoft: '#806B56', hint: '#B29E84', border: '#E8D2A6', shadow: '#8A6A3D',
+    success: '#91AA83', danger: '#C9827A', blue: '#C8DDE8', yellow: '#F2D784', pink: '#F1C6C3', green: '#D1DDBA', lilac: '#D9CBE2',
+    userBubble: '#F7E0AB', userText: '#514337'
   }),
-  'cocoa-night': createPreset('cocoa-night', '可可晚安', 'dark', {
-    background: '#28201F', secondary: '#352928', card: '#3D302E', paper: '#453735', charm: '#533D40',
-    accent: '#D8A7AD', accentSoft: '#533D40', accentDeep: '#E7BDC1', accentStrong: '#E0B0B5',
-    text: '#F3E7E2', textSoft: '#C5AAA4', hint: '#917873', border: '#584440', shadow: '#1A1211',
-    success: '#9DB39D', danger: '#D18F8B', blue: '#90ADB3', yellow: '#CEB879', pink: '#D8A7AD', green: '#9DB39D', lilac: '#B8A5CA',
-    userBubble: '#533D40', userText: '#F3E7E2', icon: '#E7BDC1', iconDetail: '#E7BDC1'
+  'cocoa-night': createPreset('cocoa-night', '黑红莓夜', 'dark', {
+    background: '#211719', secondary: '#2B1E21', card: '#35272A', paper: '#403033', charm: '#4D3036',
+    accent: '#B85D6B', accentSoft: '#5B343A', accentDeep: '#E6B2B9', accentStrong: '#C97783', accent2: '#D6A15C',
+    text: '#EFE3D8', textSoft: '#C8B0A8', hint: '#927B76', border: '#5A4043', shadow: '#160D0F',
+    success: '#9CB396', danger: '#D18E8E', blue: '#8FA9B3', yellow: '#CEB57B', pink: '#D193A0', green: '#A0B598', lilac: '#BBA9CA',
+    userBubble: '#53343A', userText: '#F0E4DA'
   }),
-  'teddy-nest': createPreset('teddy-nest', '泰迪暖窝', 'dark', {
-    background: '#302521', secondary: '#3B2D28', card: '#44342E', paper: '#4B3A32', charm: '#594538',
-    accent: '#DAB497', accentSoft: '#594538', accentDeep: '#F0CCAE', accentStrong: '#E5BE9E',
-    text: '#F4E8DC', textSoft: '#CAB3A3', hint: '#968075', border: '#604B41', shadow: '#1D1411',
-    success: '#A2B49A', danger: '#D29387', blue: '#91AAB0', yellow: '#D1B77D', pink: '#D3A2A0', green: '#A2B49A', lilac: '#B5A2C6',
-    userBubble: '#594538', userText: '#F4E8DC', icon: '#F0CCAE', iconDetail: '#E6C09F'
+  'teddy-nest': createPreset('teddy-nest', '奶棕暖窝', 'dark', {
+    background: '#332822', secondary: '#40322A', card: '#4B3B32', paper: '#554338', charm: '#634E40',
+    accent: '#C89665', accentSoft: '#6A5140', accentDeep: '#F0D0AE', accentStrong: '#D6A676', accent2: '#D8B875',
+    text: '#F1E2D2', textSoft: '#CEB4A0', hint: '#9B8373', border: '#685145', shadow: '#1F1713',
+    success: '#A5B497', danger: '#D09285', blue: '#91ABB0', yellow: '#D5B878', pink: '#D4A0A1', green: '#A7B897', lilac: '#B6A4C4',
+    userBubble: '#654D3E', userText: '#F1E2D2'
   }),
-  'blueberry-moon': createPreset('blueberry-moon', '蓝莓月光', 'dark', {
-    background: '#25242D', secondary: '#302F3A', card: '#393744', paper: '#413F4E', charm: '#4C465B',
-    accent: '#B3A5C9', accentSoft: '#4C465B', accentDeep: '#D0C3E3', accentStrong: '#C4B4DB',
-    text: '#EEEAF2', textSoft: '#BCB4C6', hint: '#858092', border: '#514E5E', shadow: '#17151F',
-    success: '#96AD9D', danger: '#CA8D91', blue: '#91AFBD', yellow: '#CAB77F', pink: '#C8A0B7', green: '#96AD9D', lilac: '#B3A5C9',
-    userBubble: '#4C465B', userText: '#EEEAF2', icon: '#D0C3E3', iconDetail: '#CDBFE0'
+  'blueberry-moon': createPreset('blueberry-moon', '黑粉莓月', 'dark', {
+    background: '#211B26', secondary: '#2B2331', card: '#362C3D', paper: '#40354A', charm: '#513B52',
+    accent: '#D08BAD', accentSoft: '#5C4058', accentDeep: '#EBC1D6', accentStrong: '#DA9AB9', accent2: '#D6B76F',
+    text: '#F0E5EC', textSoft: '#C9B5C3', hint: '#948092', border: '#5D485E', shadow: '#17101B',
+    success: '#9BAF98', danger: '#CF8C99', blue: '#8FAEC0', yellow: '#CCB57C', pink: '#D7A0BA', green: '#9FB59A', lilac: '#BBA7D0',
+    userBubble: '#5B4058', userText: '#F0E5EC'
   })
 };
 
@@ -227,14 +231,17 @@ function createPreset(id, name, mode, palette) {
       'border-charm': 'color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card))',
       'icon-color': 'var(--icon-line-stable)',
       'icon-detail': 'var(--icon-line-stable)',
-      'icon-body-stable': 'color-mix(in srgb, #FFF9EA 82%, #F2CE72)',
-      'icon-line-stable': 'color-mix(in srgb, #5F4631 72%, #9B6A2E)',
-      'icon-layer-stable': 'color-mix(in srgb, #FFFDF5 88%, #C8D7E3)',
-      'icon-highlight-stable': 'color-mix(in srgb, #FFFDF5 84%, white)',
-      'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
-      'icon-tile-bg': 'var(--surface-paper)',
-      'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
-      'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
+      'icon-paper-stable': '#FFF6EF',
+      'icon-body-stable': '#E8C9B8',
+      'icon-line-stable': '#7A5A56',
+      'icon-highlight-stable': '#FFFDF8',
+      'icon-shadow-stable': '#D9B7A7',
+      'icon-charm-theme': palette.accent,
+      'icon-charm-theme-2': palette.accent2 || palette.yellow,
+      'icon-layer-stable': 'var(--icon-paper-stable)',
+      'icon-tile-bg': 'transparent',
+      'icon-tile-alt-cool': 'transparent',
+      'icon-tile-alt-warm': 'transparent',
       'decor-blue': palette.blue,
       'decor-yellow': palette.yellow,
       'decor-pink': palette.pink,
@@ -255,7 +262,7 @@ function createPreset(id, name, mode, palette) {
       'illustration-fill': 'var(--surface-paper)',
       'illustration-accent': 'var(--accent-light)',
       'shadow-color': palette.shadow,
-      'inner-highlight': `inset 0 1px 0 color-mix(in srgb, white ${dark ? '12%' : '76%'}, transparent)`,
+      'inner-highlight': `inset 0 1px 0 color-mix(in srgb, var(--icon-highlight-stable) ${dark ? '18%' : '76%'}, transparent)`,
       'toy-border': '1px solid color-mix(in srgb, var(--border-soft) 76%, transparent)',
       'chat-icon-line': 'var(--icon-detail)',
       'chat-icon-paper': 'var(--surface-paper)',
@@ -271,11 +278,6 @@ function createPreset(id, name, mode, palette) {
       'chat-fold-divider': 'color-mix(in srgb, var(--accent-light) 72%, transparent)',
       'chat-tool-breath-shadow': 'var(--shadow-sm)',
       'chat-tool-breath-shadow-strong': 'var(--shadow-md)',
-      'cream-bell-lace': 'none',
-      'cream-bell-dots': 'none',
-      'cream-bell-plaid': 'none',
-      'cream-bell-badge-display': id === 'cream-bell' ? 'block' : 'none',
-      'cream-bell-charm-opacity': id === 'cream-bell' ? '1' : '0',
       ...(dark ? DARK_SHADOWS : LIGHT_SHADOWS)
     }
   };

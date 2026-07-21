@@ -1374,13 +1374,13 @@
     .dock {
       border: 1px solid color-mix(in srgb, var(--border-soft) 66%, transparent);
       background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 88%, transparent), color-mix(in srgb, var(--accent-light) 18%, transparent));
-      box-shadow: var(--shadow-card), inset 0 1px 0 color-mix(in srgb, white 76%, transparent);
+      box-shadow: var(--shadow-card), inset 0 1px 0 color-mix(in srgb, var(--icon-highlight-stable) 76%, transparent);
     }
 
     .desktop-icon-art {
       border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
       background: linear-gradient(145deg, var(--surface-paper), color-mix(in srgb, var(--accent-light) 34%, var(--bg-card)));
-      box-shadow: var(--shadow-md), inset 0 1px 0 color-mix(in srgb, white 82%, transparent);
+      box-shadow: var(--shadow-md), inset 0 1px 0 color-mix(in srgb, var(--icon-highlight-stable) 82%, transparent);
     }
 
     .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
@@ -1391,7 +1391,6 @@
 
     .cozy-app-icon {
       --icon-line: color-mix(in srgb, var(--text-primary) 52%, var(--accent-dark));
-      --icon-fur: color-mix(in srgb, var(--surface-paper) 90%, var(--accent-light));
       --icon-accent: color-mix(in srgb, var(--accent) 72%, var(--bg-card));
       --icon-soft: color-mix(in srgb, var(--accent-light) 78%, var(--bg-card));
       --icon-blush: color-mix(in srgb, var(--decor-pink) 66%, var(--accent-light));
@@ -1406,12 +1405,53 @@
 
     .page-dot {
       background: color-mix(in srgb, var(--accent-dark) 32%, var(--bg-card));
-      box-shadow: inset 0 1px 0 color-mix(in srgb, white 72%, transparent);
+      box-shadow: inset 0 1px 0 color-mix(in srgb, var(--icon-highlight-stable) 72%, transparent);
     }
 
     .page-dot.active {
       background: var(--accent-strong);
     }
+    /* 首屏默认图标色槽：主体稳定，主题只改小面积点睛。 */
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon),
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
+      background: transparent !important;
+      border: 0 !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    .cozy-app-icon {
+      --icon-paper: var(--icon-paper-stable);
+      --icon-body: var(--icon-body-stable);
+      --icon-line: var(--icon-line-stable);
+      --icon-highlight: var(--icon-highlight-stable);
+      --icon-shadow: var(--icon-shadow-stable);
+      --icon-accent: var(--icon-charm-theme);
+      --icon-accent-2: var(--icon-charm-theme-2);
+      color: var(--icon-line-stable);
+      overflow: visible;
+      filter: drop-shadow(0 7px 10px color-mix(in srgb, var(--shadow-color) 14%, transparent));
+    }
+
+    .cozy-app-icon g {
+      fill: none;
+      stroke: var(--icon-line);
+      stroke-width: 2.35;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .cozy-app-icon .icon-paper { fill: var(--icon-paper); }
+    .cozy-app-icon .icon-body { fill: var(--icon-body); }
+    .cozy-app-icon .icon-highlight { fill: var(--icon-highlight); }
+    .cozy-app-icon .icon-shadow { fill: var(--icon-shadow); stroke: none; opacity: .48; }
+    .cozy-app-icon .icon-soft-shadow ellipse { fill: var(--icon-shadow); stroke: none; opacity: .28; }
+    .cozy-app-icon .icon-accent { fill: var(--icon-accent); }
+    .cozy-app-icon .icon-accent-2 { fill: var(--icon-accent-2); }
+    .cozy-app-icon .icon-line-only { fill: none; }
+    .cozy-app-icon .icon-line-fill { fill: var(--icon-line); stroke: none; }
 </style>
 </head>
 
