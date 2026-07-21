@@ -764,6 +764,330 @@ export function mountChatVisualSystem() {
       transform: rotate(-4deg);
     }
 
+
+    /* ===== Final visual closure: shared cozy system for every Chat surface ===== */
+    body:has(.chat-route-stage) :is(
+      .chat-page,
+      .bottom-sheet,
+      .tc-sheet,
+      .chat-call-screen,
+      .gh-sheet,
+      .chat-memory-page
+    ) {
+      color: var(--chat-ink, var(--text-primary));
+      text-rendering: optimizeLegibility;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-list-header,
+      .chat-thread-header,
+      .chat-memory-header,
+      .gh-title,
+      .chat-call-top
+    ) {
+      border: 0;
+      box-shadow: none;
+      background: color-mix(in srgb, var(--bg-primary) 88%, transparent);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-list-title-main,
+      .chat-thread-name,
+      .chat-memory-title,
+      .gh-title,
+      .chat-call-name,
+      .settings-card-title,
+      .thread-sheet-title,
+      .tools-detail-title,
+      .tc-sheet-title,
+      .ask-user-title,
+      .chat-sub-agent-title
+    ) {
+      font-weight: 650;
+      letter-spacing: 0;
+      color: var(--text-primary);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-list-title-sub,
+      .chat-thread-status,
+      .chat-memory-subtitle,
+      .gh-sub,
+      .chat-call-status,
+      .settings-card-desc,
+      .thread-sheet-desc,
+      .tools-option-desc,
+      .ask-user-desc,
+      .chat-sub-agent-summary
+    ) {
+      color: var(--text-secondary);
+      line-height: 1.55;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-list-search-input,
+      .chat-thread-search-input,
+      .chat-thread-input,
+      .chat-memory-search-input,
+      .gh-search,
+      .gh-field input,
+      .gh-commit-field input,
+      .gh-viewer textarea,
+      .settings-input,
+      .settings-textarea
+    ) {
+      border: 0;
+      outline: 0;
+      background: var(--chat-surface);
+      color: var(--text-primary);
+      box-shadow: none;
+    }
+
+    body:has(.chat-route-stage) :is(
+      button,
+      input,
+      textarea,
+      select,
+      [role="button"],
+      [tabindex]:not([tabindex="-1"])
+    ):focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-row,
+      .chat-list-picker-row,
+      .chat-list-action,
+      .chat-thread-tool-card,
+      .thread-sheet-btn,
+      .thread-chip-card,
+      .mcp-server-row,
+      .mcp-tool-row,
+      .settings-nav-item,
+      .settings-switch-row,
+      .chat-memory-card,
+      .chat-memory-filter,
+      .ask-user-card,
+      .ask-user-option,
+      .chat-sub-agent-card,
+      .gh-field,
+      .gh-status,
+      .gh-item,
+      .gh-branch-info,
+      .ss-cell,
+      .ss-tab-btn,
+      .chat-call-transcript,
+      .chat-call-control,
+      .chat-call-send
+    ) {
+      border: 0;
+      box-shadow: none;
+      background: var(--chat-surface-soft);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-row,
+      .chat-list-picker-row,
+      .chat-list-action,
+      .chat-memory-card,
+      .ask-user-card,
+      .chat-sub-agent-card,
+      .gh-field,
+      .gh-status,
+      .gh-branch-info,
+      .chat-call-transcript
+    ) {
+      border-radius: 24px 24px 24px 15px;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-row,
+      .chat-thread-tool-card,
+      .chat-list-action,
+      .chat-memory-filter,
+      .ask-user-option,
+      .chat-sub-agent-card,
+      .gh-item,
+      .ss-cell,
+      .chat-call-control
+    ) {
+      transition: transform 180ms ease, background 180ms ease, opacity 180ms ease;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-row,
+      .chat-thread-tool-card,
+      .chat-list-action,
+      .chat-memory-filter,
+      .ask-user-option,
+      .gh-item,
+      .ss-cell,
+      .chat-call-control
+    ):active {
+      transform: scale(0.985);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-message-bubble.role-user,
+      .chat-message-bubble.role-ai,
+      .chat-message-bubble.role-assistant
+    ) {
+      box-shadow: none;
+      border: 0;
+      line-height: 1.68;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-message-quote,
+      .chat-quote-preview,
+      .chat-message-code,
+      .chat-tool-result-card,
+      .mcp-tool-result,
+      .tc-detail-section,
+      .ask-user-summary,
+      .chat-sub-agent-block,
+      .gh-viewer textarea,
+      .ss-preview
+    ) {
+      border: 0;
+      box-shadow: none;
+      background: var(--chat-surface);
+      color: var(--text-primary);
+      border-radius: 18px 18px 18px 11px;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-message-code,
+      .gh-viewer textarea
+    ) {
+      font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+      white-space: pre-wrap;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-message-error,
+      .chat-message-stopped,
+      .mcp-tool-failed,
+      .tc-step-row[data-status="failed"],
+      .gh-error,
+      .ask-user-error,
+      .chat-sub-agent-card[data-status="failed"]
+    ) {
+      background: color-mix(in srgb, var(--color-danger) 12%, var(--chat-surface));
+      color: var(--text-primary);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-input-bar,
+      .chat-pending-images,
+      .chat-quote-preview,
+      .chat-recording-bar
+    ) {
+      box-shadow: none;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-send,
+      .chat-primary-btn,
+      .chat-mini-btn.primary,
+      .thread-sheet-btn.primary,
+      .settings-action-btn.primary,
+      .ask-user-btn-primary,
+      .gh-btn-primary,
+      .ss-upload-save
+    ) {
+      background: var(--chat-accent-fill);
+      color: var(--chat-ink);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-list-tab.active,
+      .chat-memory-filter.active,
+      .ss-tab-btn.is-active,
+      .api-choice-card.selected,
+      .ask-user-option.selected
+    ) {
+      background: color-mix(in srgb, var(--accent-light) 58%, var(--bg-card));
+      color: var(--text-primary);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-thread-unread,
+      .chat-token-pill,
+      .mcp-server-capsule,
+      .api-detail-pill,
+      .gh-branch-info,
+      .chat-sub-agent-summary,
+      .ask-user-state-pill
+    ) {
+      border: 0;
+      background: color-mix(in srgb, var(--accent) 30%, var(--chat-surface));
+      color: var(--text-primary);
+      border-radius: 999px 999px 999px 10px;
+      font-weight: 650;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .bottom-sheet,
+      .chat-action-sheet,
+      .thread-sheet-card,
+      .tc-sheet,
+      .settings-confirm-card,
+      .ss-confirm-card
+    ) {
+      box-shadow: none;
+      border: 0;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .sheet-handle,
+      .tc-sheet-handle,
+      .chat-action-sheet-handle,
+      .thread-sheet-handle
+    ) {
+      background: color-mix(in srgb, var(--accent-light) 76%, transparent);
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-memory-empty,
+      .gh-empty,
+      .tools-empty,
+      .thread-sheet-empty,
+      .ss-empty,
+      .ask-user-empty,
+      .chat-sub-agent-detail[hidden]
+    ) {
+      border: 0;
+      background: var(--chat-surface);
+      color: var(--text-secondary);
+      border-radius: 24px 24px 24px 15px;
+      text-align: center;
+    }
+
+    body:has(.chat-route-stage) :is(
+      .chat-call-hangup,
+      .thread-sheet-btn.danger,
+      .settings-action-btn.danger,
+      .chat-list-action.danger,
+      .ss-delete-btn,
+      .gh-btn-danger
+    ) {
+      background: color-mix(in srgb, var(--color-danger) 18%, var(--chat-surface));
+      color: var(--color-danger);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      body:has(.chat-route-stage) *,
+      body:has(.chat-route-stage) *::before,
+      body:has(.chat-route-stage) *::after {
+        animation-duration: 1ms;
+        animation-iteration-count: 1;
+        transition-duration: 1ms;
+        scroll-behavior: auto;
+      }
+    }
+
     @media (max-width: 430px) {
       .chat-page .chat-icon-btn,
       .chat-page .chat-thread-send {

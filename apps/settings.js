@@ -40,6 +40,7 @@ import {
   testCloudConnection,
   buildLocalSnapshot,
   restoreLocalSnapshot,
+  getBackupLocalKeys,
   isBackupLocalKey
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
@@ -2046,6 +2047,13 @@ function toggleIconHidden(id) {
 
 async function exportAll() {
   const data = await buildLocalSnapshot();
+  const exportedLocalStorage = {};
+  getBackupLocalKeys().forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(data.localStorage || {}, key)) {
+      exportedLocalStorage[key] = data.localStorage[key];
+    }
+  });
+  data.localStorage = exportedLocalStorage;
   if (data.partial === true) {
     console.warn('[settings] backup snapshot partial', data.failedStores || []);
     showToast('这次备份没抱紧，有几块数据没打包成功，请刷新后再试一次。');

@@ -44,6 +44,7 @@ let mediaRecorder = null;
 let audioChunks = [];
 let audioStream = null;
 let recordTimer = null;
+let recordStopFallbackTimer = null;
 let recordStartedAt = 0;
 let autoStopHandler = null; // 60s 自动停止回调（由上层走完整停止+STT 流程）
 
@@ -195,9 +196,17 @@ export function stopRecording(opts = {}) {
   if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
 
   return new Promise((resolve) => {
+    const recorder = mediaRecorder;
+    const mime = recorder?.mimeType || 'audio/webm';
+    let settled = false;
+
     const finish = () => {
+      if (settled) return;
+      settled = true;
+
       const wasCancelled = cancel;
       const wasAuto = auto;
+      const chunks = audioChunks.slice();
       cleanupRecorder();
 
       if (wasCancelled) {
@@ -206,8 +215,7 @@ export function stopRecording(opts = {}) {
         return;
       }
 
-      const blob = new Blob(audioChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
-      audioChunks = [];
+      const blob = new Blob(chunks, { type: mime });
 
       if (blob.size === 0) {
         earDebug('recording_empty_blob', {});
@@ -224,23 +232,33 @@ export function stopRecording(opts = {}) {
     };
 
     // onstop 在 recorder.stop() 后触发；设超时兜底，避免某些实现不回调
-    mediaRecorder.onstop = finish;
+    recorder.onstop = finish;
+    recorder.onerror = finish;
     try {
-      mediaRecorder.stop();
+      recorder.stop();
     } catch (stopErr) {
       earDebug('recorder_stop_error', { error: String(stopErr?.message || stopErr) });
       finish();
     }
 
     // 兜底：2s 内没触发 onstop 就强制 finish
-    setTimeout(() => {
-      if (recorderState !== 'idle') finish();
+    recordStopFallbackTimer = setTimeout(() => {
+      if (!settled) finish();
     }, 2000);
   });
 }
 
 // 清理录音资源：停 track、清引用、复位状态
 function cleanupRecorder() {
+  if (recordStopFallbackTimer) { clearTimeout(recordStopFallbackTimer); recordStopFallbackTimer = null; }
+  if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
+  if (mediaRecorder) {
+    try {
+      mediaRecorder.ondataavailable = null;
+      mediaRecorder.onstop = null;
+      mediaRecorder.onerror = null;
+    } catch (_) {}
+  }
   if (audioStream) {
     try { audioStream.getTracks().forEach((t) => t.stop()); } catch (_) {}
     audioStream = null;
@@ -248,7 +266,6 @@ function cleanupRecorder() {
   mediaRecorder = null;
   audioChunks = [];
   autoStopHandler = null;
-  if (recordTimer) { clearInterval(recordTimer); recordTimer = null; }
   recorderState = 'idle';
 }
 
@@ -394,11 +411,21 @@ export async function transcribeAudio(audioBlob, opts = {}) {
   delete headers['content-type'];
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), STT_TIMEOUT_MS);
+  let timedOut = false;
+  let externalAborted = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort('timeout');
+  }, STT_TIMEOUT_MS);
+  let abortHandler = null;
   // 外部 signal 联动
   if (signal) {
-    if (signal.aborted) controller.abort();
-    else signal.addEventListener('abort', () => controller.abort(), { once: true });
+    abortHandler = () => {
+      externalAborted = true;
+      controller.abort('external');
+    };
+    if (signal.aborted) abortHandler();
+    else signal.addEventListener('abort', abortHandler, { once: true });
   }
 
   earDebug('stt_request', {
@@ -419,15 +446,20 @@ export async function transcribeAudio(audioBlob, opts = {}) {
       cache: 'no-store'
     });
   } catch (networkErr) {
-    clearTimeout(timer);
     if (networkErr?.name === 'AbortError') {
+      if (externalAborted && !timedOut) {
+        earDebug('stt_cancelled', {});
+        return { ok: false, reason: 'cancelled', message: '这次录音已取消' };
+      }
       earDebug('stt_timeout', {});
       return { ok: false, reason: 'network', message: '转换超时了，再试一次' };
     }
     earDebug('stt_network_error', { error: String(networkErr?.name || networkErr).slice(0, 120) });
     return { ok: false, reason: 'network', message: '没听清，再试一次' };
+  } finally {
+    clearTimeout(timer);
+    if (signal && abortHandler) signal.removeEventListener('abort', abortHandler);
   }
-  clearTimeout(timer);
 
   earDebug('stt_response_status', {
     status: res.status,
@@ -525,7 +557,6 @@ export async function testEarEndpoint(poolId) {
       signal: controller.signal,
       cache: 'no-store'
     });
-    clearTimeout(timer);
     const latencyMs = Date.now() - startedAt;
 
     if (res.ok) {
@@ -542,13 +573,14 @@ export async function testEarEndpoint(poolId) {
     }
     return { ok: false, message: `接口返回 ${res.status}`, latencyMs };
   } catch (err) {
-    clearTimeout(timer);
     const latencyMs = Date.now() - startedAt;
     if (err?.name === 'AbortError') {
       return { ok: false, message: '测试超时', latencyMs };
     }
     earDebug('test_network_error', { error: String(err?.name || err).slice(0, 120) });
     return { ok: false, message: '连不上接口地址，检查地址或网络', latencyMs };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -573,15 +605,26 @@ async function generateSilenceBlob(seconds = 0.5) {
     recorder.ondataavailable = (e) => { if (e?.data && e.data.size > 0) chunks.push(e.data); };
 
     return new Promise((resolve) => {
-      recorder.onstop = () => {
-        try { osc.stop(); ctx.close(); } catch (_) {}
-        if (!chunks.length) { resolve(null); return; }
-        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+      let settled = false;
+      let timer = null;
+      const finish = (blob = null) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        try { osc.stop(); } catch (_) {}
+        try { dest.stream.getTracks().forEach((track) => track.stop()); } catch (_) {}
+        try { ctx.close(); } catch (_) {}
         resolve(blob);
       };
+      recorder.onstop = () => {
+        if (!chunks.length) { finish(null); return; }
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+        finish(blob);
+      };
+      recorder.onerror = () => finish(null);
       recorder.start();
-      setTimeout(() => {
-        try { recorder.stop(); } catch (_) { resolve(null); }
+      timer = setTimeout(() => {
+        try { recorder.stop(); } catch (_) { finish(null); }
       }, seconds * 1000);
     });
   } catch (_) {

@@ -1186,10 +1186,10 @@ function createEmptyThread() {
 function getVisibleMessages(state) {
   const list = state.mode === 'group' ? state.groupMessages : state.messages;
   const q = String(state.searchValue || '').trim().toLowerCase();
-  const visible = list.slice(Math.max(0, list.length - state.visibleCount));
+  const source = q ? list : list.slice(Math.max(0, list.length - state.visibleCount));
 
   // 过滤掉 archived 版本（只显示 active 或无版本组的）
-  const filtered = visible.filter((message) => {
+  const filtered = source.filter((message) => {
     if (message.versionStatus === 'archived') return false;
     return true;
   });

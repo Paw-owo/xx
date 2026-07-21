@@ -29,6 +29,7 @@ import { addMemory } from '../../core/memory.js';
 import { getActiveRelationshipLock } from './thread-relationship.js';
 import { buildAskUserStateKey, buildAskUserStateKeyPrefix } from './ask-user-pure.js';
 import { deleteCharacterPrivateData } from '../../core/character-deletion.js';
+import { clearChatUnread } from '../../core/chat-unread.js';
 
 const LIST_STYLE_ID = 'chat-list-style';
 const HIDDEN_PRIVATE_KEY = 'chat_hidden_private_threads';
@@ -1209,27 +1210,25 @@ function removeFromHiddenPrivate(characterId) {
 function clearPrivateUnread(characterId) {
   const id = String(characterId || '').trim();
   if (!id) return;
-
-  const unreadMap = normalizeObject(getData(PRIVATE_UNREAD_KEY));
-  if (Object.prototype.hasOwnProperty.call(unreadMap, id)) {
-    delete unreadMap[id];
-    setData(PRIVATE_UNREAD_KEY, unreadMap);
-  }
-
-  window.refreshDesktopBadges?.();
+  clearChatUnread('private', id, { source: 'chat-list' }).catch(() => {
+    const unreadMap = normalizeObject(getData(PRIVATE_UNREAD_KEY));
+    if (Object.prototype.hasOwnProperty.call(unreadMap, id)) {
+      delete unreadMap[id];
+      setData(PRIVATE_UNREAD_KEY, unreadMap);
+    }
+  });
 }
 
 function clearGroupUnread(groupId) {
   const id = String(groupId || '').trim();
   if (!id) return;
-
-  const unreadMap = normalizeObject(getData(GROUP_UNREAD_KEY));
-  if (Object.prototype.hasOwnProperty.call(unreadMap, id)) {
-    delete unreadMap[id];
-    setData(GROUP_UNREAD_KEY, unreadMap);
-  }
-
-  window.refreshDesktopBadges?.();
+  clearChatUnread('group', id, { source: 'chat-list' }).catch(() => {
+    const unreadMap = normalizeObject(getData(GROUP_UNREAD_KEY));
+    if (Object.prototype.hasOwnProperty.call(unreadMap, id)) {
+      delete unreadMap[id];
+      setData(GROUP_UNREAD_KEY, unreadMap);
+    }
+  });
 }
 
 function clearLastRouteIfCharacter(characterId) {

@@ -9,6 +9,7 @@ import {
   setData,
   setDB
 } from './storage.js';
+import { getChatCharacterLocalCleanupSpec } from './app-system-registry.js';
 
 const CHARACTER_PRIVATE_STORES = Object.freeze([
   'memories',
@@ -25,25 +26,6 @@ const CHARACTER_PRIVATE_STORES = Object.freeze([
   'ai_phone_action_logs'
 ]);
 
-const CHARACTER_LOCAL_MAP_KEYS = Object.freeze([
-  'chat_unread_counts',
-  'chat_hidden_private_threads',
-  'chat_draft_map',
-  'chat_pinned_threads',
-  'chat_archived_threads'
-]);
-
-const CHARACTER_DIRECT_LOCAL_KEYS = Object.freeze([
-  (id) => `chat_${id}_config`,
-  (id) => `chat_${id}_visible_count`,
-  (id) => `last_moment_${id}`,
-  (id) => `app_bg_chat_opacity_${id}`,
-  (id) => `push_msg_watermark_${id}`
-]);
-
-const CHARACTER_PREFIX_LOCAL_KEYS = Object.freeze([
-  (id) => `chat_ask_user_state_${id}_`
-]);
 
 const deletionTestOperations = {
   deleteDB: null,
@@ -115,7 +97,9 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       rollback.push(() => callDeletionOperation('setData', checkpointKey, checkpoint));
     }
 
-    for (const key of CHARACTER_LOCAL_MAP_KEYS) {
+    const chatLocalCleanup = getChatCharacterLocalCleanupSpec(id);
+
+    for (const key of chatLocalCleanup.mapKeys) {
       const previous = await callDeletionOperation('getData', key, checkpointMissing);
       if (previous === checkpointMissing) continue;
       const next = cleanCharacterLocalMapValue(key, previous, id);
@@ -132,8 +116,7 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       rollback.push(() => callDeletionOperation('setData', 'chat_last_route', route));
     }
 
-    const directKeys = CHARACTER_DIRECT_LOCAL_KEYS.map((buildKey) => buildKey(id));
-    for (const key of directKeys) {
+    for (const key of chatLocalCleanup.directKeys) {
       const previous = await callDeletionOperation('getData', key, checkpointMissing);
       if (previous === checkpointMissing) continue;
       const removed = await callDeletionOperation('removeData', key);
@@ -141,7 +124,7 @@ export async function deleteCharacterPrivateData(characterId, { includeMessages 
       rollback.push(() => callDeletionOperation('setData', key, previous));
     }
 
-    const prefixKeys = getLocalStorageKeys().filter((key) => CHARACTER_PREFIX_LOCAL_KEYS.some((buildPrefix) => key.startsWith(buildPrefix(id))));
+    const prefixKeys = getLocalStorageKeys().filter((key) => chatLocalCleanup.prefixes.some((prefix) => key.startsWith(prefix)));
     for (const key of prefixKeys) {
       const previous = await callDeletionOperation('getData', key, checkpointMissing);
       if (previous === checkpointMissing) continue;
