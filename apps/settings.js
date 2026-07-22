@@ -1511,7 +1511,8 @@ async function renderIconsPage() {
   for (const { id, name } of APPS) {
     const custom = icons[id] || {};
     const dbRecord = await getDB('blobs', `app_icon_${id}`);
-    const image = dbRecord?.value || dbRecord?.image || custom.image || custom.iconImage || custom.backgroundImage || '';
+    const rawImage = dbRecord?.value || dbRecord?.image || custom.image || custom.iconImage || custom.backgroundImage || '';
+    const image = (isLegacyDefaultIconPreview(dbRecord) || isLegacyDefaultIconPreview(custom)) ? '' : rawImage;
     const opacity = Number(custom.opacity ?? 100);
     const backgroundCleared = custom.backgroundCleared === true;
     const isHidden = hidden.has(id);
@@ -2769,6 +2770,21 @@ function normalizeColor(value) {
   const text = String(value || '').trim();
   if (/^#[0-9a-fA-F]{3,8}$/.test(text)) return text;
   return getComputedStyle(document.documentElement).getPropertyValue('--bg-card').trim();
+}
+
+function isLegacyDefaultIconPreview(record) {
+  const image = record?.value || record?.image || record?.iconImage || record?.backgroundImage || record?.imageBase64 || record?.imageUrl || '';
+  if (!String(image).startsWith('data:image/svg')) return false;
+  const meta = `${record?.source || ''} ${record?.sourceType || ''} ${record?.imageSource || ''} ${record?.type || ''}`.toLowerCase();
+  if (/user|local|upload|url/.test(meta)) return false;
+  let decoded = String(image);
+  const comma = decoded.indexOf(',');
+  if (comma >= 0) {
+    const payload = decoded.slice(comma + 1);
+    try { decoded = decoded.slice(0, comma).includes(';base64') ? atob(payload) : decodeURIComponent(payload); }
+    catch (_) { decoded = payload; }
+  }
+  return /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
 }
 
 function getPresetName(id) {

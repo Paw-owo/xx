@@ -31,7 +31,12 @@ assert.deepEqual(
   ['cream-bell', 'cloud-soda', 'peach-pudding', 'cocoa-night', 'teddy-nest', 'blueberry-moon'],
   'preset ids describe six independent skins'
 );
-assert.ok(presets.some((preset) => preset.name === '焦糖小熊'), 'default caramel bear palette is a named theme, not anonymous global chrome');
+assert.deepEqual(
+  presets.map((preset) => preset.name),
+  ['奶黄', '奶粉', '奶蓝', '黑红', '奶棕', '黑粉'],
+  'default theme names match the shared soft-cute palette set'
+);
+assert.ok(!presets.some((preset) => preset.name === '焦糖小熊'), 'caramel bear is not kept as a standalone theme name');
 
 const required = [
   'surface-paper',
@@ -75,15 +80,20 @@ assert.equal(cream.variables['cream-bell-dots'], 'none', 'cream-bell does not ad
 assert.equal(cream.variables['cream-bell-plaid'], 'none', 'cream-bell does not add decorative background plaid');
 
 const soda = theme.setPreset('cloud-soda');
-assert.equal(soda.variables['cream-bell-badge-display'], 'none', 'other themes turn off cream-bell badge SVG frame');
+assert.equal(soda.variables['cream-bell-badge-display'], 'block', 'other themes share the soft SVG badge frame');
 assert.equal(soda.variables['cream-bell-lace'], 'none', 'other themes do not inherit lace resource');
 assert.equal(soda.variables['cream-bell-plaid'], 'none', 'other themes do not inherit plaid resource');
 assert.equal(document.documentElement.attrs['data-theme'], 'cloud-soda', 'switching away updates data-theme');
 
 const creamAgain = theme.setPreset('cream-bell');
-assert.equal(creamAgain.variables['cream-bell-badge-display'], 'block', 'switching back restores badge SVG frame');
+assert.equal(creamAgain.variables['cream-bell-badge-display'], 'block', 'switching back keeps the shared badge SVG frame');
 assert.equal(creamAgain.variables['cream-bell-lace'], 'none', 'switching back keeps decorative background lace disabled');
 assert.equal(document.documentElement.attrs['data-theme'], 'cream-bell', 'switching back updates data-theme');
+
+
+const legacyName = theme.setPreset('焦糖小熊');
+assert.equal(legacyName.preset, 'cream-bell', 'old stored display names map to the current preset id');
+assert.equal(theme.getThemePresets().find((preset) => preset.id === legacyName.preset)?.name, '奶黄', 'old stored display names render through the current preset source');
 
 const legacy = theme.setPreset('dark-chocolate');
 assert.equal(legacy.preset, 'cocoa-night', 'legacy dark preset aliases remain compatible');
