@@ -18,8 +18,9 @@ assert.doesNotMatch(readFileSync(new URL('../core/ui.js', import.meta.url), 'utf
 assert.match(styles, /\.phone-desktop\.has-image \.desktop-soft-layer\s*\{\s*display: none;/);
 assert.ok(settings.includes('window.AppImages.removeImageRecord(key)'), 'wallpaper clear must remove legacy aliases through the existing image source');
 assert.ok(settings.includes('window.AppImages.removeAppIconImage(id)'), 'icon clear must use the unified image source');
-assert.match(index, /function getAppIconImageKeys\(app\)[\s\S]*app_icon_\$\{app\.id\}[\s\S]*app_\$\{app\.id\}_icon[\s\S]*icon_\$\{app\.id\}/, 'icon reads and clears must share all compatibility aliases');
-assert.match(index, /const image = blobImage \|\| localImage;/, 'the current canonical icon record must win over stale local cache fields');
+assert.match(index, /function getPrimaryAppIconImageKey\(app\) \{ return `app_icon_\$\{app\.id\}`; \}/, 'app_icon id is the only primary app icon image key');
+assert.match(index, /function getWeakAppIconImageKeys\(app\)[\s\S]*app_\$\{app\.id\}_icon[\s\S]*icon_\$\{app\.id\}/, 'legacy compatibility aliases are still known as weak keys');
+assert.match(index, /migrateWeakIconRecord\(app, key, record\)/, 'explicit custom weak-key icon records are migrated into the primary key before display');
 assert.match(index, /collectObjectUrls[\s\S]*revokeObjectUrls/, 'image deletion must release obsolete Blob URLs');
 assert.match(index, /const preserved = Object\.fromEntries/, 'icon clearing must preserve non-image custom properties');
 
