@@ -24,7 +24,11 @@ const drawings = APPS.map((app) => {
   assert.ok(icon, `${app.id} has a default icon`);
   assert.equal(icon.attributes.get('viewBox'), '0 0 96 96');
   assert.ok(icon.classList.values.includes(`cozy-app-icon-${app.id}`));
+  assert.equal(icon.attributes.get('data-default-icon-version'), 'toy-shop-v2');
+  assert.ok(icon.classList.values.some((name) => name.startsWith('cozy-app-icon-tone-')), `${app.id} has a theme-derived tone class`);
+  assert.ok(icon.classList.values.some((name) => name.startsWith('cozy-app-icon-semantic-')), `${app.id} has a semantic class`);
   assert.match(icon.innerHTML, /class="fur"/, `${app.id} includes a complete character body`);
+  assert.match(icon.innerHTML, /class="icon-decoration/, `${app.id} keeps visible tiny decoration at desktop size`);
   return icon.innerHTML;
 });
 assert.equal(new Set(drawings).size, APPS.length, 'all default silhouettes are distinct');
@@ -49,9 +53,13 @@ assert.match(page, /function isLegacyDefaultAppIconRecord/, 'desktop has a compa
 assert.match(page, /async function clearLegacyDefaultIconBlobKey\(key\)[\s\S]*deleteDB\('blobs', key\)/, 'stale generated icon blobs are cleared from the matched compatibility key');
 assert.match(page, /function clearLegacyDefaultIconLocalKey\(key\)[\s\S]*setData\(key, preserved\)/, 'local stale generated defaults are cleaned without deleting unrelated blob records');
 assert.match(page, /async function cleanupLegacyDefaultIconResidue\(app, candidateKeys\)[\s\S]*for \(const key of candidateKeys\)[\s\S]*Object\.entries\(icons\)/, 'desktop scans all alias keys and weak local icon entries for stale generated defaults');
-assert.match(page, /if \(\/user\|local\|upload\|url\/\.test\(meta\)\) return false;/, 'user-provided svg metadata is protected from stale default cleanup');
+assert.match(page, /if \(\/user\|upload\|url\/\.test\(meta\)\) return false;/, 'user-provided svg metadata is protected from stale default cleanup while local legacy generated SVG can migrate');
+assert.match(page, /data-default-icon-version=\[\"'\]\(\[\^\"'\]\+\)\[\"'\]/, 'legacy default cleanup checks default icon version markers');
+assert.match(page, /versionMatch\[1\] !== 'toy-shop-v2'/, 'current default icon SVG cache is not cleaned as stale');
 assert.match(page, /Object\.entries\(current\)\.filter\(\(\[field\]\) => !APP_ICON_IMAGE_FIELDS\.has\(field\)\)/, 'app_icons cleanup preserves non-image fields');
 assert.match(page, /artEl\.appendChild\(createDefaultAppIcon\(app, 28\)\)/, 'cleared stale icon records fall back to the default SVG factory');
+assert.match(page, /\.desktop-icon-art:not\(\.has-custom-image\):has\(\.cozy-app-icon\)[\s\S]*?\.icon-decoration\{display:block!important\}/, 'runtime desktop fix restores decoration only for default SVG icons');
+assert.match(page, /\.desktop-icon-art\.has-custom-image[\s\S]*?background:transparent!important/, 'runtime desktop fix keeps custom image icon cleanup scoped to has-custom-image');
 
 
 assert.match(page, /\.phone-desktop:not\(\.boot-ready\) \{[\s\S]*?visibility: hidden;[\s\S]*?pointer-events: none;[\s\S]*?\}/, 'desktop shell stays hidden while boot loading is visible');
@@ -75,6 +83,8 @@ assert.match(styleSource, /:root \.desktop-icon-art/, 'soft desktop icon styling
 assert.match(styleSource, /\.cozy-app-icon \.icon-badge-frame \{ display: none; \}/, 'cream-bell badge frame is hidden outside the preset');
 assert.match(styleSource, /:root \.cozy-app-icon \.icon-badge-frame/, 'badge frame is restored by the shared soft-cute layer');
 assert.match(styleSource, /badge-soft-half/, 'shared icon styling supports the preview-like half patch');
+assert.match(styleSource, /:root :is\(\.desktop-icon-art:not\(\.has-custom-image\):has\(\.cozy-app-icon\), \.dock \.desktop-icon-art:not\(\.has-custom-image\):has\(\.cozy-app-icon\), \.settings-app-icon-preview\) \.cozy-app-icon \.icon-decoration/, 'shared layer restores tiny decoration for default icons and settings previews');
+assert.ok((styleSource.match(/cozy-app-icon-tone-[\w-]+ \{ --icon-tone-left:/g) || []).length >= 14, 'all apps have multiple theme-derived tone rules instead of one flat color');
 assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
 console.log('shared soft-cute visual checks passed');
 

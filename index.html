@@ -1394,6 +1394,12 @@
       box-shadow: none;
     }
 
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
+      background: transparent;
+      border-color: transparent;
+      box-shadow: none;
+    }
+
     .cozy-app-icon {
       --icon-line: color-mix(in srgb, var(--text-primary) 52%, var(--accent-dark));
       --icon-fur: color-mix(in srgb, var(--surface-paper) 90%, var(--accent-light));
@@ -1401,6 +1407,36 @@
       --icon-soft: color-mix(in srgb, var(--accent-light) 78%, var(--bg-card));
       --icon-blush: color-mix(in srgb, var(--decor-pink) 66%, var(--accent-light));
       filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--accent-dark) 12%, transparent));
+    }
+
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .cozy-app-icon,
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .cozy-app-icon {
+      overflow: visible;
+      filter: drop-shadow(0 10px 14px color-mix(in srgb, var(--accent-dark) 14%, transparent));
+    }
+
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-badge-frame,
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-decoration,
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-badge-frame,
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-decoration {
+      display: block;
+    }
+
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .badge-paper,
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .badge-paper {
+      fill: color-mix(in srgb, var(--bg-card) 90%, transparent);
+      stroke: color-mix(in srgb, var(--text-primary) 22%, var(--border-soft));
+      stroke-width: 2.2;
+    }
+
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .badge-soft-half,
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .badge-soft-half {
+      fill: var(--icon-left, color-mix(in srgb, var(--decor-blue) 48%, var(--bg-card)));
+    }
+
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-character,
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-character {
+      stroke-width: 5.2;
     }
 
     .desktop-icon-name {
@@ -1878,7 +1914,7 @@
       const image = getImageFromRecord(record);
       if (!image || !image.startsWith('data:image/svg')) return false;
       const meta = `${record?.source || ''} ${record?.sourceType || ''} ${record?.imageSource || ''} ${record?.type || ''}`.toLowerCase();
-      if (/user|local|upload|url/.test(meta)) return false;
+      if (/user|upload|url/.test(meta)) return false;
       let decoded = image;
       const comma = image.indexOf(',');
       if (comma >= 0) {
@@ -1886,7 +1922,10 @@
         try { decoded = image.slice(0, comma).includes(';base64') ? atob(payload) : decodeURIComponent(payload); }
         catch (_) { decoded = payload; }
       }
-      return /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+      const isProjectDefaultSvg = /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+      if (!isProjectDefaultSvg) return false;
+      const versionMatch = decoded.match(/data-default-icon-version=["']([^"']+)["']/);
+      return !versionMatch || versionMatch[1] !== 'toy-shop-v2';
     }
 
     async function clearLegacyDefaultIconBlobKey(key) {
@@ -2043,6 +2082,8 @@
         .desktop-icon,.desktop-icon:hover,.desktop-icon:focus,.desktop-icon:focus-visible,.desktop-icon:active{-webkit-appearance:none!important;appearance:none!important;background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;-webkit-tap-highlight-color:transparent!important}
         .desktop-icon::before,.desktop-icon::after{content:none!important;display:none!important}
         .desktop-icon-art,.desktop-icon-art:hover,.desktop-icon-art:focus,.desktop-icon-art:focus-visible,.desktop-icon-art:active,.dock .desktop-icon-art,.dock .desktop-icon-art:hover,.dock .desktop-icon-art:focus,.dock .desktop-icon-art:focus-visible,.dock .desktop-icon-art:active{outline:0!important}
+        .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon),.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):hover,.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):focus,.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):focus-visible,.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):active,.dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon),.dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):hover,.dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):focus,.dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):focus-visible,.dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon):active{background:transparent!important;border-color:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+        .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-decoration,.dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-decoration{display:block!important}
         .desktop-icon-art.has-custom-image,.desktop-icon-art.has-custom-image:hover,.desktop-icon-art.has-custom-image:focus,.desktop-icon-art.has-custom-image:focus-visible,.desktop-icon-art.has-custom-image:active{background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
         .desktop-icon-art.background-cleared,.desktop-icon-art.background-cleared:hover,.desktop-icon-art.background-cleared:focus,.desktop-icon-art.background-cleared:focus-visible,.desktop-icon-art.background-cleared:active{background:transparent!important;box-shadow:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
         .desktop-icon-image{display:block!important;width:100%!important;height:100%!important;object-fit:cover!important;margin:0!important;padding:0!important;background:transparent!important;box-shadow:none!important;outline:0!important;border-color:transparent!important;-webkit-touch-callout:none!important;-webkit-user-drag:none!important;user-drag:none!important;pointer-events:none!important}

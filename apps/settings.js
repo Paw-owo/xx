@@ -2866,7 +2866,7 @@ function isLegacyDefaultIconPreview(record) {
   const image = record?.value || record?.image || record?.iconImage || record?.backgroundImage || record?.imageBase64 || record?.imageUrl || '';
   if (!String(image).startsWith('data:image/svg')) return false;
   const meta = `${record?.source || ''} ${record?.sourceType || ''} ${record?.imageSource || ''} ${record?.type || ''}`.toLowerCase();
-  if (/user|local|upload|url/.test(meta)) return false;
+  if (/user|upload|url/.test(meta)) return false;
   let decoded = String(image);
   const comma = decoded.indexOf(',');
   if (comma >= 0) {
@@ -2874,7 +2874,10 @@ function isLegacyDefaultIconPreview(record) {
     try { decoded = decoded.slice(0, comma).includes(';base64') ? atob(payload) : decodeURIComponent(payload); }
     catch (_) { decoded = payload; }
   }
-  return /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+  const isProjectDefaultSvg = /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+  if (!isProjectDefaultSvg) return false;
+  const versionMatch = decoded.match(/data-default-icon-version=["']([^"']+)["']/);
+  return !versionMatch || versionMatch[1] !== 'toy-shop-v2';
 }
 
 function getPresetName(id) {
