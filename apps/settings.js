@@ -45,6 +45,7 @@ import {
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
 import { APPS } from '../core/app-registry.js';
+import { createDefaultAppIcon } from '../core/default-app-icons.js';
 import { PUBLIC_IMAGE_HOST, normalizeHttpImageUrl, promptForRemoteImage } from '../core/image-url.js';
 
 // ═══════════════════════════════════════
@@ -130,6 +131,24 @@ const THEME_COLOR_FIELDS = [
   ['bubble-user-bg', '我的气泡'], ['bubble-user-text', '我的气泡字'],
   ['bubble-ai-bg', '陪伴气泡'], ['bubble-ai-text', '陪伴气泡字']
 ];
+
+const APP_ICON_ALIAS_MAP = {
+  chat: ['聊天','消息','message','messages'],
+  moments: ['朋友圈','moments'],
+  settings: ['设置','settings'],
+  gallery: ['记仇本','相册','gallery','grudge','grudges','photo','photos'],
+  characters: ['角色','character','characters'],
+  worldbook: ['世界书','worldbook','world_book'],
+  wallet: ['钱包','wallet'],
+  shop: ['商店','shop'],
+  memo: ['备忘录','memo','memos','note','notes'],
+  anniversary: ['纪念日','anniversary','anniversaries','calendar','date'],
+  games: ['游戏','games','game','play'],
+  music: ['音乐','music','player','播放器'],
+  dream: ['梦境','dream','dreams','做梦']
+};
+
+const APP_ICON_IMAGE_FIELDS = new Set(['value','data','image','iconImage','backgroundImage','imageBase64','avatar','avatarUrl','imageUrl','url','src','base64','file','source','blobKey']);
 
 const WIDGET_BG_LIST = [
   ['app_widget_area_bg', '小组件区域'], ['app_widget_bg_time', '时间小卡片'],
@@ -1508,22 +1527,22 @@ async function renderIconsPage() {
   const hidden = new Set(getData(HIDDEN_ICONS_KEY) || []);
 
   const list = card('应用图标', '改名、换图、隐藏，都能用');
-  for (const { id, name } of APPS) {
+  for (const app of APPS) {
+    const { id, name } = app;
     const custom = icons[id] || {};
-    const dbRecord = await getDB('blobs', `app_icon_${id}`);
-    const rawImage = dbRecord?.value || dbRecord?.image || custom.image || custom.iconImage || custom.backgroundImage || '';
-    const image = (isLegacyDefaultIconPreview(dbRecord) || isLegacyDefaultIconPreview(custom)) ? '' : rawImage;
+    const settingsIcon = await readSettingsIconRecord(app, custom);
+    const image = getRecordImage(settingsIcon);
     const opacity = Number(custom.opacity ?? 100);
     const backgroundCleared = custom.backgroundCleared === true;
     const isHidden = hidden.has(id);
     const box = el('div', 'settings-widget-bg-block');
 
-    const previewEl = imagePreview(image || '', custom.name || name, isHidden ? 'settings' : 'star');
+    const previewEl = appIconPreview(app, image || '', custom.name || name);
 
     const clearBackgroundButton = actionBtn('delete', backgroundCleared ? '背景已清除' : '清除背景', () => clearIconBackground(id));
     clearBackgroundButton.disabled = backgroundCleared;
 
-    box.append(listAction(isHidden ? 'settings' : 'star', custom.name || name, isHidden ? '已隐藏' : image ? '已换图' : '默认图标', [
+    box.append(listAction('image', custom.name || name, isHidden ? '已隐藏' : image ? '已换图' : '默认图标', [
       actionBtn('edit', '改名', () => renameIcon(id, name)),
       actionBtn('upload', '本地选择', () => uploadIcon(id)),
       actionBtn('image', '图片 URL', () => setIconUrl(id)),
@@ -2698,6 +2717,14 @@ function imagePreview(src, label = '图片预览', fallbackIcon = 'image') {
   return box;
 }
 
+function appIconPreview(app, src = '', label = '应用图标') {
+  if (src) return imagePreview(src, label, 'image');
+  const box = el('span', 'settings-image-preview settings-app-icon-preview has-preview');
+  box.setAttribute('aria-label', label);
+  box.append(createDefaultAppIcon(app, 28));
+  return box;
+}
+
 async function fillBlobPreview(previewEl, key) {
   const record = await getDB('blobs', key);
   const image = getRecordImage(record);
@@ -2719,6 +2746,69 @@ function getRecordImage(record) {
   if (!record) return '';
   if (typeof record === 'string') return record;
   return record.value || record.image || record.iconImage || record.backgroundImage || record.imageBase64 || record.data || record.source || '';
+}
+
+function getSettingsAppIconImageKeys(app) {
+  return [...new Set([`app_icon_${app.id}`, `app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name, ...(APP_ICON_ALIAS_MAP[app.id] || [])])];
+}
+
+async function clearSettingsLegacyDefaultIconBlobKey(key) {
+  await deleteDB('blobs', key);
+  removeData(`${key}_meta`);
+}
+
+function clearSettingsLegacyDefaultIconLocalKey(key) {
+  const localRecord = getData(key);
+  if (isLegacyDefaultIconPreview(localRecord)) {
+    if (localRecord && typeof localRecord === 'object') {
+      const preserved = Object.fromEntries(Object.entries(localRecord).filter(([field]) => !APP_ICON_IMAGE_FIELDS.has(field)));
+      if (Object.keys(preserved).length) setData(key, preserved);
+      else removeData(key);
+    } else removeData(key);
+  }
+}
+
+async function cleanupSettingsLegacyDefaultIconResidue(app, candidateKeys) {
+  const icons = getData(ICONS_KEY) || {};
+  let iconsChanged = false;
+  for (const key of candidateKeys) {
+    const dbRecord = await getDB('blobs', key);
+    if (isLegacyDefaultIconPreview(dbRecord)) await clearSettingsLegacyDefaultIconBlobKey(key);
+    if (isLegacyDefaultIconPreview(getData(key))) clearSettingsLegacyDefaultIconLocalKey(key);
+  }
+  for (const [key, current] of Object.entries(icons)) {
+    if (!current || typeof current !== 'object') continue;
+    const itemName = String(current.name || '').trim();
+    const itemAppId = String(current.appId || current.id || '').trim();
+    const matchesApp = candidateKeys.includes(key) || itemAppId === app.id || itemName === app.name || itemName === app.id || candidateKeys.includes(itemName);
+    if (!matchesApp || !isLegacyDefaultIconPreview(current)) continue;
+    const preserved = Object.fromEntries(Object.entries(current).filter(([field]) => !APP_ICON_IMAGE_FIELDS.has(field)));
+    if (Object.keys(preserved).length) icons[key] = preserved;
+    else delete icons[key];
+    iconsChanged = true;
+  }
+  if (iconsChanged) setData(ICONS_KEY, icons);
+}
+
+async function readSettingsIconRecord(app) {
+  const candidateKeys = getSettingsAppIconImageKeys(app);
+  await cleanupSettingsLegacyDefaultIconResidue(app, candidateKeys);
+  for (const key of candidateKeys) {
+    const dbRecord = await getDB('blobs', key);
+    if (getRecordImage(dbRecord)) return dbRecord;
+    const localRecord = getData(key);
+    if (getRecordImage(localRecord)) return localRecord;
+  }
+  const icons = getData(ICONS_KEY) || {};
+  const localCandidates = [icons[app.id], icons[app.name]];
+  for (const key of candidateKeys) if (icons[key]) localCandidates.push(icons[key]);
+  localCandidates.push(...Object.values(icons).filter((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const itemName = String(item.name || '').trim();
+    const itemAppId = String(item.appId || item.id || '').trim();
+    return itemAppId === app.id || itemName === app.name || itemName === app.id || candidateKeys.includes(itemName);
+  }));
+  return localCandidates.find((record) => getRecordImage(record)) || {};
 }
 
 function pickFile(accept) {
@@ -3060,6 +3150,12 @@ function injectStyle() {
       object-fit: cover;
       border-radius: inherit;
       display: block;
+    }
+
+    .settings-app-icon-preview .cozy-app-icon {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
     }
 
     .settings-card > .settings-image-preview {

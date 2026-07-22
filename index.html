@@ -1357,7 +1357,7 @@
       background: var(--bg-card);
       box-shadow: var(--shadow-card);
     }
-  
+
 
     /* 黄系小挂件桌面统一层 */
     .desktop-journal-layer {
@@ -1862,6 +1862,7 @@
       const aliasMap = { chat: ['聊天','消息','message','messages'], moments: ['朋友圈','moments'], settings: ['设置','settings'], gallery: ['记仇本','相册','gallery','grudge','grudges','photo','photos'], characters: ['角色','character','characters'], worldbook: ['世界书','worldbook','world_book'], wallet: ['钱包','wallet'], shop: ['商店','shop'], memo: ['备忘录','memo','memos','note','notes'], anniversary: ['纪念日','anniversary','anniversaries','calendar','date'], games: ['游戏','games','game','play'], music: ['音乐','music','player','播放器'], dream: ['梦境','dream','dreams','做梦'] };
       return [...new Set([`app_icon_${app.id}`, `app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name, ...(aliasMap[app.id] || [])])];
     }
+    const APP_ICON_IMAGE_FIELDS = new Set(IMAGE_VALUE_FIELDS.concat(['imageBase64', 'blobKey']));
     function isLegacyDefaultAppIconRecord(record) {
       const image = getImageFromRecord(record);
       if (!image || !image.startsWith('data:image/svg')) return false;
@@ -1875,6 +1876,61 @@
         catch (_) { decoded = payload; }
       }
       return /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+    }
+
+    async function clearLegacyDefaultIconBlobKey(key) {
+      if (!key) return false;
+      await deleteDB('blobs', key);
+      removeData(`${key}_meta`);
+      return true;
+    }
+
+    function clearLegacyDefaultIconLocalKey(key) {
+      if (!key) return false;
+      const localRecord = getData(key);
+      if (isLegacyDefaultAppIconRecord(localRecord)) {
+        if (localRecord && typeof localRecord === 'object') {
+          const preserved = Object.fromEntries(Object.entries(localRecord).filter(([field]) => !APP_ICON_IMAGE_FIELDS.has(field)));
+          if (Object.keys(preserved).length) setData(key, preserved);
+          else removeData(key);
+        } else removeData(key);
+        return true;
+      }
+      return false;
+    }
+
+    async function cleanupLegacyDefaultIconResidue(app, candidateKeys) {
+      let changed = false;
+      for (const key of candidateKeys) {
+        const blobRecord = await getDB('blobs', key);
+        if (isLegacyDefaultAppIconRecord(blobRecord)) {
+          await clearLegacyDefaultIconBlobKey(key);
+          changed = true;
+        }
+        const localRecord = getData(key);
+        if (isLegacyDefaultAppIconRecord(localRecord)) {
+          clearLegacyDefaultIconLocalKey(key);
+          changed = true;
+        }
+      }
+      const icons = getCustomIcons();
+      let iconsChanged = false;
+      for (const [key, current] of Object.entries(icons)) {
+        if (!current || typeof current !== 'object') continue;
+        const itemName = String(current.name || '').trim();
+        const itemAppId = String(current.appId || current.id || '').trim();
+        const matchesApp = candidateKeys.includes(key) || itemAppId === app.id || itemName === app.name || itemName === app.id || candidateKeys.includes(itemName);
+        if (!matchesApp || !isLegacyDefaultAppIconRecord(current)) continue;
+        const preserved = Object.fromEntries(Object.entries(current).filter(([field]) => !APP_ICON_IMAGE_FIELDS.has(field)));
+        if (Object.keys(preserved).length) icons[key] = preserved;
+        else delete icons[key];
+        iconsChanged = true;
+      }
+      if (iconsChanged) {
+        setData('app_icons', icons);
+        changed = true;
+      }
+      return changed;
     }
 
 
@@ -2076,29 +2132,15 @@
     async function applyCurrentAppImage() { if (!currentAppId) return; const appRoot = appLayerEl.querySelector('[data-image-key]'); if (!appRoot) return; await applyImageToElement(appRoot, `app_bg_${currentAppId}`, { opacity: false }); }
 
     async function readIconRecord(app) {
+      const candidateKeys = getAppIconImageKeys(app);
+      await cleanupLegacyDefaultIconResidue(app, candidateKeys);
       const icons = getCustomIcons();
       const localCustom = icons[app.id] || icons[app.name] || null;
-      const candidateKeys = getAppIconImageKeys(app);
       let blobRecord = null;
       for (const key of candidateKeys) { const record = await readImageRecord(key); if (getImageFromRecord(record) || record?.name) { blobRecord = record; break; } }
       let matchedLocal = localCustom;
       if (!matchedLocal) { for (const key of candidateKeys) { if (icons[key]) { matchedLocal = icons[key]; break; } } }
       if (!matchedLocal) { matchedLocal = Object.values(icons).find((item) => { if (!item || typeof item !== 'object') return false; const itemName = String(item.name || '').trim(); const itemAppId = String(item.appId || item.id || '').trim(); return itemAppId === app.id || itemName === app.name || itemName === app.id || candidateKeys.includes(itemName); }) || null; }
-      if (isLegacyDefaultAppIconRecord(blobRecord)) {
-        await deleteDB('blobs', `app_icon_${app.id}`);
-        blobRecord = null;
-      }
-      if (isLegacyDefaultAppIconRecord(matchedLocal)) {
-        const icons = getCustomIcons();
-        const sourceKey = Object.keys(icons).find((key) => icons[key] === matchedLocal);
-        const { image, iconImage, backgroundImage, imageBase64, imageUrl, url, src, data, value, source, file, base64, blobKey, ...preserved } = matchedLocal;
-        if (sourceKey) {
-          if (Object.keys(preserved).length) icons[sourceKey] = preserved;
-          else delete icons[sourceKey];
-          setData('app_icons', icons);
-        }
-        matchedLocal = Object.keys(preserved).length ? preserved : null;
-      }
       if (blobRecord || matchedLocal) {
         const blobImage = getImageFromRecord(blobRecord);
         const localImage = getImageFromRecord(matchedLocal);
@@ -2163,41 +2205,85 @@
     function ensureFirstOpenSeed() { if (getData('app_first_open_seed')) return; setData('app_first_open_seed', { id: generateId(), createdAt: getNow() }); }
 
     async function renderDesktop() {
+      assertDesktopRootReady();
       document.querySelectorAll('.desktop-free-layer').forEach((layer) => { layer.innerHTML = ''; });
       dockEl.innerHTML = '';
 
       const hiddenIcons = getHiddenIcons();
 
-      getDockOrder().forEach((appId) => {
-        const app = APPS.find((item) => item.id === appId && item.dock);
-        if (app) dockEl.appendChild(createDesktopIcon(app));
+      await runDesktopRenderPart('dock', () => renderDock());
+      await runDesktopRenderPart('widgets', () => renderWidgets());
+      await runDesktopRenderPart('app-grid', () => renderAppGrid(hiddenIcons));
+
+      runDesktopRenderPartSync('post-render', () => {
+        updateEditingClass();
+        updatePageDots();
+        updateClock();
+        updateWeather();
+        updateAnniversaryWidget();
+        updateVinylWidget();
       });
-
-      await renderWidgets();
-
-      APPS.filter((app) => !app.dock && !hiddenIcons.includes(app.id)).forEach((app, index) => {
-        const iconEl = createDesktopIcon(app);
-        const position = getResolvedIconPosition(app, index);
-        getLayer(position.page).appendChild(iconEl);
-        placeDesktopItem(iconEl, position.x, position.y);
-      });
-
-      if (hiddenIcons.length) {
-        const hint = document.createElement('div');
-        hint.className = 'hidden-hint';
-        hint.textContent = '有些图标藏起来了，去设置里找找';
-        getLayer(1).appendChild(hint);
-      }
-
-      updateEditingClass();
-      updatePageDots();
-      updateClock();
-      updateWeather();
-      updateAnniversaryWidget();
-      updateVinylWidget();
 
       window.clearTimeout(renderTimer);
       renderTimer = window.setTimeout(() => applyAllImages(), 60);
+    }
+
+    function assertDesktopRootReady() {
+      const layers = document.querySelectorAll('.desktop-free-layer');
+      if (!desktopEl || !pagesEl || !dockEl || !layers.length) {
+        throw new Error('desktop root missing');
+      }
+    }
+
+    async function runDesktopRenderPart(stage, task) {
+      try { return await task(); }
+      catch (error) {
+        console.error(`[desktop:render] ${stage} failed`, error);
+        return null;
+      }
+    }
+
+    function runDesktopRenderPartSync(stage, task) {
+      try { return task(); }
+      catch (error) {
+        console.error(`[desktop:render] ${stage} failed`, error);
+        return null;
+      }
+    }
+
+    function renderDock() {
+      getDockOrder().forEach((appId) => {
+        try {
+          const app = APPS.find((item) => item.id === appId && item.dock);
+          if (app) dockEl.appendChild(createDesktopIcon(app));
+        } catch (error) {
+          console.error('[desktop:render] dock app skipped', appId, error);
+        }
+      });
+    }
+
+    function renderAppGrid(hiddenIcons) {
+      APPS.filter((app) => !app.dock && !hiddenIcons.includes(app.id)).forEach((app, index) => {
+        try {
+          const iconEl = createDesktopIcon(app);
+          const position = getResolvedIconPosition(app, index);
+          getLayer(position.page).appendChild(iconEl);
+          placeDesktopItem(iconEl, position.x, position.y);
+        } catch (error) {
+          console.error('[desktop:render] app icon skipped', app?.id || app?.name || index, error);
+        }
+      });
+
+      if (hiddenIcons.length) {
+        try {
+          const hint = document.createElement('div');
+          hint.className = 'hidden-hint';
+          hint.textContent = '有些图标藏起来了，去设置里找找';
+          getLayer(1).appendChild(hint);
+        } catch (error) {
+          console.error('[desktop:render] hidden hint skipped', error);
+        }
+      }
     }
 
     async function renderWidgets() {
@@ -2205,14 +2291,18 @@
       const enabled = settings.widgets || DEFAULT_SETTINGS.widgets;
 
       WIDGETS.forEach((widget) => {
-        if (widget.id === 'time' && enabled.time === false) return;
-        if (widget.id === 'weather' && enabled.weather === false) return;
-        if (widget.id === 'anniversary' && enabled.anniversary === false) return;
-        if (widget.id === 'vinyl' && enabled.vinyl === false) return;
-        const widgetEl = createWidget(widget);
-        const position = getResolvedWidgetPosition(widget);
-        getLayer(position.page).appendChild(widgetEl);
-        placeDesktopItem(widgetEl, position.x, position.y);
+        try {
+          if (widget.id === 'time' && enabled.time === false) return;
+          if (widget.id === 'weather' && enabled.weather === false) return;
+          if (widget.id === 'anniversary' && enabled.anniversary === false) return;
+          if (widget.id === 'vinyl' && enabled.vinyl === false) return;
+          const widgetEl = createWidget(widget);
+          const position = getResolvedWidgetPosition(widget);
+          getLayer(position.page).appendChild(widgetEl);
+          placeDesktopItem(widgetEl, position.x, position.y);
+        } catch (error) {
+          console.error('[desktop:render] widget skipped', widget?.id || widget?.label, error);
+        }
       });
 
       await renderCustomWidgets();
@@ -2221,11 +2311,15 @@
     async function renderCustomWidgets() {
       const widgets = getCustomWidgets();
       for (let index = 0; index < widgets.length; index++) {
-        const widget = widgets[index];
-        const widgetEl = await createCustomWidget(widget);
-        const position = getResolvedCustomWidgetPosition(widget, index);
-        getLayer(position.page).appendChild(widgetEl);
-        placeDesktopItem(widgetEl, position.x, position.y);
+        try {
+          const widget = widgets[index];
+          const widgetEl = await createCustomWidget(widget);
+          const position = getResolvedCustomWidgetPosition(widget, index);
+          getLayer(position.page).appendChild(widgetEl);
+          placeDesktopItem(widgetEl, position.x, position.y);
+        } catch (error) {
+          console.error('[desktop:render] custom widget skipped', widgets[index]?.id || index, error);
+        }
       }
     }
 

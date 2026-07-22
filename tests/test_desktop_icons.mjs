@@ -46,8 +46,20 @@ assert.equal((page.match(/addEventListener\('error', \(\) => \{[^}]*createDefaul
 assert.match(page, /if \(customImage\)[\s\S]*image\.src = customImage/, 'custom images remain preferred');
 
 assert.match(page, /function isLegacyDefaultAppIconRecord/, 'desktop has a compatibility guard for stale generated SVG icon records');
-assert.match(page, /deleteDB\('blobs', `app_icon_\$\{app\.id\}`\)/, 'stale generated icon blobs are cleared before falling back to the default SVG factory');
+assert.match(page, /async function clearLegacyDefaultIconBlobKey\(key\)[\s\S]*deleteDB\('blobs', key\)/, 'stale generated icon blobs are cleared from the matched compatibility key');
+assert.match(page, /function clearLegacyDefaultIconLocalKey\(key\)[\s\S]*setData\(key, preserved\)/, 'local stale generated defaults are cleaned without deleting unrelated blob records');
+assert.match(page, /async function cleanupLegacyDefaultIconResidue\(app, candidateKeys\)[\s\S]*for \(const key of candidateKeys\)[\s\S]*Object\.entries\(icons\)/, 'desktop scans all alias keys and weak local icon entries for stale generated defaults');
+assert.match(page, /if \(\/user\|local\|upload\|url\/\.test\(meta\)\) return false;/, 'user-provided svg metadata is protected from stale default cleanup');
+assert.match(page, /Object\.entries\(current\)\.filter\(\(\[field\]\) => !APP_ICON_IMAGE_FIELDS\.has\(field\)\)/, 'app_icons cleanup preserves non-image fields');
 assert.match(page, /artEl\.appendChild\(createDefaultAppIcon\(app, 28\)\)/, 'cleared stale icon records fall back to the default SVG factory');
+
+assert.match(page, /function assertDesktopRootReady\(\)[\s\S]*throw new Error\('desktop root missing'\)/, 'missing desktop root remains a core boot failure');
+assert.match(page, /await runDesktopRenderPart\('dock', \(\) => renderDock\(\)\);[\s\S]*await runDesktopRenderPart\('widgets', \(\) => renderWidgets\(\)\);[\s\S]*await runDesktopRenderPart\('app-grid', \(\) => renderAppGrid\(hiddenIcons\)\);/, 'desktop render is split into dock, widgets, and app-grid stages');
+assert.match(page, /async function runDesktopRenderPart\(stage, task\)[\s\S]*console\.error\(`\[desktop:render\] \$\{stage\} failed`, error\)[\s\S]*return null;/, 'desktop render stages log and continue after local failures');
+assert.match(page, /function renderDock\(\)[\s\S]*console\.error\('\[desktop:render\] dock app skipped'/, 'dock app failures are isolated');
+assert.match(page, /function renderAppGrid\(hiddenIcons\)[\s\S]*console\.error\('\[desktop:render\] app icon skipped'/, 'single app icon failures are isolated');
+assert.match(page, /async function renderCustomWidgets\(\)[\s\S]*console\.error\('\[desktop:render\] custom widget skipped'/, 'custom widget failures are isolated');
+assert.match(page, /async function renderWidgets\(\)[\s\S]*console\.error\('\[desktop:render\] widget skipped'/, 'widget failures are isolated');
 
 console.log('desktop icon checks passed');
 
@@ -59,3 +71,14 @@ assert.match(styleSource, /:root \.cozy-app-icon \.icon-badge-frame/, 'badge fra
 assert.match(styleSource, /badge-soft-half/, 'shared icon styling supports the preview-like half patch');
 assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
 console.log('shared soft-cute visual checks passed');
+
+const settingsSource = fs.readFileSync(new URL('../apps/settings.js', import.meta.url), 'utf8');
+assert.match(settingsSource, /import \{ createDefaultAppIcon \} from '\.\.\/core\/default-app-icons\.js';/, 'settings imports the shared default icon factory');
+assert.match(settingsSource, /function appIconPreview\(app, src = '', label = '应用图标'\)/, 'settings has a default app icon preview helper');
+assert.match(settingsSource, /box\.append\(createDefaultAppIcon\(app, 28\)\)/, 'settings default icon previews use the same SVG factory as the desktop');
+assert.match(settingsSource, /if \(src\) return imagePreview\(src, label, 'image'\);/, 'settings keeps custom icon images ahead of the default SVG');
+assert.doesNotMatch(settingsSource, /imagePreview\(image \|\| '', custom\.name \|\| name, isHidden \? 'settings' : 'star'\)/, 'settings no longer falls back to generic star/settings previews');
+assert.match(settingsSource, /const previewEl = appIconPreview\(app, image \|\| '', custom\.name \|\| name\);/, 'hidden apps keep the same default icon preview source');
+assert.match(settingsSource, /function getSettingsAppIconImageKeys\(app\)[\s\S]*app_icon_\$\{app\.id\}[\s\S]*app_\$\{app\.id\}_icon[\s\S]*icon_\$\{app\.id\}/, 'settings reads the same icon compatibility aliases as the desktop');
+assert.match(settingsSource, /async function cleanupSettingsLegacyDefaultIconResidue\(app, candidateKeys\)[\s\S]*for \(const key of candidateKeys\)[\s\S]*Object\.entries\(icons\)/, 'settings clears stale generated defaults from all alias keys and weak entries before previewing');
+console.log('settings icon preview checks passed');
