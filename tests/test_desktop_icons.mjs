@@ -31,7 +31,9 @@ assert.equal(new Set(drawings).size, APPS.length, 'all default silhouettes are d
 
 const gallery = createDefaultAppIcon(APPS.find(({ id }) => id === 'gallery'), 28, fakeDocument).innerHTML;
 assert.doesNotMatch(gallery, /<image/i, 'gallery does not use external photo imagery');
-assert.match(gallery, /M18 24h60c5 0 9 4 9 9v42c0 5-4 9-9 9H18c-5 0-9-4-9-9V33c0-5 4-9 9-9Z/, 'gallery keeps the redrawn rounded framed-photo silhouette');
+assert.match(gallery, /badge-soft-half/, 'default icons use the preview-like cool left patch');
+assert.match(gallery, /M22 17h52c8 0 14 6 14 14v34c0 8-6 14-14 14H22c-8 0-14-6-14-14V31c0-8 6-14 14-14Z/, 'default icons use the preview-like dashed stitched inner frame');
+assert.match(gallery, /M19 25h58c5 0 9 4 9 9v39c0 5-4 9-9 9H19c-5 0-9-4-9-9V34c0-5 4-9 9-9Z/, 'gallery uses a newly redrawn simple rounded photo outline');
 
 const source = fs.readFileSync(new URL('../core/default-app-icons.js', import.meta.url), 'utf8');
 assert.doesNotMatch(source, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i, 'icon source contains no hard-coded colors');
@@ -54,5 +56,6 @@ const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'u
 assert.match(styleSource, /:root \.desktop-icon-art/, 'soft desktop icon styling is shared by all themes');
 assert.match(styleSource, /\.cozy-app-icon \.icon-badge-frame \{ display: none; \}/, 'cream-bell badge frame is hidden outside the preset');
 assert.match(styleSource, /:root \.cozy-app-icon \.icon-badge-frame/, 'badge frame is restored by the shared soft-cute layer');
+assert.match(styleSource, /badge-soft-half/, 'shared icon styling supports the preview-like half patch');
 assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
 console.log('shared soft-cute visual checks passed');

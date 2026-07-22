@@ -124,11 +124,11 @@ const DEFAULT_SETTINGS = {
 const DEFAULT_CLOUD = { enabled: false, endpoint: '', apiKey: '', status: 'unknown', lastTestAt: '', updatedAt: '' };
 
 const THEME_COLOR_FIELDS = [
-  ['bg-primary', '主背景'], ['bg-secondary', '浅背景'], ['bg-card', '卡片背景'],
-  ['accent', '强调色'], ['accent-light', '浅强调'], ['accent-dark', '深强调'],
-  ['text-primary', '主要文字'], ['text-secondary', '次要文字'], ['text-hint', '提示文字'],
-  ['bubble-user-bg', '用户气泡'], ['bubble-user-text', '用户气泡字'],
-  ['bubble-ai-bg', 'AI 气泡'], ['bubble-ai-text', 'AI 气泡字']
+  ['bg-primary', '小窝底色'], ['bg-secondary', '软毯浅色'], ['bg-card', '奶油卡片'],
+  ['accent', '点心主色'], ['accent-light', '糖霜浅色'], ['accent-dark', '烘焙深色'],
+  ['text-primary', '正文可可'], ['text-secondary', '旁白奶茶'], ['text-hint', '悄悄提示'],
+  ['bubble-user-bg', '我的气泡'], ['bubble-user-text', '我的气泡字'],
+  ['bubble-ai-bg', '陪伴气泡'], ['bubble-ai-text', '陪伴气泡字']
 ];
 
 const WIDGET_BG_LIST = [
@@ -315,7 +315,7 @@ function renderThemePage() {
   presets.append(grid);
   wrap.append(presets);
 
-  const colors = card('自定义颜色', '背景、文字、气泡都能染色');
+  const colors = card('自定义颜色', '给小窝、文字和气泡换一层软软色');
   const list = el('div', 'settings-list');
   THEME_COLOR_FIELDS.forEach(([key, name]) => {
     const row = el('label', 'settings-color-row');
