@@ -45,6 +45,7 @@ import {
 } from '../core/storage-manager.js';
 import { GITHUB_TOOL_STORAGE_KEYS } from './chat/github-tool.js';
 import { APPS } from '../core/app-registry.js';
+import { createDefaultAppIcon } from '../core/default-app-icons.js';
 import { PUBLIC_IMAGE_HOST, normalizeHttpImageUrl, promptForRemoteImage } from '../core/image-url.js';
 
 // ═══════════════════════════════════════
@@ -124,11 +125,11 @@ const DEFAULT_SETTINGS = {
 const DEFAULT_CLOUD = { enabled: false, endpoint: '', apiKey: '', status: 'unknown', lastTestAt: '', updatedAt: '' };
 
 const THEME_COLOR_FIELDS = [
-  ['bg-primary', '主背景'], ['bg-secondary', '浅背景'], ['bg-card', '卡片背景'],
-  ['accent', '强调色'], ['accent-light', '浅强调'], ['accent-dark', '深强调'],
-  ['text-primary', '主要文字'], ['text-secondary', '次要文字'], ['text-hint', '提示文字'],
-  ['bubble-user-bg', '用户气泡'], ['bubble-user-text', '用户气泡字'],
-  ['bubble-ai-bg', 'AI 气泡'], ['bubble-ai-text', 'AI 气泡字']
+  ['bg-primary', '小窝底色'], ['bg-secondary', '软毯浅色'], ['bg-card', '奶油卡片'],
+  ['accent', '点心主色'], ['accent-light', '糖霜浅色'], ['accent-dark', '烘焙深色'],
+  ['text-primary', '正文可可'], ['text-secondary', '旁白奶茶'], ['text-hint', '悄悄提示'],
+  ['bubble-user-bg', '我的气泡'], ['bubble-user-text', '我的气泡字'],
+  ['bubble-ai-bg', '陪伴气泡'], ['bubble-ai-text', '陪伴气泡字']
 ];
 
 const WIDGET_BG_LIST = [
@@ -315,7 +316,7 @@ function renderThemePage() {
   presets.append(grid);
   wrap.append(presets);
 
-  const colors = card('自定义颜色', '背景、文字、气泡都能染色');
+  const colors = card('自定义颜色', '给小窝、文字和气泡换一层软软色');
   const list = el('div', 'settings-list');
   THEME_COLOR_FIELDS.forEach(([key, name]) => {
     const row = el('label', 'settings-color-row');
@@ -1508,22 +1509,22 @@ async function renderIconsPage() {
   const hidden = new Set(getData(HIDDEN_ICONS_KEY) || []);
 
   const list = card('应用图标', '改名、换图、隐藏，都能用');
-  for (const { id, name } of APPS) {
-    const custom = icons[id] || {};
-    const dbRecord = await getDB('blobs', `app_icon_${id}`);
-    const rawImage = dbRecord?.value || dbRecord?.image || custom.image || custom.iconImage || custom.backgroundImage || '';
-    const image = (isLegacyDefaultIconPreview(dbRecord) || isLegacyDefaultIconPreview(custom)) ? '' : rawImage;
-    const opacity = Number(custom.opacity ?? 100);
-    const backgroundCleared = custom.backgroundCleared === true;
+  for (const app of APPS) {
+    const { id, name } = app;
+    const previewRecord = await readSettingsIconRecord(app, icons);
+    const image = getRecordImage(previewRecord);
+    const opacity = Number(previewRecord?.opacity ?? 100);
+    const backgroundCleared = previewRecord?.backgroundCleared === true;
     const isHidden = hidden.has(id);
     const box = el('div', 'settings-widget-bg-block');
+    const displayName = previewRecord?.name || name;
 
-    const previewEl = imagePreview(image || '', custom.name || name, isHidden ? 'settings' : 'star');
+    const previewEl = appIconPreview(app, image, displayName);
 
     const clearBackgroundButton = actionBtn('delete', backgroundCleared ? '背景已清除' : '清除背景', () => clearIconBackground(id));
     clearBackgroundButton.disabled = backgroundCleared;
 
-    box.append(listAction(isHidden ? 'settings' : 'star', custom.name || name, isHidden ? '已隐藏' : image ? '已换图' : '默认图标', [
+    box.append(listAction(isHidden ? 'settings' : 'star', displayName, isHidden ? '已隐藏' : image ? '已换图' : '默认图标', [
       actionBtn('edit', '改名', () => renameIcon(id, name)),
       actionBtn('upload', '本地选择', () => uploadIcon(id)),
       actionBtn('image', '图片 URL', () => setIconUrl(id)),
@@ -2676,6 +2677,152 @@ function sheetBox(title) {
   return { root, body, actions };
 }
 
+
+function appIconPreview(app, src, label = '应用图标') {
+  const box = el('span', 'settings-image-preview settings-app-icon-preview');
+  box.setAttribute('aria-label', label);
+  const renderDefault = () => {
+    box.innerHTML = '';
+    box.append(createDefaultAppIcon(app, 28));
+    box.classList.remove('has-preview');
+  };
+
+  if (src) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = src;
+    img.addEventListener('error', renderDefault);
+    box.append(img);
+    box.classList.add('has-preview');
+  } else {
+    renderDefault();
+  }
+
+  return box;
+}
+
+async function readSettingsIconRecord(app, icons = getData(ICONS_KEY) || {}) {
+  const primaryKey = getSettingsPrimaryIconKey(app);
+  const weakKeys = getSettingsWeakIconKeys(app);
+  const primaryRecord = await readSettingsImageRecordExact(primaryKey);
+  let imageRecord = null;
+
+  if (isLegacyDefaultIconPreview(primaryRecord)) {
+    await clearSettingsIconKey(primaryKey);
+  } else if (isExplicitUserIconPreview(primaryRecord)) {
+    imageRecord = primaryRecord;
+  }
+
+  if (!imageRecord) {
+    for (const key of weakKeys) {
+      const record = await readSettingsImageRecordExact(key);
+      if (!record) continue;
+      if (isLegacyDefaultIconPreview(record)) {
+        await clearSettingsIconKey(key);
+        continue;
+      }
+      if (isExplicitUserIconPreview(record)) {
+        imageRecord = await migrateSettingsWeakIconRecord(app, key, record);
+        break;
+      }
+    }
+  }
+
+  const localRecord = findSettingsLocalIconRecord(app, icons, [primaryKey, ...weakKeys]);
+  const localHasLegacyImage = isLegacyDefaultIconPreview(localRecord);
+  const localHasUserImage = isExplicitUserIconPreview(localRecord);
+  let nameRecord = localRecord;
+
+  if (localHasLegacyImage) {
+    nameRecord = await stripSettingsLegacyLocalIconImage(app, localRecord, icons);
+  } else if (localHasUserImage) {
+    imageRecord = await promoteSettingsLocalIconRecord(app, localRecord, icons) || imageRecord;
+  }
+
+  const image = getRecordImage(imageRecord);
+  if (image) return { ...(imageRecord || {}), name: nameRecord?.name || imageRecord?.name || app.name, opacity: imageRecord?.opacity ?? nameRecord?.opacity ?? 100 };
+  if (nameRecord?.name || nameRecord?.backgroundCleared === true) return { name: nameRecord.name || app.name, opacity: nameRecord.opacity ?? 100, backgroundCleared: nameRecord.backgroundCleared === true };
+  return null;
+}
+
+function getSettingsPrimaryIconKey(app) { return `app_icon_${app.id}`; }
+
+function getSettingsWeakIconKeys(app) {
+  const aliasMap = { chat: ['聊天','消息','message','messages'], moments: ['朋友圈','moments'], settings: ['设置','settings'], gallery: ['记仇本','相册','gallery','grudge','grudges','photo','photos'], characters: ['角色','character','characters'], worldbook: ['世界书','worldbook','world_book'], wallet: ['钱包','wallet'], shop: ['商店','shop'], memo: ['备忘录','memo','memos','note','notes'], anniversary: ['纪念日','anniversary','anniversaries','calendar','date'], games: ['游戏','games','game','play'], music: ['音乐','music','player','播放器'], dream: ['梦境','dream','dreams','做梦'] };
+  return [...new Set([`app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name, ...(aliasMap[app.id] || [])])];
+}
+
+async function readSettingsImageRecordExact(key) {
+  const blobRecord = await getDB('blobs', key);
+  if (blobRecord) return blobRecord;
+  const localRecord = getData(key);
+  return localRecord || null;
+}
+
+async function clearSettingsIconKey(key) {
+  await deleteDB('blobs', key);
+  removeData(key);
+  removeData(`${key}_meta`);
+}
+
+async function migrateSettingsWeakIconRecord(app, key, record) {
+  const primaryKey = getSettingsPrimaryIconKey(app);
+  const image = getRecordImage(record);
+  const next = { ...record, key: primaryKey, value: image, image, iconImage: image, backgroundImage: image, imageBase64: image, blobKey: primaryKey, migratedFrom: key, updatedAt: getNow() };
+  await setDB('blobs', primaryKey, next);
+  await clearSettingsIconKey(key);
+  return next;
+}
+
+function findSettingsLocalIconRecord(app, icons, keys) {
+  const direct = icons[app.id] || icons[getSettingsPrimaryIconKey(app)] || icons[app.name] || null;
+  if (direct) return direct;
+  for (const key of keys) if (icons[key]) return icons[key];
+  return Object.values(icons).find((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const itemName = String(item.name || '').trim();
+    const itemAppId = String(item.appId || item.id || '').trim();
+    return itemAppId === app.id || itemName === app.name || itemName === app.id || keys.includes(itemName);
+  }) || null;
+}
+
+async function stripSettingsLegacyLocalIconImage(app, record, icons) {
+  const sourceKey = Object.keys(icons).find((key) => icons[key] === record);
+  const { image, iconImage, backgroundImage, imageBase64, imageUrl, url, src, data, value, source, file, base64, blobKey, ...preserved } = record || {};
+  if (sourceKey) {
+    if (Object.keys(preserved).length) icons[sourceKey] = preserved;
+    else delete icons[sourceKey];
+    setData(ICONS_KEY, icons);
+  }
+  const primaryKey = getSettingsPrimaryIconKey(app);
+  if (blobKey && blobKey !== primaryKey) await clearSettingsIconKey(blobKey);
+  return Object.keys(preserved).length ? preserved : null;
+}
+
+async function promoteSettingsLocalIconRecord(app, record, icons) {
+  const image = getRecordImage(record);
+  if (!image) return null;
+  const primaryKey = getSettingsPrimaryIconKey(app);
+  const sourceKey = Object.keys(icons).find((key) => icons[key] === record);
+  const next = { ...record, key: primaryKey, value: image, image, iconImage: image, backgroundImage: image, imageBase64: image, blobKey: primaryKey, updatedAt: getNow() };
+  if (sourceKey && sourceKey !== app.id) {
+    delete icons[sourceKey];
+    icons[app.id] = { ...record, blobKey: primaryKey, updatedAt: getNow() };
+    setData(ICONS_KEY, icons);
+  }
+  await setDB('blobs', primaryKey, next);
+  return next;
+}
+
+function isExplicitUserIconPreview(record) {
+  const image = getRecordImage(record);
+  if (!image) return false;
+  const meta = `${record?.source || ''} ${record?.sourceType || ''} ${record?.imageSource || ''} ${record?.type || ''} ${record?.url || ''} ${record?.imageUrl || ''}`.toLowerCase();
+  if (/user|local|upload|url/.test(meta)) return true;
+  if (/^(https?:|blob:)/.test(image)) return true;
+  return !image.startsWith('data:image/svg');
+}
+
 function imagePreview(src, label = '图片预览', fallbackIcon = 'image') {
   const box = el('span', 'settings-image-preview');
   box.setAttribute('aria-label', label);
@@ -2773,10 +2920,9 @@ function normalizeColor(value) {
 }
 
 function isLegacyDefaultIconPreview(record) {
-  const image = record?.value || record?.image || record?.iconImage || record?.backgroundImage || record?.imageBase64 || record?.imageUrl || '';
+  const image = getRecordImage(record);
   if (!String(image).startsWith('data:image/svg')) return false;
-  const meta = `${record?.source || ''} ${record?.sourceType || ''} ${record?.imageSource || ''} ${record?.type || ''}`.toLowerCase();
-  if (/user|local|upload|url/.test(meta)) return false;
+  if (isExplicitUserIconPreview(record)) return false;
   let decoded = String(image);
   const comma = decoded.indexOf(',');
   if (comma >= 0) {
@@ -2784,7 +2930,7 @@ function isLegacyDefaultIconPreview(record) {
     try { decoded = decoded.slice(0, comma).includes(';base64') ? atob(payload) : decodeURIComponent(payload); }
     catch (_) { decoded = payload; }
   }
-  return /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+  return /cozy-app-icon|icon-badge-frame|cream-bell|badge-soft-half|badge-stitch|class=["'](?:bell|bow)["']/.test(decoded);
 }
 
 function getPresetName(id) {
