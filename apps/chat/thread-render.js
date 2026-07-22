@@ -116,6 +116,11 @@ export function renderThreadMessages(state, pageEl) {
 
   const wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 140;
   const messages = getVisibleMessages(state);
+  const hasStreaming = messages.some((m) => m.isStreaming || m.isPending);
+
+  // 流式期间禁用入场动画：每次 chunk 重建列表时所有气泡会重新触发 chatMessageIn，
+  // 造成整列表"一跳一跳"；流式态下只更新内容，不需要入场效果
+  list.classList.toggle('is-streaming', hasStreaming);
 
   list.replaceChildren();
 
@@ -141,11 +146,11 @@ export function renderThreadMessages(state, pageEl) {
 
   renderQuotePreview(state, pageEl);
 
-  requestAnimationFrame(() => {
-    if (wasNearBottom || messages.length <= 2) {
-      list.scrollTop = list.scrollHeight;
-    }
-  });
+  // 同步设 scrollTop：replaceChildren + append 是同步操作，scrollHeight 立即可用。
+  // 不再用 RAF，避免一帧延迟期间浏览器先渲染 scrollTop=0 再跳到底部造成闪动。
+  if (wasNearBottom || messages.length <= 2) {
+    list.scrollTop = list.scrollHeight;
+  }
 }
 
 // ═══════════════════════════════════════
@@ -1573,6 +1578,11 @@ function injectStyle() {
       gap: 4px;
       animation: chatMessageIn 200ms ease both;
       overscroll-behavior: contain;
+    }
+
+    /* 流式期间禁用入场动画：避免每次 chunk 重建列表时所有气泡重新淡入导致跳变 */
+    .chat-thread-list.is-streaming .chat-message-row {
+      animation: none;
     }
 
     .chat-message-row.role-user {

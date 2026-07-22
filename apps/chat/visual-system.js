@@ -439,7 +439,9 @@ export function mountChatVisualSystem() {
       margin: 0 10px calc(8px + env(safe-area-inset-bottom));
       padding: 10px 10px 10px;
       border-radius: 26px 26px 20px 20px;
-      background: color-mix(in srgb, var(--chat-surface) 88%, transparent);
+      background: var(--chat-surface) !important;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
 
     .chat-page .chat-thread-input-bar::before {

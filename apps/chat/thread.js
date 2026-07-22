@@ -171,7 +171,19 @@ export async function mountChatThread(containerEl, options = {}) {
   state.activeTts = false;
   state.displayMode = resolveDisplayMode();
   state.reloadAndRender = reloadAndRender;
-  state.renderOnly = () => { if (state.rootEl && state.mounted) render(); };
+  state.renderOnly = () => {
+    if (!state.rootEl || !state.mounted) return;
+    // 流式/局部更新：复用现有 page，只刷新消息列表，避免重建 header/input-bar
+    // 导致输入焦点丢失、键盘乱跳和整页 reflow
+    const existingPage = state.rootEl.querySelector('.chat-thread-page');
+    if (existingPage && !state.settingsPageOpen) {
+      existingPage.dataset.aiGenerating = isAIWorking() ? 'true' : 'false';
+      existingPage.dataset.locked = getRelationshipLockLevel(state) ? 'true' : 'false';
+      renderThreadMessages(state, existingPage);
+      return;
+    }
+    render();
+  };
   state.wallpaperImage = '';
   state.wallpaperOpacity = 1;
   state.settingsPageOpen = false;
@@ -1638,6 +1650,19 @@ function injectStyle() {
     .chat-thread-page textarea:focus-visible{
       outline:2px solid var(--accent);
       outline-offset:2px;
+    }
+
+    /* 设置页全屏宿主：撑满 rootEl 并建立 flex 高度链路，
+       否则内部 .thread-settings-page 的 height:100% 解析失败导致滚动断裂 */
+    .chat-thread-settings-full-page{
+      position:absolute;
+      inset:0;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+      overflow:hidden;
+      background:var(--bg-primary);
+      color:var(--text-primary);
     }
 
     @media(prefers-reduced-motion:reduce){
