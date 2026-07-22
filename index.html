@@ -120,6 +120,11 @@
       font-family: var(--font-main);
     }
 
+    .phone-desktop:not(.boot-ready) {
+      visibility: hidden;
+      pointer-events: none;
+    }
+
     .has-image {
       background-size: cover;
       background-position: center;
@@ -1686,6 +1691,7 @@
           console.warn('[boot] optional stages failed; desktop is still available', optionalFailures);
         }
         console.info('[boot] desktop ready');
+        revealDesktopAfterBoot();
         hideBootLoading();
       } catch (error) {
         console.error('[boot] core stage failed', error);
@@ -1719,9 +1725,14 @@
     }
 
     function resetBootLoading() {
+      desktopEl?.classList.remove('boot-ready');
       if (!loadingEl) return;
       loadingEl.classList.remove('hide');
       loadingEl.innerHTML = '<div class="loading-card"><div class="loading-mark"></div><div class="loading-text">小手机正在醒来</div></div>';
+    }
+
+    function revealDesktopAfterBoot() {
+      desktopEl?.classList.add('boot-ready');
     }
 
     function hideBootLoading() {

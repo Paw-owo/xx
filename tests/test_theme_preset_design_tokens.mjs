@@ -72,6 +72,15 @@ for (const preset of presets) {
   assert.equal(document.documentElement.attrs['data-theme'], preset.id, `${preset.id} is applied via theme attribute`);
 }
 
+const iconLineColors = presets.map((preset) => theme.setPreset(preset.id).variables['icon-line-stable']);
+assert.equal(new Set(iconLineColors).size, presets.length, 'each preset supplies a distinct icon line color so switching themes recolors default app icons');
+for (const preset of presets) {
+  const applied = theme.setPreset(preset.id);
+  assert.match(applied.variables['icon-body-stable'], /var\(--surface-paper\).*var\(--decor-blue\)/, `${preset.id} icon body is derived from theme CSS variables`);
+  assert.match(applied.variables['icon-layer-stable'], /var\(--bg-card\).*var\(--decor-blue\)/, `${preset.id} icon layer is derived from theme CSS variables`);
+  assert.match(applied.variables['icon-highlight-stable'], /var\(--bg-card\)/, `${preset.id} icon highlight is derived from theme CSS variables`);
+}
+
 
 const cream = theme.setPreset('cream-bell');
 assert.equal(cream.variables['cream-bell-badge-display'], 'block', 'cream-bell turns on badge SVG frame');
