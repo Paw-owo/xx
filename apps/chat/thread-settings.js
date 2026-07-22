@@ -80,6 +80,8 @@ const state = {
   characterId: '',
   character: null,
   appState: null,
+  fromRoute: null,
+  onBack: null,
   endpoints: [],
   models: [],
   userProfiles: [],
@@ -100,6 +102,8 @@ export async function mountThreadSettings(containerEl, options = {}) {
   state.mounted = true;
   state.characterId = String(options.characterId || '').trim();
   state.appState = options.appState || null;
+  state.fromRoute = options.fromRoute || null;
+  state.onBack = typeof options.onBack === 'function' ? options.onBack : null;
   state.saving = false;
 
   injectStyle();
@@ -118,6 +122,8 @@ export function unmountThreadSettings() {
   state.characterId = '';
   state.character = null;
   state.appState = null;
+  state.fromRoute = null;
+  state.onBack = null;
   state.endpoints = [];
   state.models = [];
   state.userProfiles = [];
@@ -212,6 +218,16 @@ function createHeader() {
 
   const back = iconButton('back', '返回');
   back.addEventListener('click', () => {
+    if (typeof state.onBack === 'function') {
+      state.onBack();
+      return;
+    }
+
+    if (state.fromRoute && typeof state.appState?.navigateToRoute === 'function') {
+      state.appState.navigateToRoute(state.fromRoute);
+      return;
+    }
+
     if (typeof state.appState?.goThread === 'function') {
       state.appState.goThread({
         mode: 'private',

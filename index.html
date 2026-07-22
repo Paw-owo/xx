@@ -1284,7 +1284,7 @@
       width: calc(var(--desktop-icon-art-size) * var(--desktop-icon-scale));
       height: calc(var(--desktop-icon-art-size) * var(--desktop-icon-scale));
       border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
-      border-radius: 34% 42% 36% 44%;
+      border-radius: calc(18px * var(--desktop-icon-scale));
       background: var(--icon-tile-bg);
       color: var(--icon-color);
       box-shadow: none;
@@ -1293,14 +1293,6 @@
     .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
       background: var(--icon-tile-bg);
       box-shadow: none;
-    }
-
-    .desktop-icon:nth-child(3n + 2) .desktop-icon-art {
-      background: var(--icon-tile-alt-cool);
-    }
-
-    .desktop-icon:nth-child(3n) .desktop-icon-art {
-      background: var(--icon-tile-alt-warm);
     }
 
     .desktop-icon-name {
@@ -1335,7 +1327,7 @@
     .dock::after { right: 20px; }
 
     .dock .desktop-icon-art {
-      border-radius: 38% 44% 40% 46%;
+      border-radius: calc(18px * var(--desktop-icon-scale));
       box-shadow: none;
     }
 
@@ -1378,14 +1370,14 @@
     .desktop-widget,
     .dock {
       border: 1px solid color-mix(in srgb, var(--border-soft) 66%, transparent);
-      background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 88%, transparent), color-mix(in srgb, var(--accent-light) 18%, transparent));
-      box-shadow: var(--shadow-card), inset 0 1px 0 color-mix(in srgb, white 76%, transparent);
+      background: color-mix(in srgb, var(--bg-card) 92%, var(--accent-light));
+      box-shadow: var(--shadow-card);
     }
 
     .desktop-icon-art {
       border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
-      background: linear-gradient(145deg, var(--surface-paper), color-mix(in srgb, var(--accent-light) 34%, var(--bg-card)));
-      box-shadow: var(--shadow-md), inset 0 1px 0 color-mix(in srgb, white 82%, transparent);
+      background: color-mix(in srgb, var(--surface-paper) 86%, var(--accent-light));
+      box-shadow: var(--shadow-sm);
     }
 
     .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
@@ -1406,13 +1398,13 @@
       --icon-accent: color-mix(in srgb, var(--accent) 72%, var(--bg-card));
       --icon-soft: color-mix(in srgb, var(--accent-light) 78%, var(--bg-card));
       --icon-blush: color-mix(in srgb, var(--decor-pink) 66%, var(--accent-light));
-      filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--accent-dark) 12%, transparent));
+      filter: none;
     }
 
     .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .cozy-app-icon,
     .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .cozy-app-icon {
       overflow: visible;
-      filter: drop-shadow(0 10px 14px color-mix(in srgb, var(--accent-dark) 14%, transparent));
+      filter: none;
     }
 
     .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) .icon-badge-frame,
@@ -1441,7 +1433,7 @@
 
     .desktop-icon-name {
       color: var(--text-primary);
-      text-shadow: 0 1px 10px color-mix(in srgb, var(--bg-card) 86%, transparent);
+      text-shadow: none;
       font-weight: 600;
     }
 

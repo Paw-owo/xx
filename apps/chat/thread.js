@@ -7,6 +7,7 @@
 //   from './thread-actions.js': sendThreadMessage, stopThreadAIReply
 //   from './thread-stickers.js': openStickerSheet, closeStickerSheet
 //   from './thread-panels.js': openThreadToolsPanel, closeThreadPanels
+//   from './thread-settings.js': mountThreadSettings, unmountThreadSettings
 //   from './thread-relationship.js': loadRelationshipState, getRelationshipLockLevel, getRelationshipStatusText, createRelationshipLockBar, openRelationshipLockSheet
 //   from './thread-ai.js': checkThreadProactiveMessages
 
@@ -18,7 +19,8 @@ import { stopAll } from '../../core/tts.js';
 import { renderThreadMessages, resetVoicePlayer } from './thread-render.js';
 import { sendThreadMessage, stopThreadAIReply } from './thread-actions.js';
 import { openStickerSheet, closeStickerSheet } from './thread-stickers.js';
-import { openThreadToolsPanel, openThreadSettingsPanel, closeThreadPanels } from './thread-panels.js';
+import { openThreadToolsPanel, closeThreadPanels } from './thread-panels.js';
+import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
 import {
   loadRelationshipState,
   getRelationshipLockLevel,
@@ -79,6 +81,8 @@ const state = {
   renderOnly: null,
   wallpaperImage: '',
   wallpaperOpacity: 1,
+  settingsPageOpen: false,
+  settingsPageHost: null,
   pendingImages: [],
   // 耳朵语音输入状态：'idle' | 'recording' | 'transcribing'
   earState: 'idle',
@@ -170,6 +174,8 @@ export async function mountChatThread(containerEl, options = {}) {
   state.renderOnly = () => { if (state.rootEl && state.mounted) render(); };
   state.wallpaperImage = '';
   state.wallpaperOpacity = 1;
+  state.settingsPageOpen = false;
+  state.settingsPageHost = null;
 
   restoreDraft();
 
@@ -205,6 +211,11 @@ export function unmountChatThread() {
   state.messageQueue = [];
   state.queueConsuming = false;
   state.pendingImages = [];
+  if (state.settingsPageOpen || state.settingsPageHost) {
+    try { unmountThreadSettings(); } catch (_) {}
+  }
+  state.settingsPageOpen = false;
+  state.settingsPageHost = null;
   // 卸载时清理录音：避免离开会话后录音仍在进行、麦克风轨道泄漏
   try {
     if (getRecorderState() === 'recording') {
@@ -274,11 +285,41 @@ export function unmountChatThread() {
 }
 
 function openSettingsPage() {
-  // 设置是线程内 bottom sheet，不应走完整 unmount，避免误中止正在回复的 AI job。
-  openThreadSettingsPanel(state, {
-    settings: {
-      appState: state.appState
-    }
+  if (state.mode === 'group' || !state.characterId) {
+    showToast('这个聊天还没有可以调整的设置');
+    return;
+  }
+
+  closeThreadPanels();
+  state.settingsPageOpen = true;
+  render();
+}
+
+function closeSettingsPage() {
+  if (!state.settingsPageOpen && !state.settingsPageHost) return;
+  try { unmountThreadSettings(); } catch (_) {}
+  state.settingsPageOpen = false;
+  state.settingsPageHost = null;
+  render();
+}
+
+function renderSettingsFullPage() {
+  if (!state.rootEl || !state.mounted) return;
+  if (state.settingsPageHost?.isConnected) return;
+
+  const host = el('section', 'chat-thread-settings-full-page');
+  state.settingsPageHost = host;
+  state.rootEl.replaceChildren(host);
+  mountThreadSettings(host, {
+    appState: state.appState,
+    characterId: state.characterId,
+    onBack: closeSettingsPage
+  }).catch(() => {
+    if (!state.mounted) return;
+    showToast('设置页还没铺好，稍后再试一下');
+    state.settingsPageOpen = false;
+    state.settingsPageHost = null;
+    render();
   });
 }
 
@@ -348,6 +389,11 @@ async function loadDefaultWallpaperCache() {
 
 function render() {
   if (!state.rootEl || !state.mounted) return;
+
+  if (state.settingsPageOpen) {
+    renderSettingsFullPage();
+    return;
+  }
 
   const page = el('section', `chat-page chat-thread-page mode-${state.displayMode}`);
   page.dataset.locked = getRelationshipLockLevel(state) ? 'true' : 'false';

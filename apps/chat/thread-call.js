@@ -117,7 +117,7 @@ function cleanupCallResources(reason = 'close') {
   if (callState.cleanupDone) return false;
   callState.cleanupDone = true;
   if (callState.replyController) {
-    try { callState.replyController.abort(reason); } catch (_) {}
+    try { callState.replyController?.abort(); } catch (_) {}
     callState.replyController = null;
   }
   stopTimer();

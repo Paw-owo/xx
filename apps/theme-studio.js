@@ -60,12 +60,12 @@ const STARTER_THEME_TOKENS = Object.freeze({
       'bubble-ai-bg': '#FFF7FA'
     }),
     dark: Object.freeze({
-      'bg-primary': '#30242A',
-      'bg-secondary': '#3B2B33',
-      'bg-card': '#44333B',
-      'text-primary': '#F7E8EF',
-      'text-secondary': '#D7B8C6',
-      'bubble-ai-bg': '#493640'
+      'bg-primary': '#1C1720',
+      'bg-secondary': '#261E2A',
+      'bg-card': '#302638',
+      'text-primary': '#F1E3EA',
+      'text-secondary': '#CCB1C0',
+      'bubble-ai-bg': '#3A2D40'
     }),
     'bubble-user-bg': '#F4BED2'
   }),

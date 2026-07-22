@@ -9,10 +9,10 @@ let registered = false;
 
 const THEME_DRAFT_PALETTES = Object.freeze({
   night: Object.freeze({
-    accent: '#8f7cf7', accentLight: '#403a68', accentDark: '#d8d0ff', accentStrong: '#b8a8ff',
-    bg: '#25243a', card: '#32304a', muted: '#2b2942', paper: '#373551',
-    text: '#fff8ff', secondary: '#d8d2ee', hint: '#aaa2c8', border: '#4b4770', shadow: 'rgba(9, 8, 20, 0.34)',
-    userBubble: '#6f61d7', aiBubble: '#373551'
+    accent: '#C084A6', accentLight: '#573E52', accentDark: '#E8C4D6', accentStrong: '#C98CAF',
+    bg: '#1C1720', card: '#302638', muted: '#261E2A', paper: '#3A2D40',
+    text: '#F1E3EA', secondary: '#CCB1C0', hint: '#9B8190', border: '#60495B', shadow: 'rgba(15, 11, 18, 0.22)',
+    userBubble: '#53394D', aiBubble: '#3A2D40'
   }),
   green: Object.freeze({
     accent: '#8bc9a8', accentLight: '#dff3e7', accentDark: '#3f7d59', accentStrong: '#5aa878',

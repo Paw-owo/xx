@@ -2792,9 +2792,9 @@ function injectStyle() {
     }
 
     @keyframes chatRpsFlip {
-      0% { transform: rotateY(0deg) scale(0.96); }
-      45% { transform: rotateY(180deg) scale(1.06); }
-      100% { transform: rotateY(360deg) scale(1); }
+      0% { transform: rotate(0deg) scale(0.96); }
+      45% { transform: rotate(3deg) scale(1.03); }
+      100% { transform: rotate(0deg) scale(1); }
     }
 
     /* ── 响应式 ── */

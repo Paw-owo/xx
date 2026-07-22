@@ -1716,10 +1716,10 @@ function injectStyle() {
       --lt-bg-deep: var(--media-ink-deep);
       --lt-bg-surface: var(--media-ink-deep);
       --lt-bg-hover: var(--media-ink-deep);
-      --lt-pink-neon: var(--accent);
+      --lt-pink-soft: var(--accent);
       --lt-pink-dim: var(--accent);
       --lt-pink-deep: var(--accent);
-      --lt-pink-glow: color-mix(in srgb, var(--accent) 15%, transparent);
+      --lt-pink-milk: color-mix(in srgb, var(--accent) 15%, transparent);
       --lt-pink-flash: color-mix(in srgb, var(--accent) 38%, transparent);
       --lt-gold-worn: var(--decor-yellow);
       --lt-gold-light: var(--decor-yellow);
@@ -1762,9 +1762,9 @@ function injectStyle() {
 
     .lt-candle { width: 18px; height: 32px; opacity: 0.9; flex: 0 0 auto; }
     .lt-candle svg { width: 100%; height: 100%; }
-    .lt-flame-outer { fill: var(--lt-pink-neon); opacity: 0.82; animation: ltFlame 1.8s ease-in-out infinite; }
+    .lt-flame-outer { fill: var(--lt-pink-soft); opacity: 0.82; animation: ltFlame 1.8s ease-in-out infinite; }
     .lt-flame-inner { fill: var(--lt-text-primary); opacity: 0.58; animation: ltFlame 1.25s ease-in-out infinite reverse; }
-    .lt-flame-glow { fill: var(--lt-pink-neon); opacity: 0.08; animation: ltGlow 2s ease-in-out infinite; }
+    .lt-flame-glow { fill: var(--lt-pink-soft); opacity: 0.08; animation: ltGlow 2s ease-in-out infinite; }
     .lt-candle-body { fill: var(--lt-bg-surface); }
     .lt-wax { fill: var(--lt-pink-deep); opacity: 0.7; }
 
@@ -1780,7 +1780,7 @@ function injectStyle() {
     .lt-mask-face { fill: var(--lt-bg-deep); stroke: var(--lt-gold-worn); stroke-width: 1; }
     .lt-mask-face.is-user { stroke: var(--lt-pink-dim); }
     .lt-mask-eye { fill: var(--lt-bg-void); }
-    .lt-mask-glow { fill: var(--lt-pink-neon); opacity: 0.9; animation: ltEye 3s ease-in-out infinite; }
+    .lt-mask-glow { fill: var(--lt-pink-soft); opacity: 0.9; animation: ltEye 3s ease-in-out infinite; }
     .lt-mask-mouth, .lt-mask-line { fill: none; stroke: var(--lt-gold-worn); stroke-width: 1; stroke-linecap: round; }
     .lt-mask-line { stroke-width: 0.5; opacity: 0.55; }
 
@@ -1827,7 +1827,7 @@ function injectStyle() {
     .lt-cylinder { display: grid; grid-template-columns: repeat(3, 6px); gap: 3px; flex: 0 0 auto; }
     .lt-cylinder i { width: 6px; height: 6px; background: color-mix(in srgb, var(--decor-yellow) 32%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--decor-yellow) 16%, transparent); }
     .lt-cylinder i.is-fired { background: color-mix(in srgb, var(--media-ink-deep) 72%, transparent); }
-    .lt-cylinder i.is-current { background: var(--lt-pink-neon); box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 56%, transparent); }
+    .lt-cylinder i.is-current { background: var(--lt-pink-soft); box-shadow: var(--shadow-sm); }
 
     .lt-pile { position: relative; z-index: 1; margin: 120px auto 0; text-align: center; color: var(--lt-text-dim); font-size: 12px; }
     .lt-pile-stack { position: relative; width: 86px; height: 58px; margin: 0 auto 6px; }
@@ -1835,13 +1835,13 @@ function injectStyle() {
     .lt-pile p { margin: 0; }
     .lt-pile span { display: block; margin-top: 2px; color: var(--lt-gold-light); }
 
-    .lt-turn-badge { padding: 7px 10px; color: var(--lt-pink-neon); background: color-mix(in srgb, var(--accent) 50%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); font-size: 12px; white-space: nowrap; }
+    .lt-turn-badge { padding: 7px 10px; color: var(--lt-pink-soft); background: color-mix(in srgb, var(--accent) 50%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); font-size: 12px; white-space: nowrap; }
 
     .lt-hand { display: flex; gap: 10px; overflow-x: auto; padding: 6px 2px 12px; overscroll-behavior: contain; }
     .lt-hand-card { flex: 0 0 66px; height: 92px; color: var(--lt-text-primary); background: color-mix(in srgb, var(--media-ink-deep) 94%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--decor-yellow) 50%, transparent), inset 0 0 24px color-mix(in srgb, var(--media-ink-deep) 45%, transparent), 0 2px 12px color-mix(in srgb, var(--media-ink-deep) 22%, transparent); transform: translateY(0); }
     .lt-hand-card span { display: grid; place-items: center; width: 100%; height: 100%; color: var(--lt-gold-light); font-family: "Courier New", monospace; font-size: 22px; font-weight: 700; }
     .lt-hand-card.is-picked { transform: translateY(-10px); box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 22%, transparent), inset 0 0 0 1px color-mix(in srgb, var(--accent) 72%, transparent), inset 0 0 24px color-mix(in srgb, var(--media-ink-deep) 45%, transparent); }
-    .lt-hand-card.is-joker span { color: var(--lt-pink-neon); text-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent); }
+    .lt-hand-card.is-joker span { color: var(--lt-pink-soft); text-shadow: none; }
 
     .lt-command-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; }
 
@@ -1850,7 +1850,7 @@ function injectStyle() {
     .lt-log-item span { display: block; color: var(--lt-text-dim); font-size: 10px; letter-spacing: 0.08em; margin-bottom: 3px; }
     .lt-log-item p { margin: 0; color: var(--lt-text-primary); font-size: 14px; line-height: 1.6; }
     .lt-log-item.is-dialogue p { color: var(--lt-gold-light); }
-    .lt-log-item.is-challenge p, .lt-log-item.is-caught p { color: var(--lt-pink-neon); }
+    .lt-log-item.is-challenge p, .lt-log-item.is-caught p { color: var(--lt-pink-soft); }
     .lt-log-item.is-danger p, .lt-log-item.is-dead p { color: var(--accent); }
     .lt-log-item.is-honest p, .lt-log-item.is-survive p { color: var(--lt-text-primary); }
 
@@ -1859,7 +1859,7 @@ function injectStyle() {
     .lt-gameover-card .lt-main-btn { width: 100%; margin-top: 18px; }
 
     .lt-sparks { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
-    .lt-sparks i { position: absolute; left: var(--x); top: var(--y); width: 2px; height: 3px; background: var(--lt-pink-neon); box-shadow: 0 0 4px var(--lt-pink-neon), 0 0 8px color-mix(in srgb, var(--accent) 50%, transparent); opacity: 0; animation: ltSpark var(--dur) ease-out infinite; animation-delay: var(--delay); }
+    .lt-sparks i { position: absolute; left: var(--x); top: var(--y); width: 2px; height: 3px; background: var(--lt-pink-soft); box-shadow: var(--shadow-sm); opacity: 0; animation: ltSpark var(--dur) ease-out infinite; animation-delay: var(--delay); }
 
     .lt-shake { animation: ltExposeShake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
     .lt-shake::after { content: ""; position: fixed; inset: 0; z-index: 99; pointer-events: none; background: radial-gradient(circle at center, color-mix(in srgb, var(--accent) 35%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)); animation: ltFlashFade 0.6s ease-out forwards; }
