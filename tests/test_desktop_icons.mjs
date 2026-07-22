@@ -53,6 +53,12 @@ assert.match(page, /if \(\/user\|local\|upload\|url\/\.test\(meta\)\) return fal
 assert.match(page, /Object\.entries\(current\)\.filter\(\(\[field\]\) => !APP_ICON_IMAGE_FIELDS\.has\(field\)\)/, 'app_icons cleanup preserves non-image fields');
 assert.match(page, /artEl\.appendChild\(createDefaultAppIcon\(app, 28\)\)/, 'cleared stale icon records fall back to the default SVG factory');
 
+
+assert.match(page, /\.phone-desktop:not\(\.boot-ready\) \{[\s\S]*?visibility: hidden;[\s\S]*?pointer-events: none;[\s\S]*?\}/, 'desktop shell stays hidden while boot loading is visible');
+assert.match(page, /function revealDesktopAfterBoot\(\) \{[\s\S]*?desktopEl\?\.classList\.add\('boot-ready'\);[\s\S]*?\}/, 'desktop is revealed only by the boot completion gate');
+assert.match(page, new RegExp("console\\.info\\('\\[boot\\] desktop ready'\\);\\s*revealDesktopAfterBoot\\(\\);\\s*hideBootLoading\\(\\);"), 'boot completion reveals the desktop before dismissing loading');
+assert.match(page, new RegExp("function resetBootLoading\\(\\) \\{\\s*desktopEl\\?\\.classList\\.remove\\('boot-ready'\\);"), 'retry boot returns to loading-only shell');
+
 assert.match(page, /function assertDesktopRootReady\(\)[\s\S]*throw new Error\('desktop root missing'\)/, 'missing desktop root remains a core boot failure');
 assert.match(page, /await runDesktopRenderPart\('dock', \(\) => renderDock\(\)\);[\s\S]*await runDesktopRenderPart\('widgets', \(\) => renderWidgets\(\)\);[\s\S]*await runDesktopRenderPart\('app-grid', \(\) => renderAppGrid\(hiddenIcons\)\);/, 'desktop render is split into dock, widgets, and app-grid stages');
 assert.match(page, /async function runDesktopRenderPart\(stage, task\)[\s\S]*console\.error\(`\[desktop:render\] \$\{stage\} failed`, error\)[\s\S]*return null;/, 'desktop render stages log and continue after local failures');

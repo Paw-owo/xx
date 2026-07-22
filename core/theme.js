@@ -45,10 +45,10 @@ const BASE_VARIABLES = {
   'border-charm': 'color-mix(in srgb, var(--accent-dark) 24%, var(--bg-card))',
   'icon-color': 'var(--icon-line-stable)',
   'icon-detail': 'var(--icon-line-stable)',
-  'icon-body-stable': 'color-mix(in srgb, #FFF9EA 82%, #F2CE72)',
-  'icon-line-stable': 'color-mix(in srgb, #5F4631 72%, #9B6A2E)',
-  'icon-layer-stable': 'color-mix(in srgb, #FFFDF5 88%, #C8D7E3)',
-  'icon-highlight-stable': 'color-mix(in srgb, #FFFDF5 84%, white)',
+  'icon-body-stable': 'color-mix(in srgb, var(--surface-paper) 82%, var(--decor-yellow))',
+  'icon-line-stable': 'color-mix(in srgb, var(--text-primary) 72%, var(--accent-dark))',
+  'icon-layer-stable': 'color-mix(in srgb, var(--bg-card) 88%, var(--decor-blue))',
+  'icon-highlight-stable': 'color-mix(in srgb, var(--bg-card) 84%, white)',
   'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
   'icon-tile-bg': 'var(--surface-paper)',
   'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
@@ -153,21 +153,21 @@ const PRESETS = {
     accent: '#E7BE62', accentSoft: '#FFE9A8', accentDeep: '#8A6734', accentStrong: '#D8A348',
     text: '#604D34', textSoft: '#8C7554', hint: '#B7A78D', border: '#ECD8AC', shadow: '#9B7132',
     success: '#90AD82', danger: '#C98276', blue: '#D7E8F7', yellow: '#F6D884', pink: '#F5C9C2', green: '#D6E2BF', lilac: '#DDD4E8',
-    userBubble: '#FFE7B0', userText: '#60482F', icon: '#907184', iconDetail: '#8F7480'
+    userBubble: '#FFE7B0', userText: '#60482F', icon: '#9C7A34', iconDetail: '#8A6734'
   }),
   'cloud-soda': createPreset('cloud-soda', '奶粉', 'light', {
     background: '#FFF5F8', secondary: '#FBE5ED', card: '#FFFCFD', paper: '#FFF8FA', charm: '#FBDDE9',
     accent: '#E7A9BF', accentSoft: '#FFD9E7', accentDeep: '#956579', accentStrong: '#D68AA8',
     text: '#634E59', textSoft: '#927783', hint: '#BBA3AE', border: '#EFCFDB', shadow: '#9B6378',
     success: '#8FAD93', danger: '#C97F88', blue: '#D9E8F8', yellow: '#F1DDAA', pink: '#F5C3D4', green: '#D4E3C7', lilac: '#E3D3EA',
-    userBubble: '#FFDCE8', userText: '#604A55', icon: '#907184', iconDetail: '#8F7480'
+    userBubble: '#FFDCE8', userText: '#604A55', icon: '#A66E82', iconDetail: '#956579'
   }),
   'peach-pudding': createPreset('peach-pudding', '奶蓝', 'light', {
     background: '#F3FAFF', secondary: '#E2F0FB', card: '#FCFEFF', paper: '#F8FCFF', charm: '#DDEEFF',
     accent: '#95C1DD', accentSoft: '#D8EEFF', accentDeep: '#5E8299', accentStrong: '#78ADD0',
     text: '#465E6E', textSoft: '#708D9E', hint: '#9EB7C5', border: '#CFE4F1', shadow: '#4E768D',
     success: '#85A994', danger: '#C78386', blue: '#C9E4FA', yellow: '#EEE0AD', pink: '#EFCBD9', green: '#CEE2CE', lilac: '#DAD6EA',
-    userBubble: '#D9EFFF', userText: '#435B6B', icon: '#907184', iconDetail: '#8F7480'
+    userBubble: '#D9EFFF', userText: '#435B6B', icon: '#5E8299', iconDetail: '#52798F'
   }),
   'cocoa-night': createPreset('cocoa-night', '黑红', 'dark', {
     background: '#1F1719', secondary: '#2C1E22', card: '#35252A', paper: '#402C31', charm: '#52333A',
