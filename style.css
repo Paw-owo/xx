@@ -2055,7 +2055,6 @@ body {
 .cozy-app-icon .blush { stroke: var(--icon-charm); }
 .cozy-app-icon .badge-paper { fill: var(--icon-paper); stroke: var(--icon-line); }
 .cozy-app-icon .badge-stitch { fill: none; stroke: color-mix(in srgb, var(--icon-line) 46%, transparent); stroke-dasharray: 4 6; }
-.cozy-app-icon .cookie-dot { fill: var(--icon-charm); stroke: color-mix(in srgb, var(--icon-line) 55%, transparent); }
 
 /* 默认隐藏 SVG 外框，由公共软萌主题变量统一打开。 */
 .cozy-app-icon .icon-badge-frame { display: none; }
@@ -2154,7 +2153,6 @@ body {
 }
 :root .cozy-app-icon .badge-paper { fill: color-mix(in srgb, var(--bg-card) 86%, transparent); stroke: var(--border-soft); stroke-width: 2; }
 :root .cozy-app-icon .badge-stitch { fill: none; stroke: var(--accent-dark); stroke-width: 1.4; stroke-dasharray: 4 4; }
-:root .cozy-app-icon .cookie-dot { fill: var(--accent); stroke: var(--accent-dark); stroke-width: .8; }
 :root .cozy-app-icon path,
 :root .cozy-app-icon circle,
 :root .cozy-app-icon rect { stroke-width: 2.4; }
@@ -2368,12 +2366,10 @@ body {
   50% { transform: rotate(2deg); }
 }
 
-/* 公共软萌主题补齐层：所有主题共享同一套软圆画风 */
+/* 公共软萌主题补齐层：所有主题共享同一套软圆拼贴画风 */
 :root {
-  --caramel-stitch: color-mix(in srgb, var(--accent-dark) 30%, transparent);
-  --caramel-cream-glow: color-mix(in srgb, var(--accent-light) 28%, transparent);
-  --cookie-edge: color-mix(in srgb, var(--border-soft) 82%, transparent);
-  --cookie-dot: color-mix(in srgb, var(--accent-dark) 38%, transparent);
+  --soft-preview-stitch: color-mix(in srgb, var(--accent-dark) 30%, transparent);
+  --soft-preview-glow: color-mix(in srgb, var(--accent-light) 28%, transparent);
   --pudding-gloss: color-mix(in srgb, var(--bg-card) 72%, transparent);
   --cream-bell-check: linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 24%, transparent), transparent 46%);
 }
@@ -2447,7 +2443,7 @@ body {
   inset: 9px;
   pointer-events: none;
   border-radius: inherit;
-  border: 1px dashed var(--caramel-stitch);
+  border: 1px dashed var(--soft-preview-stitch);
   opacity: .52;
   background: none;
 }
@@ -2476,9 +2472,9 @@ body {
   --icon-soft: var(--icon-layer-stable);
 }
 
-:root .cozy-app-icon .badge-paper { fill: var(--icon-soft); stroke: var(--icon-line); }
-:root .cozy-app-icon .badge-stitch { stroke: var(--caramel-stitch); stroke-dasharray: 4 6; fill: none; }
-:root .cozy-app-icon .cookie-dot { fill: var(--cookie-dot); stroke: none; }
+:root .cozy-app-icon .badge-paper { fill: color-mix(in srgb, var(--bg-card) 86%, transparent); stroke: color-mix(in srgb, var(--bg-card) 80%, transparent); }
+:root .cozy-app-icon .badge-soft-half { fill: color-mix(in srgb, var(--decor-blue) 50%, transparent); stroke: none; }
+:root .cozy-app-icon .badge-stitch { stroke: color-mix(in srgb, var(--text-secondary) 28%, transparent); stroke-dasharray: 5 7; fill: none; }
 :root .cozy-app-icon .icon-decoration .bow,
 :root .cozy-app-icon .icon-decoration .bell { display: none; }
 
@@ -2509,3 +2505,39 @@ body {
 :root :is(.switch, .toggle, input[type="checkbox"]) {
   accent-color: var(--accent);
 }
+
+
+/* 默认图标贴近 man/图标预览.html：半透明圆角底盘、左侧冷色拼片、内圈虚线缝线。 */
+:root :is(.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon), .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon)) {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+:root .cozy-app-icon .badge-paper {
+  fill: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  stroke: color-mix(in srgb, var(--bg-card) 74%, transparent);
+  stroke-width: 1.8;
+}
+:root .cozy-app-icon .badge-soft-half {
+  fill: color-mix(in srgb, var(--decor-blue) 48%, transparent);
+  stroke: none;
+}
+:root .cozy-app-icon .badge-stitch {
+  stroke: color-mix(in srgb, var(--text-secondary) 30%, transparent);
+  stroke-width: 1.6;
+  stroke-dasharray: 5 7;
+}
+:root .cozy-app-icon .icon-character {
+  stroke: var(--icon-line-stable);
+  stroke-width: 5.4;
+}
+:root .cozy-app-icon .icon-character .fur,
+:root .cozy-app-icon .icon-character .paper,
+:root .cozy-app-icon .icon-character .highlight {
+  fill: none;
+  stroke: var(--icon-line-stable);
+}
+:root .cozy-app-icon .icon-character .line-only {
+  stroke: var(--icon-line-stable);
+}
+:root .cozy-app-icon .icon-decoration { display: none; }
