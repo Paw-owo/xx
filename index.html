@@ -1862,6 +1862,21 @@
       const aliasMap = { chat: ['聊天','消息','message','messages'], moments: ['朋友圈','moments'], settings: ['设置','settings'], gallery: ['记仇本','相册','gallery','grudge','grudges','photo','photos'], characters: ['角色','character','characters'], worldbook: ['世界书','worldbook','world_book'], wallet: ['钱包','wallet'], shop: ['商店','shop'], memo: ['备忘录','memo','memos','note','notes'], anniversary: ['纪念日','anniversary','anniversaries','calendar','date'], games: ['游戏','games','game','play'], music: ['音乐','music','player','播放器'], dream: ['梦境','dream','dreams','做梦'] };
       return [...new Set([`app_icon_${app.id}`, `app_${app.id}_icon`, `icon_${app.id}`, `${app.id}_icon`, app.id, app.name, ...(aliasMap[app.id] || [])])];
     }
+    function isLegacyDefaultAppIconRecord(record) {
+      const image = getImageFromRecord(record);
+      if (!image || !image.startsWith('data:image/svg')) return false;
+      const meta = `${record?.source || ''} ${record?.sourceType || ''} ${record?.imageSource || ''} ${record?.type || ''}`.toLowerCase();
+      if (/user|local|upload|url/.test(meta)) return false;
+      let decoded = image;
+      const comma = image.indexOf(',');
+      if (comma >= 0) {
+        const payload = image.slice(comma + 1);
+        try { decoded = image.slice(0, comma).includes(';base64') ? atob(payload) : decodeURIComponent(payload); }
+        catch (_) { decoded = payload; }
+      }
+      return /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
+    }
+
 
     async function removeAppIconImage(appId) {
       const app = APPS.find((item) => item.id === appId);
@@ -2069,6 +2084,21 @@
       let matchedLocal = localCustom;
       if (!matchedLocal) { for (const key of candidateKeys) { if (icons[key]) { matchedLocal = icons[key]; break; } } }
       if (!matchedLocal) { matchedLocal = Object.values(icons).find((item) => { if (!item || typeof item !== 'object') return false; const itemName = String(item.name || '').trim(); const itemAppId = String(item.appId || item.id || '').trim(); return itemAppId === app.id || itemName === app.name || itemName === app.id || candidateKeys.includes(itemName); }) || null; }
+      if (isLegacyDefaultAppIconRecord(blobRecord)) {
+        await deleteDB('blobs', `app_icon_${app.id}`);
+        blobRecord = null;
+      }
+      if (isLegacyDefaultAppIconRecord(matchedLocal)) {
+        const icons = getCustomIcons();
+        const sourceKey = Object.keys(icons).find((key) => icons[key] === matchedLocal);
+        const { image, iconImage, backgroundImage, imageBase64, imageUrl, url, src, data, value, source, file, base64, blobKey, ...preserved } = matchedLocal;
+        if (sourceKey) {
+          if (Object.keys(preserved).length) icons[sourceKey] = preserved;
+          else delete icons[sourceKey];
+          setData('app_icons', icons);
+        }
+        matchedLocal = Object.keys(preserved).length ? preserved : null;
+      }
       if (blobRecord || matchedLocal) {
         const blobImage = getImageFromRecord(blobRecord);
         const localImage = getImageFromRecord(matchedLocal);

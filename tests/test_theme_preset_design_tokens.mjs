@@ -90,6 +90,11 @@ assert.equal(creamAgain.variables['cream-bell-badge-display'], 'block', 'switchi
 assert.equal(creamAgain.variables['cream-bell-lace'], 'none', 'switching back keeps decorative background lace disabled');
 assert.equal(document.documentElement.attrs['data-theme'], 'cream-bell', 'switching back updates data-theme');
 
+
+const legacyName = theme.setPreset('焦糖小熊');
+assert.equal(legacyName.preset, 'cream-bell', 'old stored display names map to the current preset id');
+assert.equal(theme.getThemePresets().find((preset) => preset.id === legacyName.preset)?.name, '奶黄', 'old stored display names render through the current preset source');
+
 const legacy = theme.setPreset('dark-chocolate');
 assert.equal(legacy.preset, 'cocoa-night', 'legacy dark preset aliases remain compatible');
 

@@ -314,7 +314,19 @@ const LEGACY_PRESET_ALIAS = {
   'coconut-iced': 'cloud-soda',
   'strawberry-milk': 'peach-pudding',
   'dark-chocolate': 'cocoa-night',
-  'vanilla-pudding': 'blueberry-moon'
+  'vanilla-pudding': 'blueberry-moon',
+  '\u7126\u7CD6\u5C0F\u718A': 'cream-bell',
+  '\u4E91\u6735\u82CF\u6253': 'cloud-soda',
+  '\u871C\u6843\u5E03\u4E01': 'peach-pudding',
+  '\u53EF\u53EF\u665A\u5B89': 'cocoa-night',
+  '\u6CF0\u8FEA\u6696\u7A9D': 'teddy-nest',
+  '\u84DD\u8393\u6708\u5149': 'blueberry-moon',
+  '奶黄': 'cream-bell',
+  '奶粉': 'cloud-soda',
+  '奶蓝': 'peach-pudding',
+  '黑红': 'cocoa-night',
+  '奶棕': 'teddy-nest',
+  '黑粉': 'blueberry-moon'
 };
 
 let currentTheme = null;

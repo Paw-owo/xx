@@ -43,6 +43,10 @@ assert.match(page, /icon\.className = 'placeholder-icon'; icon\.appendChild\(cre
 assert.equal((page.match(/addEventListener\('error', \(\) => \{[^}]*createDefaultAppIcon\(app, 28\)/g) || []).length, 2, 'desktop and placeholder image failures use the factory');
 assert.match(page, /if \(customImage\)[\s\S]*image\.src = customImage/, 'custom images remain preferred');
 
+assert.match(page, /function isLegacyDefaultAppIconRecord/, 'desktop has a compatibility guard for stale generated SVG icon records');
+assert.match(page, /deleteDB\('blobs', `app_icon_\$\{app\.id\}`\)/, 'stale generated icon blobs are cleared before falling back to the default SVG factory');
+assert.match(page, /artEl\.appendChild\(createDefaultAppIcon\(app, 28\)\)/, 'cleared stale icon records fall back to the default SVG factory');
+
 console.log('desktop icon checks passed');
 
 
