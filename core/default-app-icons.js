@@ -1,5 +1,40 @@
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+
+const ICON_TONES = {
+ chat: 'petal',
+ moments: 'fresh',
+ settings: 'cloud',
+ gallery: 'leaf',
+ characters: 'cookie',
+ worldbook: 'moss',
+ wallet: 'honey',
+ shop: 'pudding',
+ memo: 'lilac',
+ anniversary: 'rose',
+ games: 'mint',
+ music: 'soda',
+ dream: 'moon',
+ 'theme-center': 'ribbon'
+};
+
+const ICON_SEMANTICS = {
+ chat: 'bubble',
+ moments: 'album',
+ settings: 'gear',
+ gallery: 'frame',
+ characters: 'friend',
+ worldbook: 'book',
+ wallet: 'pouch',
+ shop: 'bag',
+ memo: 'note',
+ anniversary: 'calendar',
+ games: 'controller',
+ music: 'record',
+ dream: 'moon',
+ 'theme-center': 'dresser'
+};
+
 const ICON_DRAWINGS = {
   chat: `<path class="fur" d="M28 35c0-8 6-14 14-14h12c8 0 14 6 14 14v11c0 8-6 14-14 14H43L30 70l3-12c-3-3-5-7-5-12Z"/><path class="paper" d="M38 37h20v7H38Z"/><path class="line-only" d="M38 51h14"/>`,
   moments: `<path class="fur" d="M23 30h50c5 0 8 3 8 8v34c0 5-3 8-8 8H23c-5 0-8-3-8-8V38c0-5 3-8 8-8Z"/><path class="paper" d="M23 68 38 54l9 8 13-17 14 23Z"/><circle class="highlight" cx="64" cy="44" r="6"/><path class="line-only" d="M29 76h38"/>`,
@@ -20,21 +55,27 @@ export function createDefaultAppIcon(app, size = 28, documentRef = document) {
   const drawing = ICON_DRAWINGS[app?.id];
   if (!drawing) return null;
   const svg = documentRef.createElementNS(SVG_NS, 'svg');
-  svg.classList.add('cozy-app-icon', `cozy-app-icon-${app.id}`);
+  const tone = ICON_TONES[app.id] || 'petal';
+  const semantic = ICON_SEMANTICS[app.id] || app.id;
+  svg.classList.add('cozy-app-icon', `cozy-app-icon-${app.id}`, `cozy-app-icon-tone-${tone}`, `cozy-app-icon-semantic-${semantic}`);
   svg.setAttribute('viewBox', '0 0 96 96');
   svg.setAttribute('width', String(size));
   svg.setAttribute('height', String(size));
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
-  const showTinyDecoration = Number(size || 0) > 32;
+  svg.setAttribute('data-semantic-shape', semantic);
+  svg.setAttribute('data-theme-tone', tone);
+  const showTinyDecoration = Number(size || 0) >= 28;
   svg.innerHTML = `<g class="icon-badge-frame" aria-hidden="true">
       <path class="badge-paper" d="M15 9h66c4 0 7 1 10 4s4 6 4 10v50c0 4-1 7-4 10s-6 4-10 4H15c-4 0-7-1-10-4s-4-6-4-10V23c0-4 1-7 4-10s6-4 10-4Z"/>
       <path class="badge-soft-half" d="M15 9h33v78H15c-4 0-7-1-10-4s-4-6-4-10V23c0-4 1-7 4-10s6-4 10-4Z"/>
       <path class="badge-stitch" d="M22 17h52c8 0 14 6 14 14v34c0 8-6 14-14 14H22c-8 0-14-6-14-14V31c0-8 6-14 14-14Z"/>
     </g>
-    <g class="icon-character">${drawing}</g>
-    ${showTinyDecoration ? `<g class="icon-decoration" aria-hidden="true">
+    <g class="icon-character icon-symbol icon-symbol-${app.id} icon-semantic-${semantic}">${drawing}</g>
+    ${showTinyDecoration ? `<g class="icon-decoration icon-decoration-${tone}" aria-hidden="true">
       <path class="sparkle" d="M12 18h8M16 14v8"/>
+      <circle class="charm-dot" cx="80" cy="18" r="2.4"/>
+      <path class="charm-stitch" d="M74 79h10"/>
     </g>` : ''}`;
   return svg;
 }

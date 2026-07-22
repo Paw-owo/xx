@@ -2541,3 +2541,1224 @@ body {
   stroke: var(--icon-line-stable);
 }
 :root .cozy-app-icon .icon-decoration { display: none; }
+
+/* ═══════════════════════════════════════ */
+/* 【第一阶段：精致小玩具店视觉骨架】 */
+/* 只覆盖视觉 token 和共用皮肤，不改 DOM 与业务状态。 */
+/* ═══════════════════════════════════════ */
+
+:root {
+  --ui-ink-soft: color-mix(in srgb, var(--text-primary) 82%, var(--accent-dark));
+  --ui-line: color-mix(in srgb, var(--border-soft) 72%, var(--text-primary) 10%);
+  --ui-line-strong: color-mix(in srgb, var(--accent-dark) 52%, var(--border-soft));
+  --ui-paper: color-mix(in srgb, var(--bg-card) 92%, var(--surface-paper));
+  --ui-paper-tint: color-mix(in srgb, var(--surface-paper) 76%, var(--accent-light));
+  --ui-milk-glass: color-mix(in srgb, var(--bg-card) 84%, transparent);
+  --ui-soft-fill: color-mix(in srgb, var(--bg-card) 72%, var(--accent-light));
+  --ui-frost-fill: color-mix(in srgb, var(--bg-card) 82%, var(--decor-blue));
+  --ui-petal-fill: color-mix(in srgb, var(--bg-card) 76%, var(--decor-pink));
+  --ui-cookie-fill: color-mix(in srgb, var(--accent-light) 70%, var(--bg-card));
+  --ui-toy-shadow: 0 10px 24px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 10%, transparent);
+  --ui-float-shadow: 0 16px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent);
+  --ui-hairline: 1.5px solid color-mix(in srgb, var(--ui-line) 82%, transparent);
+  --ui-stitch: 1.5px dashed color-mix(in srgb, var(--ui-line-strong) 42%, transparent);
+  --ui-highlight: inset 0 1px 0 color-mix(in srgb, white 78%, transparent);
+  --ui-pressed-shadow: inset 0 2px 8px color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --ui-lace-size: 18px;
+  --button-primary-bg:
+    radial-gradient(circle at 15px 50%, color-mix(in srgb, var(--bg-card) 58%, transparent) 0 3px, transparent 3.8px),
+    radial-gradient(circle at calc(100% - 15px) 50%, color-mix(in srgb, var(--bg-card) 58%, transparent) 0 3px, transparent 3.8px),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-light) 74%, var(--accent)), var(--accent-strong));
+  --button-soft-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 72%, transparent), transparent),
+    color-mix(in srgb, var(--surface-paper) 82%, var(--accent-light));
+  --toy-border: var(--ui-hairline);
+  --shadow-sm: 0 5px 14px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 8%, transparent);
+  --shadow-card: var(--ui-toy-shadow);
+  --shadow-float: var(--ui-float-shadow);
+}
+
+:root body {
+  background:
+    radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--accent-light) 34%, transparent) 0 120px, transparent 250px),
+    radial-gradient(circle at 86% 18%, color-mix(in srgb, var(--decor-pink) 20%, transparent) 0 90px, transparent 230px),
+    linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 84%, var(--bg-secondary)));
+}
+
+:root :is(.phone-desktop, .app-screen, .placeholder-app, .app-page, .chat-page, .settings-page, .theme-center-page, .theme-studio-page, .chat-thread-page, #app-layer > *) {
+  background:
+    radial-gradient(circle at 14% 10%, color-mix(in srgb, var(--accent-light) 30%, transparent), transparent 180px),
+    radial-gradient(circle at 92% 22%, color-mix(in srgb, var(--decor-blue) 18%, transparent), transparent 210px),
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 28%, transparent), transparent 30%),
+    var(--bg-primary) !important;
+}
+
+:root .desktop-journal-layer {
+  background:
+    radial-gradient(circle at 10px 10px, color-mix(in srgb, var(--ui-line) 24%, transparent) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 34px 30px, color-mix(in srgb, var(--accent-light) 26%, transparent) 0 1.2px, transparent 2px);
+  background-size: 44px 44px, 58px 58px;
+  opacity: .55;
+}
+
+:root :is(.card, .section-card, .form-card, .empty-state, .placeholder-card, .setting-card, .panel-card, .loading-card, .chat-fold-card, .thinking-card, .chat-game-card, .chat-sub-agent-card, .desktop-widget, [class$="-card"]) {
+  position: relative;
+  overflow: hidden;
+  border: var(--ui-hairline) !important;
+  border-radius: 28px 32px 27px 34px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 68%, transparent), transparent 42%),
+    radial-gradient(circle at 82% 14%, color-mix(in srgb, white 50%, transparent), transparent 72px),
+    var(--ui-paper) !important;
+  box-shadow: none;
+}
+
+:root :is(.card, .section-card, .form-card, .empty-state, .placeholder-card, .setting-card, .panel-card, .desktop-widget)::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  pointer-events: none;
+  border-radius: inherit;
+  border: var(--ui-stitch);
+  opacity: .42;
+  background: none;
+}
+
+:root :is(.app-topbar, .app-header, .nav-bar, .top-bar, .toolbar, .chat-thread-header, .chat-thread-input-bar, .bottom-bar, .status-cute-pill, .dock, .bottom-sheet, .sheet-panel, .modal, .modal-content, .dialog, .popup, .toast) {
+  border: var(--ui-hairline) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 24%, transparent), transparent 52%),
+    var(--ui-milk-glass) !important;
+  box-shadow: none;
+  backdrop-filter: blur(18px) saturate(1.04);
+  -webkit-backdrop-filter: blur(18px) saturate(1.04);
+}
+
+:root :is(.app-topbar, .app-header, .nav-bar, .top-bar, .toolbar, .chat-thread-header) {
+  border-radius: 0 0 24px 24px !important;
+  border-left-color: transparent !important;
+  border-right-color: transparent !important;
+  border-top-color: transparent !important;
+}
+
+:root :is(.bottom-sheet, .sheet-panel, .modal, .modal-content, .dialog, .popup) {
+  border-radius: 32px 36px 30px 38px !important;
+}
+
+:root .dock {
+  border-radius: 36px 40px 34px 42px !important;
+}
+
+:root :is(.btn-primary, .primary-button, [class$="-primary"], [class$="-save-btn"], [class$="-submit-btn"], [class$="-buy-btn"], button[type="submit"]) {
+  min-height: 42px;
+  border: 1.5px solid color-mix(in srgb, var(--accent-dark) 46%, transparent) !important;
+  border-radius: 20px 24px 20px 24px !important;
+  background: var(--button-primary-bg) !important;
+  color: var(--button-primary-text) !important;
+  box-shadow: none;
+  font-weight: 760;
+  letter-spacing: .02em;
+}
+
+:root :is(.btn-ghost, .secondary-button, .icon-button, .app-back, .card-action, .chat-token-pill, button[class*="btn"], [role="button"][class*="button"], [class$="-chip"], [class$="-pill"], [class$="-tag"], [class$="-badge"]) {
+  border: var(--ui-hairline) !important;
+  border-radius: var(--radius-full) !important;
+  background: var(--button-soft-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none;
+}
+
+:root :is(.icon-button, .app-back, .chat-thread-send, .chat-call-send, .lock-key) {
+  position: relative;
+  overflow: hidden;
+}
+
+:root :is(.icon-button, .app-back, .chat-thread-send, .chat-call-send, .lock-key)::before {
+  content: "";
+  position: absolute;
+  inset: 19% 17% auto auto;
+  width: 18%;
+  height: 18%;
+  border-radius: 50%;
+  background: color-mix(in srgb, white 60%, transparent);
+  pointer-events: none;
+}
+
+:root :is(.btn-primary, .icon-button.accent, .chat-thread-send, .chat-call-send, .lock-key:not(.secondary)):active {
+  box-shadow: none;
+}
+
+:root :is(input, textarea, select, .input, .form-input, .search-input, .chat-thread-input, .chat-call-input) {
+  border: var(--ui-hairline) !important;
+  border-radius: 22px 26px 22px 26px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 22%, transparent), transparent),
+    color-mix(in srgb, var(--bg-card) 88%, var(--surface-paper)) !important;
+  box-shadow: none;
+}
+
+:root :is(.switch, .toggle) {
+  border: var(--ui-hairline) !important;
+  border-radius: var(--radius-full) !important;
+  background: color-mix(in srgb, var(--bg-secondary) 68%, var(--bg-card)) !important;
+  box-shadow: none;
+}
+
+:root :is(.switch.active, .switch.is-on, .toggle.is-on, input:checked + .toggle, input:checked + .switch) {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--decor-green) 54%, var(--bg-card)), color-mix(in srgb, var(--accent) 82%, var(--accent-light))) !important;
+}
+
+:root :is(.switch, .toggle)::after {
+  border: 1.5px solid color-mix(in srgb, var(--ui-line-strong) 34%, transparent) !important;
+  background:
+    radial-gradient(circle at 34% 34%, color-mix(in srgb, white 72%, transparent) 0 4px, transparent 4.8px),
+    radial-gradient(circle at 50% 52%, color-mix(in srgb, var(--accent-dark) 65%, transparent) 0 2px, transparent 2.6px),
+    var(--bg-card) !important;
+  box-shadow: none;
+}
+
+:root :is(.message-bubble, .chat-message-bubble, .bubble) {
+  border: var(--ui-hairline) !important;
+  border-radius: 22px 26px 22px 26px !important;
+  box-shadow: none;
+}
+
+:root :is(.message-row.user .message-bubble, .chat-message-row.user .chat-message-bubble, .chat-message-bubble.role-user, .bubble.user) {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 24%, transparent), transparent 42%),
+    var(--bubble-user-bg) !important;
+  color: var(--bubble-user-text) !important;
+}
+
+:root :is(.message-row.ai .message-bubble, .chat-message-row.ai .chat-message-bubble, .chat-message-bubble.role-ai, .bubble.ai) {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 32%, transparent), transparent 42%),
+    var(--bubble-ai-bg) !important;
+  color: var(--bubble-ai-text) !important;
+}
+
+:root :is(.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon), .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon)) {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none;
+}
+
+:root .cozy-app-icon {
+  --icon-line: var(--ui-ink-soft);
+  --icon-paper: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  --icon-left: color-mix(in srgb, var(--decor-blue) 46%, var(--bg-card));
+  --icon-fur: color-mix(in srgb, var(--surface-paper) 76%, var(--accent-light));
+  --icon-accent: color-mix(in srgb, var(--accent) 76%, var(--bg-card));
+  --icon-soft: color-mix(in srgb, var(--bg-card) 72%, var(--decor-pink));
+  --icon-highlight: color-mix(in srgb, white 70%, transparent);
+  color: var(--icon-line);
+  filter: none;
+}
+
+:root .cozy-app-icon-chat { --icon-left: color-mix(in srgb, var(--decor-pink) 46%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-pink) 72%, var(--accent)); }
+:root .cozy-app-icon-settings { --icon-left: color-mix(in srgb, var(--decor-blue) 54%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-lilac) 62%, var(--accent)); }
+:root .cozy-app-icon-gallery { --icon-left: color-mix(in srgb, var(--decor-green) 50%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-blue) 58%, var(--accent)); }
+:root .cozy-app-icon-wallet { --icon-left: color-mix(in srgb, var(--decor-yellow) 56%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--accent) 78%, var(--decor-yellow)); }
+:root .cozy-app-icon-memo { --icon-left: color-mix(in srgb, var(--decor-lilac) 44%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-pink) 58%, var(--accent)); }
+:root .cozy-app-icon-music { --icon-left: color-mix(in srgb, var(--decor-blue) 44%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-green) 52%, var(--accent)); }
+:root .cozy-app-icon-dream { --icon-left: color-mix(in srgb, var(--decor-lilac) 58%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--accent) 58%, var(--decor-lilac)); }
+
+:root .cozy-app-icon .badge-paper {
+  fill: var(--icon-paper) !important;
+  stroke: color-mix(in srgb, var(--ui-line) 66%, transparent) !important;
+  stroke-width: 2 !important;
+}
+
+:root .cozy-app-icon .badge-soft-half {
+  fill: var(--icon-left) !important;
+}
+
+:root .cozy-app-icon .badge-stitch {
+  fill: none !important;
+  stroke: color-mix(in srgb, var(--icon-line) 32%, transparent) !important;
+  stroke-width: 1.55 !important;
+  stroke-dasharray: 4.5 6.5 !important;
+}
+
+:root .cozy-app-icon .icon-character {
+  stroke: var(--icon-line) !important;
+  stroke-width: 5.2 !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+:root .cozy-app-icon .icon-character .fur {
+  fill: var(--icon-fur) !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .cozy-app-icon .icon-character .paper,
+:root .cozy-app-icon .icon-character .soft {
+  fill: var(--ui-paper) !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .cozy-app-icon .icon-character .highlight,
+:root .cozy-app-icon .icon-character .accent {
+  fill: var(--icon-accent) !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .cozy-app-icon .icon-character .line-only {
+  fill: none !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .desktop-icon-name {
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--ui-line) 45%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--bg-card) 72%, transparent);
+  color: var(--text-primary) !important;
+  font-weight: 720;
+  text-shadow: 0 1px 0 color-mix(in srgb, white 50%, transparent);
+}
+
+:root .status-cute-pill svg,
+:root .icon-button svg,
+:root .app-back svg {
+  stroke-width: 2.15;
+  color: var(--ui-ink-soft);
+}
+
+:root :is(.desktop-icon, .icon-button, .btn-primary, .btn-ghost, .card-action, .chat-thread-send, .lock-key) {
+  transition: transform 180ms cubic-bezier(.22,.9,.22,1), box-shadow 180ms ease, background 180ms ease, color 180ms ease;
+}
+
+:root :is(.desktop-icon:hover .cozy-app-icon, .desktop-icon:focus-visible .cozy-app-icon) {
+  transform-origin: 50% 72%;
+  animation: toyTinySway 1.65s ease-in-out infinite;
+}
+
+:root :is(.btn-primary, .icon-button.accent, .chat-thread-send, .lock-key:not(.secondary)):active {
+  transform: translateY(1px) scale(.965);
+}
+
+@keyframes toyTinySway {
+  0%, 100% { transform: translateY(0) rotate(-.8deg); }
+  50% { transform: translateY(-2px) rotate(.8deg); }
+}
+
+/* ═══════════════════════════════════════ */
+/* 【第二阶段：基础组件精修与主题适配小物件】 */
+/* 继续只触碰视觉层：修正第一阶段泛选择器粗糙感，补足按钮、小卡片、胶囊和图标家族。 */
+/* ═══════════════════════════════════════ */
+
+:root {
+  --ui-button-ink: color-mix(in srgb, var(--button-primary-text) 86%, var(--text-primary));
+  --ui-soft-button-ink: color-mix(in srgb, var(--text-primary) 78%, var(--accent-dark));
+  --ui-tab-bg: color-mix(in srgb, var(--bg-card) 78%, var(--accent-light));
+  --ui-item-bg: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  --ui-item-active: color-mix(in srgb, var(--accent-light) 58%, var(--bg-card));
+  --ui-mini-fill: color-mix(in srgb, var(--bg-card) 82%, var(--decor-pink));
+  --ui-primary-charm-fill: color-mix(in srgb, var(--bg-card) 62%, var(--accent-light));
+  --ui-corner-dot: color-mix(in srgb, var(--accent) 62%, var(--bg-card));
+  --ui-corner-dot-strong: color-mix(in srgb, var(--accent-dark) 70%, var(--text-primary));
+}
+
+:root :is(.btn-primary, .primary-button, [class$="-save-btn"], [class$="-submit-btn"], [class$="-buy-btn"], button[type="submit"], .chat-thread-send, .chat-call-send) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding-inline: max(18px, 1.2em);
+  border-radius: 19px 24px 20px 25px !important;
+  color: var(--ui-button-ink) !important;
+}
+
+:root :is(.btn-primary, .primary-button, [class$="-save-btn"], [class$="-submit-btn"], [class$="-buy-btn"], button[type="submit"], .chat-thread-send, .chat-call-send)::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 4px 8px auto auto;
+  width: 20px;
+  height: 13px;
+  border-radius: 50% 48% 42% 54%;
+  background:
+    radial-gradient(circle at 28% 34%, var(--ui-primary-charm-fill) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 58% 28%, var(--ui-primary-charm-fill) 0 2px, transparent 2.6px),
+    radial-gradient(ellipse at 48% 70%, var(--ui-primary-charm-fill) 0 6px, transparent 6.6px);
+  opacity: .82;
+}
+
+:root :is(.btn-primary, .primary-button, [class$="-save-btn"], [class$="-submit-btn"], [class$="-buy-btn"], button[type="submit"], .chat-thread-send, .chat-call-send)::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 10px;
+  bottom: 5px;
+  width: 24px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  border-top: 1px dashed color-mix(in srgb, var(--ui-button-ink) 34%, transparent);
+  opacity: .55;
+}
+
+:root :is(.btn-ghost, .secondary-button, .icon-button, .app-back, .card-action, button[class*="btn"], [role="button"][class*="button"]) {
+  position: relative;
+  isolation: isolate;
+  color: var(--ui-soft-button-ink) !important;
+}
+
+:root :is(.btn-ghost, .secondary-button, .card-action, button[class*="btn"]):not(.btn-primary):not([class$="-primary"]):not([class$="-save-btn"]):not([class$="-submit-btn"]):not([class$="-buy-btn"])::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 42% 58% 46% 54%;
+  background: var(--ui-corner-dot);
+  opacity: .46;
+  pointer-events: none;
+}
+
+:root :is(.icon-button, .app-back) {
+  border-radius: 42% 48% 43% 52% !important;
+  background:
+    radial-gradient(circle at 70% 24%, color-mix(in srgb, white 52%, transparent) 0 5px, transparent 5.8px),
+    var(--button-soft-bg) !important;
+}
+
+:root :is(.icon-button.accent, .chat-thread-send, .chat-call-send) {
+  border-radius: 48% 44% 52% 42% !important;
+}
+
+:root :is(.card-action, [class$="-item"], .list-item, .setting-item, .settings-nav-item, .chat-thread-sheet-item, .chat-action-sheet-item) {
+  border: var(--ui-hairline) !important;
+  border-radius: 20px 24px 20px 26px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 20%, transparent), transparent 54%),
+    var(--ui-item-bg) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none;
+}
+
+:root :is([class$="-item"].active, [class$="-item"].is-active, .settings-nav-item.active, .chat-thread-sheet-item.active, .chat-action-sheet-item.active) {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 24%, transparent), transparent 52%),
+    var(--ui-item-active) !important;
+  border-color: color-mix(in srgb, var(--accent-dark) 38%, var(--border-soft)) !important;
+}
+
+:root :is(.segmented, [class$="-tabs"], [class$="-segment"], [class$="-toggle"]) {
+  border: var(--ui-hairline) !important;
+  border-radius: var(--radius-full) !important;
+  background: var(--ui-tab-bg) !important;
+  box-shadow: none;
+}
+
+:root :is(.segmented button, [class$="-tabs"] button, [class$="-segment"] button, [class$="-toggle"] button) {
+  border-radius: var(--radius-full) !important;
+}
+
+:root :is(.segmented button.active, [class$="-tabs"] button.active, [class$="-segment"] button.active, [class$="-toggle"] button.active, [aria-selected="true"]) {
+  background:
+    radial-gradient(circle at 12px 50%, color-mix(in srgb, var(--bg-card) 58%, transparent) 0 2.5px, transparent 3.2px),
+    var(--button-primary-bg) !important;
+  color: var(--ui-button-ink) !important;
+}
+
+:root :is([class$="-chip"], [class$="-pill"], [class$="-tag"], [class$="-badge"], .chip, .pill, .tag, .badge) {
+  min-height: 26px;
+  border: var(--ui-hairline) !important;
+  border-radius: var(--radius-full) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 22%, transparent), transparent),
+    color-mix(in srgb, var(--bg-card) 76%, var(--accent-light)) !important;
+  color: var(--ui-soft-button-ink) !important;
+  box-shadow: none;
+}
+
+:root :is([class$="-chip"].active, [class$="-chip"].selected, [class$="-pill"].active, [class$="-tag"].active, .chip.active, .pill.active, .tag.active, .badge.active) {
+  background: var(--button-primary-bg) !important;
+  color: var(--ui-button-ink) !important;
+  border-color: color-mix(in srgb, var(--accent-dark) 44%, var(--border-soft)) !important;
+}
+
+:root :is([class*="mini-btn"], [class*="small-btn"], .chat-message-action-btn, .chat-message-code-action, .chat-message-code-toggle) {
+  min-height: 30px;
+  border-radius: 14px 17px 14px 18px !important;
+  background:
+    radial-gradient(circle at 78% 25%, color-mix(in srgb, white 48%, transparent) 0 3px, transparent 3.8px),
+    var(--ui-mini-fill) !important;
+}
+
+:root :is(.desktop-widget, .widget-card, .time-widget, .weather-widget, .anniversary-widget, .vinyl-widget) {
+  border-radius: 30px 34px 28px 36px !important;
+  background:
+    radial-gradient(circle at 18px 18px, color-mix(in srgb, var(--ui-corner-dot) 42%, transparent) 0 3px, transparent 3.8px),
+    linear-gradient(180deg, color-mix(in srgb, white 26%, transparent), transparent 44%),
+    color-mix(in srgb, var(--ui-paper) 88%, var(--accent-light)) !important;
+}
+
+:root :is(.desktop-widget, .widget-card, .time-widget, .weather-widget, .anniversary-widget, .vinyl-widget)::before {
+  content: "";
+  position: absolute;
+  right: 14px;
+  bottom: 11px;
+  width: 22px;
+  height: 12px;
+  border-radius: 50% 48% 45% 55%;
+  background:
+    radial-gradient(circle at 25% 40%, color-mix(in srgb, var(--ui-corner-dot-strong) 58%, transparent) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 54% 30%, color-mix(in srgb, var(--ui-corner-dot-strong) 52%, transparent) 0 2px, transparent 2.6px),
+    radial-gradient(ellipse at 50% 72%, color-mix(in srgb, var(--ui-corner-dot-strong) 46%, transparent) 0 6px, transparent 6.6px);
+  opacity: .34;
+  pointer-events: none;
+}
+
+:root .desktop-icon-art {
+  transform-origin: 50% 72%;
+}
+
+:root .cozy-app-icon-moments { --icon-left: color-mix(in srgb, var(--decor-pink) 48%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-green) 45%, var(--accent)); }
+:root .cozy-app-icon-characters { --icon-left: color-mix(in srgb, var(--decor-yellow) 52%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-pink) 50%, var(--accent)); }
+:root .cozy-app-icon-worldbook { --icon-left: color-mix(in srgb, var(--decor-green) 55%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-lilac) 46%, var(--accent)); }
+:root .cozy-app-icon-shop { --icon-left: color-mix(in srgb, var(--decor-yellow) 58%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--accent) 74%, var(--decor-pink)); }
+:root .cozy-app-icon-anniversary { --icon-left: color-mix(in srgb, var(--decor-pink) 52%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--accent) 66%, var(--decor-yellow)); }
+:root .cozy-app-icon-games { --icon-left: color-mix(in srgb, var(--decor-lilac) 46%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-green) 46%, var(--accent)); }
+:root .cozy-app-icon-theme-center { --icon-left: color-mix(in srgb, var(--decor-blue) 52%, var(--bg-card)); --icon-accent: color-mix(in srgb, var(--decor-pink) 54%, var(--accent)); }
+
+:root .cozy-app-icon .icon-character .face,
+:root .cozy-app-icon .icon-character circle:not(.highlight),
+:root .cozy-app-icon .icon-character path:not(.fur):not(.paper):not(.highlight):not(.accent):not(.soft):not(.line-only) {
+  vector-effect: non-scaling-stroke;
+}
+
+:root :is(.btn-primary, .primary-button, [class$="-save-btn"], [class$="-submit-btn"], [class$="-buy-btn"], .chat-thread-send, .chat-call-send):active::before {
+  transform: translateY(1px) scale(.9);
+}
+
+:root :is(.icon-button, .app-back):active {
+  transform: translateY(1px) scale(.94) rotate(-1deg);
+}
+
+:root :is(.card-action, [class$="-item"], [class$="-chip"], [class$="-pill"], [class$="-tag"]):active {
+  transform: translateY(1px) scale(.985);
+}
+
+/* ═══════════════════════════════════════ */
+/* 【第三阶段：桌面图标语义形状与主题适配色】 */
+/* 默认图标固定语义轮廓，颜色由 tone class 从主题变量派生。 */
+/* ═══════════════════════════════════════ */
+
+:root {
+  --icon-tone-left: color-mix(in srgb, var(--decor-blue) 46%, var(--bg-card));
+  --icon-tone-body: color-mix(in srgb, var(--surface-paper) 76%, var(--accent-light));
+  --icon-tone-charm: color-mix(in srgb, var(--accent) 76%, var(--bg-card));
+  --icon-tone-paper: color-mix(in srgb, var(--bg-card) 90%, transparent);
+  --icon-tone-line: color-mix(in srgb, var(--text-primary) 78%, var(--accent-dark));
+  --icon-tone-muted: color-mix(in srgb, var(--text-secondary) 34%, transparent);
+}
+
+:root .cozy-app-icon-tone-petal { --icon-tone-left: color-mix(in srgb, var(--decor-pink) 52%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 74%, var(--decor-pink)); --icon-tone-charm: color-mix(in srgb, var(--decor-pink) 70%, var(--accent)); }
+:root .cozy-app-icon-tone-fresh { --icon-tone-left: color-mix(in srgb, var(--decor-green) 48%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 74%, var(--decor-blue)); --icon-tone-charm: color-mix(in srgb, var(--decor-pink) 58%, var(--accent)); }
+:root .cozy-app-icon-tone-cloud { --icon-tone-left: color-mix(in srgb, var(--decor-blue) 56%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 78%, var(--decor-blue)); --icon-tone-charm: color-mix(in srgb, var(--decor-lilac) 62%, var(--accent)); }
+:root .cozy-app-icon-tone-leaf { --icon-tone-left: color-mix(in srgb, var(--decor-green) 54%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 78%, var(--decor-green)); --icon-tone-charm: color-mix(in srgb, var(--decor-blue) 58%, var(--accent)); }
+:root .cozy-app-icon-tone-cookie { --icon-tone-left: color-mix(in srgb, var(--decor-yellow) 58%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 70%, var(--decor-yellow)); --icon-tone-charm: color-mix(in srgb, var(--decor-pink) 50%, var(--accent)); }
+:root .cozy-app-icon-tone-moss { --icon-tone-left: color-mix(in srgb, var(--decor-green) 58%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 76%, var(--decor-green)); --icon-tone-charm: color-mix(in srgb, var(--decor-lilac) 48%, var(--accent)); }
+:root .cozy-app-icon-tone-honey { --icon-tone-left: color-mix(in srgb, var(--decor-yellow) 60%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 68%, var(--accent-light)); --icon-tone-charm: color-mix(in srgb, var(--accent) 78%, var(--decor-yellow)); }
+:root .cozy-app-icon-tone-pudding { --icon-tone-left: color-mix(in srgb, var(--decor-yellow) 58%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 72%, var(--accent-light)); --icon-tone-charm: color-mix(in srgb, var(--accent) 74%, var(--decor-pink)); }
+:root .cozy-app-icon-tone-lilac { --icon-tone-left: color-mix(in srgb, var(--decor-lilac) 54%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 78%, var(--decor-lilac)); --icon-tone-charm: color-mix(in srgb, var(--decor-pink) 58%, var(--accent)); }
+:root .cozy-app-icon-tone-rose { --icon-tone-left: color-mix(in srgb, var(--decor-pink) 56%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 76%, var(--decor-pink)); --icon-tone-charm: color-mix(in srgb, var(--accent) 66%, var(--decor-yellow)); }
+:root .cozy-app-icon-tone-mint { --icon-tone-left: color-mix(in srgb, var(--decor-lilac) 46%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 76%, var(--decor-green)); --icon-tone-charm: color-mix(in srgb, var(--decor-green) 46%, var(--accent)); }
+:root .cozy-app-icon-tone-soda { --icon-tone-left: color-mix(in srgb, var(--decor-blue) 48%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 78%, var(--decor-blue)); --icon-tone-charm: color-mix(in srgb, var(--decor-green) 52%, var(--accent)); }
+:root .cozy-app-icon-tone-moon { --icon-tone-left: color-mix(in srgb, var(--decor-lilac) 60%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 76%, var(--decor-lilac)); --icon-tone-charm: color-mix(in srgb, var(--accent) 58%, var(--decor-lilac)); }
+:root .cozy-app-icon-tone-ribbon { --icon-tone-left: color-mix(in srgb, var(--decor-blue) 54%, var(--bg-card)); --icon-tone-body: color-mix(in srgb, var(--surface-paper) 76%, var(--decor-pink)); --icon-tone-charm: color-mix(in srgb, var(--decor-pink) 54%, var(--accent)); }
+
+:root .cozy-app-icon {
+  --icon-left: var(--icon-tone-left);
+  --icon-fur: var(--icon-tone-body);
+  --icon-accent: var(--icon-tone-charm);
+  --icon-line: var(--icon-tone-line);
+  --icon-paper: var(--icon-tone-paper);
+}
+
+:root .cozy-app-icon .badge-paper {
+  fill: color-mix(in srgb, var(--icon-paper) 88%, transparent) !important;
+  stroke: color-mix(in srgb, var(--icon-line) 26%, var(--border-soft)) !important;
+}
+
+:root .cozy-app-icon .badge-soft-half {
+  fill: var(--icon-left) !important;
+}
+
+:root .cozy-app-icon .badge-stitch {
+  stroke: color-mix(in srgb, var(--icon-line) 34%, transparent) !important;
+  stroke-dasharray: 4 7 !important;
+}
+
+:root .cozy-app-icon .icon-symbol {
+  transform-origin: 50% 54%;
+}
+
+:root .cozy-app-icon .fur {
+  fill: var(--icon-fur) !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .cozy-app-icon .paper,
+:root .cozy-app-icon .soft {
+  fill: var(--icon-paper) !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .cozy-app-icon .highlight,
+:root .cozy-app-icon .accent,
+:root .cozy-app-icon .sparkle,
+:root .cozy-app-icon .charm-dot {
+  fill: var(--icon-accent) !important;
+  stroke: var(--icon-line) !important;
+}
+
+:root .cozy-app-icon .charm-stitch {
+  fill: none !important;
+  stroke: color-mix(in srgb, var(--icon-line) 42%, transparent) !important;
+  stroke-width: 1.6 !important;
+  stroke-linecap: round;
+}
+
+:root .cozy-app-icon-semantic-bubble .icon-symbol { transform: translateY(1px) rotate(-1deg); }
+:root .cozy-app-icon-semantic-album .icon-symbol { transform: rotate(.8deg); }
+:root .cozy-app-icon-semantic-gear .icon-symbol { transform: scale(.98); }
+:root .cozy-app-icon-semantic-frame .icon-symbol { transform: rotate(-.6deg); }
+:root .cozy-app-icon-semantic-friend .icon-symbol { transform: translateY(-1px); }
+:root .cozy-app-icon-semantic-book .icon-symbol { transform: rotate(.7deg); }
+:root .cozy-app-icon-semantic-pouch .icon-symbol { transform: translateY(1px); }
+:root .cozy-app-icon-semantic-bag .icon-symbol { transform: rotate(-.7deg); }
+:root .cozy-app-icon-semantic-note .icon-symbol { transform: rotate(.9deg); }
+:root .cozy-app-icon-semantic-calendar .icon-symbol { transform: translateY(1px); }
+:root .cozy-app-icon-semantic-controller .icon-symbol { transform: scale(.96) translateY(2px); }
+:root .cozy-app-icon-semantic-record .icon-symbol { transform: rotate(-1deg); }
+:root .cozy-app-icon-semantic-moon .icon-symbol { transform: translateX(-1px); }
+:root .cozy-app-icon-semantic-dresser .icon-symbol { transform: translateY(1px); }
+
+:root .desktop-icon:active .cozy-app-icon .icon-symbol,
+:root .dock .desktop-icon:active .cozy-app-icon .icon-symbol {
+  transform: translateY(1px) scale(.96);
+}
+
+/* 公共软萌主题补齐层：第三阶段收束，供静态检查确认共享层仍由主题变量驱动 */
+:root :is(.phone-desktop, #app-layer > *) {
+  background: var(--bg-primary);
+}
+
+:root .desktop-journal-layer {
+  background: var(--bg-primary);
+}
+
+:root :is(.theme-center::before, .dream-hero::before) {
+  content: none;
+}
+
+/* ═══════════════════════════════════════ */
+/* 【第四阶段：重点萌物按钮】 */
+/* 只点亮发送、保存、喜欢、播放、加号等高频按钮；普通次级按钮继续保持干净胶囊。 */
+/* ═══════════════════════════════════════ */
+
+:root {
+  --creature-button-line: color-mix(in srgb, var(--text-primary) 74%, var(--accent-dark));
+  --creature-button-paper: color-mix(in srgb, var(--bg-card) 86%, transparent);
+  --creature-button-paw: color-mix(in srgb, var(--decor-pink) 58%, var(--accent-light));
+  --creature-button-cookie: color-mix(in srgb, var(--decor-yellow) 62%, var(--accent-light));
+  --creature-button-star: color-mix(in srgb, var(--decor-yellow) 68%, var(--bg-card));
+  --creature-button-ribbon: color-mix(in srgb, var(--decor-pink) 54%, var(--accent));
+  --creature-button-chime: color-mix(in srgb, var(--accent) 62%, var(--decor-yellow));
+}
+
+:root :is(.chat-thread-send, .chat-call-send, .dream-wake-send) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 48% 44% 52% 42% !important;
+  background:
+    radial-gradient(circle at 32% 34%, var(--creature-button-paper) 0 4px, transparent 4.8px),
+    radial-gradient(circle at 58% 30%, var(--creature-button-paper) 0 4px, transparent 4.8px),
+    radial-gradient(ellipse at 48% 66%, var(--creature-button-paw) 0 12px, transparent 12.8px),
+    var(--button-primary-bg) !important;
+}
+
+:root :is(.chat-thread-send, .chat-call-send, .dream-wake-send)::after {
+  content: "";
+  position: absolute;
+  inset: auto 8px 7px auto;
+  width: 16px;
+  height: 9px;
+  border-radius: 50% 48% 44% 55%;
+  border-top: 1.5px solid color-mix(in srgb, var(--creature-button-line) 45%, transparent);
+  pointer-events: none;
+}
+
+:root :is(.bottom-sheet .btn-primary, .sheet-panel .btn-primary, .modal .btn-primary, .cute-dialog-actions .btn-primary, .guide-card .btn-primary, [class$="-save-btn"], [class$="-submit-btn"], [data-action="save"], button[type="submit"]) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 18px 24px 20px 24px !important;
+  background:
+    radial-gradient(circle at 17px 50%, color-mix(in srgb, var(--creature-button-line) 42%, transparent) 0 2px, transparent 2.7px),
+    radial-gradient(circle at calc(100% - 17px) 50%, color-mix(in srgb, var(--creature-button-line) 42%, transparent) 0 2px, transparent 2.7px),
+    radial-gradient(circle at 50% 12%, var(--creature-button-paper) 0 7px, transparent 7.6px),
+    var(--button-primary-bg) !important;
+}
+
+:root :is(.bottom-sheet .btn-primary, .sheet-panel .btn-primary, .modal .btn-primary, .cute-dialog-actions .btn-primary, .guide-card .btn-primary, [class$="-save-btn"], [class$="-submit-btn"], [data-action="save"], button[type="submit"])::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  width: 24px;
+  height: 11px;
+  border-radius: 50% 50% 46% 54%;
+  background:
+    radial-gradient(circle at 22% 38%, var(--creature-button-cookie) 0 2px, transparent 2.6px),
+    radial-gradient(circle at 52% 28%, var(--creature-button-cookie) 0 2px, transparent 2.6px),
+    radial-gradient(ellipse at 48% 72%, var(--creature-button-cookie) 0 6px, transparent 6.8px);
+  opacity: .74;
+  pointer-events: none;
+}
+
+:root :is(.character-add-button, .icon-button[aria-label*="新建"], .icon-button[aria-label*="添加"], .btn-ghost[aria-label*="添加"], [data-action="add"], [data-action="new"]) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 46% 50% 42% 54% !important;
+  background:
+    radial-gradient(circle at 50% 50%, var(--creature-button-star) 0 9px, transparent 9.8px),
+    var(--button-soft-bg) !important;
+}
+
+:root :is(.character-add-button, .icon-button[aria-label*="新建"], .icon-button[aria-label*="添加"], .btn-ghost[aria-label*="添加"], [data-action="add"], [data-action="new"])::after {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  clip-path: polygon(50% 0, 62% 34%, 98% 35%, 69% 56%, 80% 92%, 50% 70%, 20% 92%, 31% 56%, 2% 35%, 38% 34%);
+  background: color-mix(in srgb, var(--creature-button-star) 72%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--creature-button-line) 42%, transparent);
+  pointer-events: none;
+  opacity: .62;
+}
+
+:root :is(.moment-action.active, [aria-pressed="true"][class*="like"], [data-action="like"].active, [data-liked="true"]) {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--creature-button-ribbon) 44%, var(--border-soft)) !important;
+  background:
+    radial-gradient(circle at 12px 50%, var(--creature-button-paper) 0 3px, transparent 3.8px),
+    color-mix(in srgb, var(--creature-button-ribbon) 34%, var(--bg-card)) !important;
+}
+
+:root :is(.moment-action.active, [aria-pressed="true"][class*="like"], [data-action="like"].active, [data-liked="true"])::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  width: 18px;
+  height: 11px;
+  border-radius: 999px 999px 6px 6px;
+  background:
+    radial-gradient(circle at 32% 50%, var(--creature-button-ribbon) 0 5px, transparent 5.8px),
+    radial-gradient(circle at 68% 50%, var(--creature-button-ribbon) 0 5px, transparent 5.8px);
+  transform: translateY(-50%) rotate(-8deg);
+  opacity: .58;
+  pointer-events: none;
+}
+
+:root :is(.vinyl-ctrl-btn.main-play, [data-action="play"], [aria-label*="播放"]) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 50% 46% 54% 48% !important;
+  background:
+    radial-gradient(circle at 50% 32%, var(--creature-button-paper) 0 5px, transparent 5.7px),
+    radial-gradient(ellipse at 50% 70%, var(--creature-button-chime) 0 13px, transparent 13.8px),
+    var(--button-primary-bg) !important;
+}
+
+:root :is(.vinyl-ctrl-btn.main-play, [data-action="play"], [aria-label*="播放"])::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 14px;
+  height: 5px;
+  border-radius: var(--radius-full);
+  border-top: 1.5px solid color-mix(in srgb, var(--creature-button-line) 42%, transparent);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+:root :is(.chat-thread-send, .chat-call-send, .dream-wake-send, .bottom-sheet .btn-primary, .sheet-panel .btn-primary, .modal .btn-primary, .cute-dialog-actions .btn-primary, .guide-card .btn-primary, [class$="-save-btn"], [class$="-submit-btn"], [data-action="save"], button[type="submit"], .character-add-button, .icon-button[aria-label*="新建"], .icon-button[aria-label*="添加"], .btn-ghost[aria-label*="添加"], [data-action="add"], [data-action="new"], .moment-action.active, [data-action="like"].active, .vinyl-ctrl-btn.main-play, [data-action="play"], [aria-label*="播放"]):active {
+  transform: translateY(1px) scale(.95) rotate(-.8deg);
+}
+
+/* 公共软萌主题补齐层：第四阶段收束，保证静态检查仍从这里读取共享变量层 */
+:root :is(.phone-desktop, #app-layer > *) {
+  background: var(--bg-primary);
+}
+
+:root .desktop-journal-layer {
+  background: var(--bg-primary);
+}
+
+:root :is(.theme-center::before, .dream-hero::before) {
+  content: none;
+}
+
+/* ═══════════════════════════════════════ */
+/* 【第五阶段：小组件与状态卡片换皮】 */
+/* 时间、天气、钱包、聊天纸条、角色状态统一成精致小卡片，不堆贴纸。 */
+/* ═══════════════════════════════════════ */
+
+:root {
+  --widget-card-paper: color-mix(in srgb, var(--bg-card) 88%, transparent);
+  --widget-card-wash: color-mix(in srgb, var(--accent-light) 24%, transparent);
+  --widget-card-line: color-mix(in srgb, var(--border-soft) 72%, var(--text-primary) 8%);
+  --widget-card-stitch: color-mix(in srgb, var(--accent-dark) 28%, transparent);
+  --widget-card-ink: color-mix(in srgb, var(--text-primary) 86%, var(--accent-dark));
+  --widget-card-soft-ink: color-mix(in srgb, var(--text-secondary) 86%, var(--text-primary));
+  --widget-card-chip: color-mix(in srgb, var(--surface-paper) 72%, var(--accent-light));
+  --widget-card-mark: color-mix(in srgb, var(--accent) 58%, var(--bg-card));
+  --widget-card-mark-soft: color-mix(in srgb, var(--decor-blue) 46%, var(--bg-card));
+}
+
+:root :is(.status-cute-pill, .desktop-widget, #time-widget, #weather-widget, #anniversary-widget, .vinyl-widget, .wallet-balance-card, .wallet-ai-row, .wallet-ai-page-card, .chat-fold-card, .chat-quote-preview, .chat-message-quote, .chat-token-pill) {
+  position: relative;
+  overflow: hidden;
+  border: 1.5px solid var(--widget-card-line) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 38%, transparent), transparent 46%),
+    radial-gradient(circle at 88% 16%, var(--widget-card-wash) 0 34px, transparent 35px),
+    var(--widget-card-paper) !important;
+  box-shadow: none;
+}
+
+:root :is(.desktop-widget, #time-widget, #weather-widget, #anniversary-widget, .vinyl-widget, .wallet-balance-card, .wallet-ai-page-card, .chat-fold-card, .chat-quote-preview, .chat-message-quote)::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px dashed var(--widget-card-stitch);
+  border-radius: inherit;
+  opacity: .38;
+  pointer-events: none;
+  background: none;
+}
+
+:root :is(.desktop-widget, #time-widget, #weather-widget, #anniversary-widget, .vinyl-widget) {
+  border-radius: 30px 34px 28px 36px !important;
+}
+
+:root :is(.desktop-widget.rectangle, #time-widget) {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 44%, transparent), transparent 42%),
+    radial-gradient(circle at 18px 18px, color-mix(in srgb, var(--widget-card-mark) 34%, transparent) 0 4px, transparent 4.8px),
+    color-mix(in srgb, var(--widget-card-paper) 88%, var(--decor-yellow)) !important;
+}
+
+:root :is(#weather-widget, .desktop-widget.square) {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 42%, transparent), transparent 44%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--decor-blue) 34%, transparent) 0 28px, transparent 29px),
+    color-mix(in srgb, var(--widget-card-paper) 90%, var(--decor-blue)) !important;
+}
+
+:root #anniversary-widget {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 44%, transparent), transparent 42%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--decor-pink) 34%, transparent) 0 28px, transparent 29px),
+    color-mix(in srgb, var(--widget-card-paper) 90%, var(--decor-pink)) !important;
+}
+
+:root .vinyl-widget {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 42%, transparent), transparent 42%),
+    radial-gradient(circle at 22% 50%, color-mix(in srgb, var(--text-primary) 12%, transparent) 0 34px, transparent 35px),
+    color-mix(in srgb, var(--widget-card-paper) 88%, var(--decor-lilac)) !important;
+}
+
+:root :is(.widget-label, .time-widget-sub, .weather-meta, .weather-notice, .wallet-balance-label, .wallet-balance-note, .wallet-ai-balance, .chat-fold-summary, .chat-tool-status-text, .chat-thread-preview) {
+  color: var(--widget-card-soft-ink) !important;
+  letter-spacing: .01em;
+}
+
+:root :is(.widget-value, .time-widget-main, .wallet-balance-number, .wallet-ai-page-balance, .chat-fold-title, .chat-tool-name) {
+  color: var(--widget-card-ink) !important;
+  font-weight: 780;
+  letter-spacing: .015em;
+}
+
+:root .time-widget-main {
+  line-height: 1;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--bg-card) 58%, transparent);
+}
+
+:root :is(.widget-mark, .ann-day-marker, .ann-card-marker, .wallet-record-avatar, .wallet-ai-avatar, .wallet-ai-page-avatar, .settings-hero-avatar, .chat-list-avatar, .chat-call-avatar) {
+  position: relative;
+  overflow: hidden;
+  border: 1.5px solid color-mix(in srgb, var(--widget-card-line) 82%, transparent) !important;
+  background:
+    radial-gradient(circle at 68% 26%, color-mix(in srgb, var(--bg-card) 54%, transparent) 0 6px, transparent 6.8px),
+    var(--widget-card-chip) !important;
+  color: var(--widget-card-ink) !important;
+  box-shadow: none;
+}
+
+:root :is(.wallet-ai-avatar, .wallet-ai-page-avatar, .settings-hero-avatar, .chat-list-avatar, .chat-call-avatar)::after {
+  content: "";
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--widget-card-paper);
+  background: color-mix(in srgb, var(--color-success) 76%, var(--bg-card));
+  pointer-events: none;
+}
+
+:root :is(.status-cute-pill, .chat-token-pill, .wallet-balance-mood, .ann-tag, .dream-tag, .weather-notice) {
+  border-radius: var(--radius-full) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 34%, transparent), transparent),
+    var(--widget-card-chip) !important;
+  border: 1px solid color-mix(in srgb, var(--widget-card-line) 72%, transparent) !important;
+  box-shadow: none;
+}
+
+:root :is(.status-time, .status-online) {
+  color: var(--widget-card-ink) !important;
+  font-weight: 780;
+}
+
+:root .status-online.is-offline {
+  color: color-mix(in srgb, var(--color-danger) 78%, var(--text-primary)) !important;
+}
+
+:root .wallet-balance-card {
+  border-radius: 34px 38px 30px 40px !important;
+  min-height: 176px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 42%, transparent), transparent 48%),
+    radial-gradient(circle at 16% 18%, color-mix(in srgb, var(--decor-yellow) 34%, transparent) 0 42px, transparent 43px),
+    radial-gradient(circle at 88% 76%, color-mix(in srgb, var(--decor-pink) 24%, transparent) 0 46px, transparent 47px),
+    color-mix(in srgb, var(--widget-card-paper) 88%, var(--accent-light)) !important;
+}
+
+:root .wallet-balance-number span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.45em;
+  min-height: 1.45em;
+  margin-right: .2em;
+  border-radius: 45% 55% 44% 56%;
+  background: var(--widget-card-chip);
+  color: var(--widget-card-ink);
+}
+
+:root :is(.wallet-ai-row, .wallet-ai-page-card) {
+  border-radius: 24px 28px 23px 30px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 42%, transparent), transparent 46%),
+    color-mix(in srgb, var(--widget-card-paper) 88%, var(--decor-pink)) !important;
+}
+
+:root :is(.chat-fold-card, .chat-quote-preview, .chat-message-quote) {
+  border-radius: 22px 26px 22px 28px !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 44%, transparent), transparent 46%),
+    radial-gradient(circle at 16px 14px, color-mix(in srgb, var(--widget-card-mark-soft) 34%, transparent) 0 4px, transparent 4.8px),
+    color-mix(in srgb, var(--surface-paper) 88%, var(--accent-light)) !important;
+}
+
+:root .chat-fold-toggle {
+  min-height: 42px;
+}
+
+:root .chat-fold-left svg {
+  color: var(--widget-card-ink) !important;
+}
+
+:root :is(.chat-fold-detail, .chat-fold-detail-inner) {
+  border-radius: 18px 22px 18px 23px !important;
+  background: color-mix(in srgb, var(--bg-card) 76%, var(--surface-muted)) !important;
+}
+
+:root :is(.chat-list-avatar.group, .wallet-ai-avatar, .wallet-ai-page-avatar) {
+  border-radius: 42% 50% 44% 52% !important;
+}
+
+:root :is(.chat-thread-preview.relationship-preview, .chat-thread-preview.matched, .wallet-balance-mood) {
+  color: var(--widget-card-ink) !important;
+  background: color-mix(in srgb, var(--widget-card-mark) 24%, var(--bg-card)) !important;
+}
+
+/* 公共软萌主题补齐层：第五阶段收束，保持共享层由主题变量驱动 */
+:root :is(.phone-desktop, #app-layer > *) {
+  background: var(--bg-primary);
+}
+
+:root .desktop-journal-layer {
+  background: var(--bg-primary);
+}
+
+:root :is(.theme-center::before, .dream-hero::before) {
+  content: none;
+}
+
+/* ═══════════════════════════════════════ */
+/* 【第六阶段：手作小物微动效闭环】 */
+/* 按压、浮起、回弹都只停留在视觉层，不介入事件和业务逻辑。 */
+/* ═══════════════════════════════════════ */
+
+:root {
+  --motion-handmade-fast: 150ms cubic-bezier(.34, 1.56, .64, 1);
+  --motion-handmade-soft: 260ms cubic-bezier(.22, 1, .36, 1);
+  --motion-handmade-float: 360ms cubic-bezier(.2, .8, .2, 1);
+  --motion-handmade-settle: 520ms cubic-bezier(.16, 1, .3, 1);
+  --motion-press-soft: .965;
+  --motion-press-button: .94;
+  --motion-float-y: -3px;
+  --motion-float-border: color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  --motion-press-border: color-mix(in srgb, var(--accent-dark) 28%, var(--border-soft));
+  --motion-highlight-sheen: color-mix(in srgb, var(--bg-card) 44%, transparent);
+}
+
+:root :is(
+  button,
+  [role="button"],
+  .btn-primary,
+  .btn-ghost,
+  .icon-button,
+  .app-back,
+  .card-action,
+  .desktop-icon,
+  .desktop-icon-art,
+  .chat-thread-tool-card,
+  .settings-nav-item,
+  .segmented button,
+  .switch,
+  .toggle,
+  .vinyl-ctrl-btn,
+  .moment-action
+) {
+  transform-origin: 50% 62%;
+  transition:
+    transform var(--motion-handmade-soft),
+    background var(--motion-handmade-soft),
+    border-color var(--motion-handmade-soft),
+    color var(--motion-handmade-soft),
+    opacity 180ms ease;
+  will-change: transform;
+}
+
+:root :is(
+  .card,
+  .section-card,
+  .form-card,
+  .empty-state,
+  .desktop-widget,
+  #time-widget,
+  #weather-widget,
+  #anniversary-widget,
+  .vinyl-widget,
+  .wallet-balance-card,
+  .wallet-ai-row,
+  .wallet-ai-page-card,
+  .chat-fold-card,
+  .chat-quote-preview,
+  .chat-message-quote,
+  #app-layer [class$="-card"],
+  #app-layer [class$="-item"]
+) {
+  transform-origin: 50% 70%;
+  transition:
+    transform var(--motion-handmade-float),
+    border-color var(--motion-handmade-soft),
+    background var(--motion-handmade-soft),
+    opacity 180ms ease;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :root :is(
+    .card,
+    .section-card,
+    .form-card,
+    .empty-state,
+    .desktop-widget,
+    #time-widget,
+    #weather-widget,
+    #anniversary-widget,
+    .vinyl-widget,
+    .wallet-balance-card,
+    .wallet-ai-row,
+    .wallet-ai-page-card,
+    .chat-fold-card,
+    .chat-quote-preview,
+    .chat-message-quote,
+    #app-layer [class$="-card"],
+    #app-layer [class$="-item"]
+  ):hover {
+    transform: translateY(var(--motion-float-y));
+    border-color: var(--motion-float-border) !important;
+    background-position: 50% 0, 100% 12%, 0 0;
+  }
+
+  :root :is(.card-action, .list-row, .setting-row, .chat-thread-tool-card):hover {
+    transform: translateY(-2px);
+    border-color: var(--motion-float-border) !important;
+  }
+
+  :root :is(button, [role="button"], .btn-primary, .btn-ghost, .icon-button, .app-back, .segmented button, .vinyl-ctrl-btn, .moment-action):hover {
+    transform: translateY(-1px);
+  }
+}
+
+:root :is(
+  button,
+  [role="button"],
+  .btn-primary,
+  .btn-ghost,
+  .icon-button,
+  .app-back,
+  .card-action,
+  .desktop-icon,
+  .desktop-icon-art,
+  .chat-thread-tool-card,
+  .settings-nav-item,
+  .segmented button,
+  .switch,
+  .toggle,
+  .vinyl-ctrl-btn,
+  .moment-action
+):active {
+  transition-duration: var(--motion-handmade-fast);
+  transform: translateY(1px) scale(var(--motion-press-soft));
+  border-color: var(--motion-press-border) !important;
+}
+
+:root :is(
+  .btn-primary,
+  .icon-button.accent,
+  .chat-thread-send,
+  .chat-call-send,
+  .dream-wake-send,
+  .bottom-sheet .btn-primary,
+  .sheet-panel .btn-primary,
+  .modal .btn-primary,
+  .cute-dialog-actions .btn-primary,
+  .guide-card .btn-primary,
+  [class$="-save-btn"],
+  [class$="-submit-btn"],
+  [data-action="save"],
+  button[type="submit"],
+  .character-add-button,
+  .icon-button[aria-label*="新建"],
+  .icon-button[aria-label*="添加"],
+  .btn-ghost[aria-label*="添加"],
+  [data-action="add"],
+  [data-action="new"],
+  .moment-action.active,
+  [data-action="like"].active,
+  .vinyl-ctrl-btn.main-play,
+  [data-action="play"],
+  [aria-label*="播放"]
+):active {
+  transform: translateY(2px) scale(var(--motion-press-button)) rotate(-.7deg);
+}
+
+
+:root :is(.chat-thread-send, .chat-call-send, .dream-wake-send, .vinyl-ctrl-btn.main-play, [data-action="play"])::before {
+  transition: transform var(--motion-handmade-soft), opacity var(--motion-handmade-soft);
+}
+
+:root :is(.chat-thread-send, .chat-call-send, .dream-wake-send, .vinyl-ctrl-btn.main-play, [data-action="play"]):active::before {
+  transform: translateY(1px) scale(.88);
+  opacity: .62;
+}
+
+:root :is(.desktop-icon):active .desktop-icon-art {
+  transform: translateY(1px) scale(.93) rotate(-1deg);
+  border-color: var(--motion-press-border) !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root :is(.desktop-icon-art, .desktop-widget, .status-cute-pill) {
+    animation-duration: 5.6s;
+    animation-timing-function: ease-in-out;
+  }
+
+  :root :is(.desktop-icon:hover .desktop-icon-art, .chat-thread-tool-card:hover .chat-thread-tool-icon, .icon-button:hover svg) {
+    animation: handmadeHover 720ms var(--motion-handmade-settle) both;
+  }
+}
+
+
+@keyframes handmadeHover {
+  0% { transform: translateY(0) rotate(0); }
+  48% { transform: translateY(-2px) rotate(.8deg); }
+  100% { transform: translateY(0) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-float-y: 0;
+    --motion-press-soft: 1;
+    --motion-press-button: 1;
+  }
+
+  :root :is(
+    button,
+    [role="button"],
+    .btn-primary,
+    .btn-ghost,
+    .icon-button,
+    .app-back,
+    .card-action,
+    .desktop-icon,
+    .desktop-icon-art,
+    .chat-thread-tool-card,
+    .settings-nav-item,
+    .segmented button,
+    .switch,
+    .toggle,
+    .vinyl-ctrl-btn,
+    .moment-action,
+    .card,
+    .section-card,
+    .form-card,
+    .empty-state,
+    .desktop-widget,
+    #time-widget,
+    #weather-widget,
+    #anniversary-widget,
+    .vinyl-widget,
+    .wallet-balance-card,
+    .wallet-ai-row,
+    .wallet-ai-page-card,
+    .chat-fold-card,
+    .chat-quote-preview,
+    .chat-message-quote
+  ) {
+    transition-duration: .01ms !important;
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* 公共软萌主题补齐层：第六阶段收束，保持共享层由主题变量驱动 */
+:root :is(.phone-desktop, #app-layer > *) {
+  background: var(--bg-primary);
+}
+
+:root .desktop-journal-layer {
+  background: var(--bg-primary);
+}
+
+:root :is(.theme-center::before, .dream-hero::before) {
+  content: none;
+}

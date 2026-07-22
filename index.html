@@ -1417,6 +1417,100 @@
     .page-dot.active {
       background: var(--accent-strong);
     }
+
+    /* 桌面默认图标最终显形层：把语义小物件画在 SVG 内，避免外层透明底盘把变化吃掉。 */
+    .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon),
+    .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon) {
+      background: transparent !important;
+      border-color: transparent !important;
+      box-shadow: none !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon {
+      width: calc(var(--desktop-icon-svg-size) * var(--desktop-icon-scale));
+      height: calc(var(--desktop-icon-svg-size) * var(--desktop-icon-scale));
+      --icon-paper: color-mix(in srgb, var(--bg-card) 78%, var(--surface-paper));
+      --icon-left: color-mix(in srgb, var(--decor-blue) 58%, var(--bg-card));
+      --icon-fur: color-mix(in srgb, var(--surface-paper) 62%, var(--accent-light));
+      --icon-accent: color-mix(in srgb, var(--accent) 78%, var(--bg-card));
+      --icon-line: color-mix(in srgb, var(--text-primary) 86%, var(--accent-dark));
+      --icon-glow: color-mix(in srgb, var(--bg-card) 74%, transparent);
+      color: var(--icon-line);
+      filter: none;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-petal { --icon-left: color-mix(in srgb, var(--decor-pink) 70%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-pink)); --icon-accent: color-mix(in srgb, var(--decor-pink) 74%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-fresh { --icon-left: color-mix(in srgb, var(--decor-green) 64%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-blue)); --icon-accent: color-mix(in srgb, var(--decor-pink) 62%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-cloud { --icon-left: color-mix(in srgb, var(--decor-blue) 72%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-blue)); --icon-accent: color-mix(in srgb, var(--decor-lilac) 72%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-leaf { --icon-left: color-mix(in srgb, var(--decor-green) 70%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-green)); --icon-accent: color-mix(in srgb, var(--decor-blue) 68%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-cookie { --icon-left: color-mix(in srgb, var(--decor-yellow) 74%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 54%, var(--decor-yellow)); --icon-accent: color-mix(in srgb, var(--decor-pink) 58%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-moss { --icon-left: color-mix(in srgb, var(--decor-green) 74%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-green)); --icon-accent: color-mix(in srgb, var(--decor-lilac) 56%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-honey { --icon-left: color-mix(in srgb, var(--decor-yellow) 78%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 50%, var(--accent-light)); --icon-accent: color-mix(in srgb, var(--accent) 84%, var(--decor-yellow)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-pudding { --icon-left: color-mix(in srgb, var(--decor-yellow) 72%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 54%, var(--accent-light)); --icon-accent: color-mix(in srgb, var(--accent) 78%, var(--decor-pink)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-lilac { --icon-left: color-mix(in srgb, var(--decor-lilac) 72%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-lilac)); --icon-accent: color-mix(in srgb, var(--decor-pink) 66%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-rose { --icon-left: color-mix(in srgb, var(--decor-pink) 74%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-pink)); --icon-accent: color-mix(in srgb, var(--accent) 72%, var(--decor-yellow)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-mint { --icon-left: color-mix(in srgb, var(--decor-lilac) 62%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 56%, var(--decor-green)); --icon-accent: color-mix(in srgb, var(--decor-green) 62%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-soda { --icon-left: color-mix(in srgb, var(--decor-blue) 68%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 58%, var(--decor-blue)); --icon-accent: color-mix(in srgb, var(--decor-green) 62%, var(--accent)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-moon { --icon-left: color-mix(in srgb, var(--decor-lilac) 78%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 56%, var(--decor-lilac)); --icon-accent: color-mix(in srgb, var(--accent) 64%, var(--decor-lilac)); }
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon-tone-ribbon { --icon-left: color-mix(in srgb, var(--decor-blue) 66%, var(--bg-card)); --icon-fur: color-mix(in srgb, var(--surface-paper) 56%, var(--decor-pink)); --icon-accent: color-mix(in srgb, var(--decor-pink) 66%, var(--accent)); }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .icon-badge-frame {
+      display: block;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .badge-paper {
+      fill: var(--icon-paper) !important;
+      stroke: color-mix(in srgb, var(--icon-line) 42%, var(--border-soft)) !important;
+      stroke-width: 2.4 !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .badge-soft-half {
+      fill: var(--icon-left) !important;
+      opacity: .96;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .badge-stitch {
+      fill: none !important;
+      stroke: color-mix(in srgb, var(--icon-line) 38%, transparent) !important;
+      stroke-width: 1.7 !important;
+      stroke-dasharray: 4 6 !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .icon-symbol {
+      transform: translateY(3px) scale(.72);
+      transform-origin: 50% 56%;
+      stroke-width: 6.4 !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .fur {
+      fill: var(--icon-fur) !important;
+      stroke: var(--icon-line) !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .paper,
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .soft {
+      fill: color-mix(in srgb, var(--bg-card) 88%, var(--icon-left)) !important;
+      stroke: var(--icon-line) !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .highlight,
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .sparkle,
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .charm-dot {
+      fill: var(--icon-accent) !important;
+      stroke: var(--icon-line) !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .icon-decoration {
+      display: block;
+      opacity: .9;
+      stroke: var(--icon-line) !important;
+      stroke-width: 2.4 !important;
+    }
+
+    .desktop-icon-art:not(.has-custom-image) .cozy-app-icon .charm-stitch {
+      fill: none !important;
+      stroke: color-mix(in srgb, var(--icon-line) 46%, transparent) !important;
+    }
 </style>
 </head>
 
