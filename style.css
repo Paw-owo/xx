@@ -3123,6 +3123,10 @@ body {
   stroke-linecap: round;
 }
 
+:root :is(.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon), .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon), .settings-app-icon-preview) .cozy-app-icon .icon-decoration {
+  display: block !important;
+}
+
 :root .cozy-app-icon-semantic-bubble .icon-symbol { transform: translateY(1px) rotate(-1deg); }
 :root .cozy-app-icon-semantic-album .icon-symbol { transform: rotate(.8deg); }
 :root .cozy-app-icon-semantic-gear .icon-symbol { transform: scale(.98); }

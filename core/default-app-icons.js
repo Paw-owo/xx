@@ -65,7 +65,8 @@ export function createDefaultAppIcon(app, size = 28, documentRef = document) {
   svg.setAttribute('focusable', 'false');
   svg.setAttribute('data-semantic-shape', semantic);
   svg.setAttribute('data-theme-tone', tone);
-  const showTinyDecoration = Number(size || 0) > 32;
+  svg.setAttribute('data-default-icon-version', 'toy-shop-v2');
+  const showTinyDecoration = Number(size || 0) >= 28;
   svg.innerHTML = `<g class="icon-badge-frame" aria-hidden="true">
       <path class="badge-paper" d="M15 9h66c4 0 7 1 10 4s4 6 4 10v50c0 4-1 7-4 10s-6 4-10 4H15c-4 0-7-1-10-4s-4-6-4-10V23c0-4 1-7 4-10s6-4 10-4Z"/>
       <path class="badge-soft-half" d="M15 9h33v78H15c-4 0-7-1-10-4s-4-6-4-10V23c0-4 1-7 4-10s6-4 10-4Z"/>
