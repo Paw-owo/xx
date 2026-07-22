@@ -9,6 +9,7 @@
 import { mountChatList, unmountChatList } from './chat/list.js';
 import { mountChatMemory, unmountChatMemory } from './chat/memory.js';
 import { mountChatThread, unmountChatThread } from './chat/thread.js';
+import { mountThreadSettings, unmountThreadSettings } from './chat/thread-settings.js';
 import { mountChatVisualSystem, unmountChatVisualSystem } from './chat/visual-system.js';
 import { appendExternalChatMessage } from '../core/chat-event-bridge.js';
 
@@ -174,6 +175,14 @@ export function getAppApi() {
       return appState.openGroupThread(groupId);
     },
 
+    async goThread(options = {}) {
+      return appState.goThread(options);
+    },
+
+    async openThreadSettings(characterId, options = {}) {
+      return appState.openThreadSettings(characterId, options);
+    },
+
     async openMemory(characterId, options = {}) {
       return appState.openMemory(characterId, options);
     },
@@ -312,6 +321,27 @@ export const appState = {
     });
   },
 
+  async goThread(options = {}) {
+    if (options.mode === 'group') {
+      await this.openGroupThread(options.groupId);
+      return;
+    }
+    await this.openPrivateThread(options.characterId);
+  },
+
+  async openThreadSettings(characterId, options = {}) {
+    const id = String(characterId || '').trim();
+    if (!id) return;
+
+    await navigateTo({
+      name: 'settings',
+      params: {
+        characterId: id,
+        fromRoute: options.fromRoute || currentRoute
+      }
+    });
+  },
+
   async openMemory(characterId, options = {}) {
     const id = String(characterId || '').trim();
     if (!id) return;
@@ -344,6 +374,11 @@ export const appState = {
 
   async recordExternalInteraction(input = {}, legacyInteraction = {}) {
     return recordExternalInteraction(input, legacyInteraction);
+  },
+
+  async navigateToRoute(route) {
+    if (!route || !route.name) return;
+    await navigateTo(route);
   },
 
   closeApp() {
@@ -402,6 +437,12 @@ async function performRouteRender(renderVersion) {
         characterId: route.params.characterId,
         groupId: route.params.groupId
       });
+    } else if (route.name === 'settings') {
+      await mountThreadSettings(stage, {
+        appState,
+        characterId: route.params.characterId,
+        fromRoute: route.params.fromRoute
+      });
     } else if (route.name === 'memory') {
       await mountChatMemory(stage, {
         appState,
@@ -441,6 +482,8 @@ async function performRouteRender(renderVersion) {
 function unmountViewByName(name) {
   if (name === 'thread') {
     try { unmountChatThread(); } catch (_) {}
+  } else if (name === 'settings') {
+    try { unmountThreadSettings(); } catch (_) {}
   } else if (name === 'memory') {
     try { unmountChatMemory(); } catch (_) {}
   } else if (name === 'list') {
@@ -498,6 +541,16 @@ function normalizeRoute(route) {
         mode,
         characterId: mode === 'private' ? String(route.params?.characterId || '') : '',
         groupId: mode === 'group' ? String(route.params?.groupId || '') : ''
+      }
+    };
+  }
+
+  if (route.name === 'settings') {
+    return {
+      name: 'settings',
+      params: {
+        characterId: String(route.params?.characterId || ''),
+        fromRoute: route.params?.fromRoute ? normalizeRoute(route.params.fromRoute) : null
       }
     };
   }

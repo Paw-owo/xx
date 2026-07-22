@@ -135,12 +135,12 @@ const LIGHT_SHADOWS = {
 };
 
 const DARK_SHADOWS = {
-  'shadow-sm': '0 5px 16px color-mix(in srgb, black 28%, transparent), 0 1px 0 color-mix(in srgb, white 5%, transparent)',
-  'shadow-md': '0 12px 30px color-mix(in srgb, black 34%, transparent), 0 1px 0 color-mix(in srgb, white 6%, transparent)',
-  'shadow-lg': '0 22px 48px color-mix(in srgb, black 42%, transparent), 0 1px 0 color-mix(in srgb, white 7%, transparent)',
-  'shadow-card': '0 10px 24px color-mix(in srgb, black 30%, transparent), inset 0 1px 0 color-mix(in srgb, white 6%, transparent)',
-  'shadow-float': '0 20px 46px color-mix(in srgb, black 40%, transparent), 0 0 0 1px color-mix(in srgb, white 6%, transparent)',
-  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 9%, transparent)'
+  'shadow-sm': '0 3px 10px color-mix(in srgb, black 18%, transparent)',
+  'shadow-md': '0 6px 18px color-mix(in srgb, black 20%, transparent)',
+  'shadow-lg': '0 10px 26px color-mix(in srgb, black 22%, transparent)',
+  'shadow-card': '0 5px 14px color-mix(in srgb, black 18%, transparent)',
+  'shadow-float': '0 8px 22px color-mix(in srgb, black 20%, transparent)',
+  'inner-highlight': 'none'
 };
 
 // ═══════════════════════════════════════
@@ -170,25 +170,25 @@ const PRESETS = {
     userBubble: '#D9EFFF', userText: '#435B6B', icon: '#5E8299', iconDetail: '#52798F'
   }),
   'cocoa-night': createPreset('cocoa-night', '黑红', 'dark', {
-    background: '#1F1719', secondary: '#2C1E22', card: '#35252A', paper: '#402C31', charm: '#52333A',
-    accent: '#F09AA5', accentSoft: '#693E47', accentDeep: '#FFD1D6', accentStrong: '#E77787',
-    text: '#F7E5E4', textSoft: '#D2B4B4', hint: '#A08284', border: '#674850', shadow: '#110A0C',
-    success: '#9EB796', danger: '#F08C83', blue: '#98B8C6', yellow: '#D7BD7D', pink: '#F09AA5', green: '#9EB796', lilac: '#C0A7D0',
-    userBubble: '#633A43', userText: '#FFF1F1', icon: '#F2CED6', iconDetail: '#FFD1D6'
+    background: '#1B1516', secondary: '#251B1D', card: '#302326', paper: '#3A2A2D', charm: '#453035',
+    accent: '#B9797A', accentSoft: '#56393D', accentDeep: '#E8C4C2', accentStrong: '#C98583',
+    text: '#F2E3DE', textSoft: '#CDB2AA', hint: '#9E817B', border: '#5C4243', shadow: '#0E0A0B',
+    success: '#8FA48A', danger: '#C9887D', blue: '#8EA2A8', yellow: '#C5A874', pink: '#C78B8E', green: '#91A187', lilac: '#B7A0B8',
+    userBubble: '#513439', userText: '#F5E3DD', icon: '#DAB8B2', iconDetail: '#E8C4C2'
   }),
   'teddy-nest': createPreset('teddy-nest', '奶棕', 'dark', {
-    background: '#241B16', secondary: '#30241D', card: '#3B2B22', paper: '#473428', charm: '#5C4030',
-    accent: '#E5B98E', accentSoft: '#654832', accentDeep: '#FFE0BE', accentStrong: '#D79A66',
-    text: '#F4E5D3', textSoft: '#D0B59C', hint: '#9F806D', border: '#6E5140', shadow: '#130D09',
-    success: '#A7B98F', danger: '#DC8E78', blue: '#8FB0BB', yellow: '#D8B86E', pink: '#D6A19C', green: '#A7B98F', lilac: '#BBA6CC',
-    userBubble: '#604431', userText: '#FFF0DC', icon: '#F0D1B8', iconDetail: '#FFE0BE'
+    background: '#211A15', secondary: '#2A211B', card: '#342920', paper: '#403126', charm: '#4C382A',
+    accent: '#C99E77', accentSoft: '#594536', accentDeep: '#EAD2B7', accentStrong: '#D1A071',
+    text: '#F0E1D0', textSoft: '#CBB39B', hint: '#9C7F68', border: '#604B3B', shadow: '#100C08',
+    success: '#91A27F', danger: '#C48673', blue: '#879BA0', yellow: '#C9AA72', pink: '#BE908A', green: '#96A482', lilac: '#AA98B3',
+    userBubble: '#543D2F', userText: '#F5E5D2', icon: '#DCC2A8', iconDetail: '#EAD2B7'
   }),
   'blueberry-moon': createPreset('blueberry-moon', '黑粉', 'dark', {
-    background: '#211A25', secondary: '#2D2232', card: '#382A3D', paper: '#443349', charm: '#583D58',
-    accent: '#E7A0C8', accentSoft: '#68435F', accentDeep: '#FFD0E8', accentStrong: '#D97AB5',
-    text: '#F5E7F0', textSoft: '#D3B3C7', hint: '#9E8295', border: '#694E64', shadow: '#120C15',
-    success: '#98B5A0', danger: '#E48698', blue: '#94B8C8', yellow: '#D4BC82', pink: '#E7A0C8', green: '#98B5A0', lilac: '#C6A8D6',
-    userBubble: '#64415C', userText: '#FFF0F8', icon: '#F1CAE0', iconDetail: '#FFD0E8'
+    background: '#1C1720', secondary: '#261E2A', card: '#302638', paper: '#3A2D40', charm: '#473347',
+    accent: '#C084A6', accentSoft: '#573E52', accentDeep: '#E8C4D6', accentStrong: '#C98CAF',
+    text: '#F1E3EA', textSoft: '#CCB1C0', hint: '#9B8190', border: '#60495B', shadow: '#0F0B12',
+    success: '#8DA08E', danger: '#C7838B', blue: '#879FAC', yellow: '#C4AA78', pink: '#C895AF', green: '#8FA08C', lilac: '#B59EC4',
+    userBubble: '#53394D', userText: '#F5E3ED', icon: '#DAB7C8', iconDetail: '#E8C4D6'
   })
 };
 function createPreset(id, name, mode, palette) {

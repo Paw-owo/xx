@@ -51,7 +51,7 @@ const FALLBACK_WORDS = [
   { word: '电子榨菜', category: '网络梗' },
   { word: '班味', category: '抽象状态' },
   { word: '显眼包', category: '网络梗' },
-  { word: '赛博上香', category: '抽象行为' },
+  { word: '对着奶茶许愿', category: '抽象行为' },
   { word: '脆皮大学生', category: '网络梗' },
   { word: '互联网嘴替', category: '网络身份' },
   { word: '淡人', category: '抽象人格' },
@@ -65,9 +65,9 @@ const FALLBACK_WORDS = [
   { word: '偷感很重', category: '网络梗' },
   { word: '已读乱回', category: '网络行为' },
   { word: '人机感', category: '网络评价' },
-  { word: '赛博乞丐', category: '抽象身份' },
+  { word: '奶茶券守护者', category: '抽象身份' },
   { word: '被窝封印术', category: '生活玄学' },
-  { word: 'WiFi断了像失恋', category: '赛博生活' }
+  { word: 'WiFi断了像小饼干碎掉', category: '糯糯生活' }
 ];
 
 const RANDOM_POOL = [
@@ -82,7 +82,7 @@ const RANDOM_POOL = [
 ];
 
 const WRONG_GUESSES = [
-  '一只崩溃的猫', '电子榨菜', '加班人的灵魂', '赛博土豆',
+  '一只崩溃的猫', '电子榨菜', '加班人的灵魂', '糯米土豆',
   '显眼包开会', '精神状态良好', '被窝封印术', 'WiFi断了的悲伤'
 ];
 

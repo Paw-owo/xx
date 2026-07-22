@@ -3766,3 +3766,28 @@ body {
 :root :is(.theme-center::before, .dream-hero::before) {
   content: none;
 }
+
+/* 软糯桌面收束层：桌面图标统一为圆角正方形，去掉夜间模式下偏硬的高光和投影。 */
+:root :is(.desktop-icon-art, .dock .desktop-icon-art) {
+  border-radius: calc(18px * var(--desktop-icon-scale)) !important;
+  box-shadow: none;
+  transform-style: flat !important;
+}
+
+:root :is(.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon), .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon)) {
+  background: color-mix(in srgb, var(--surface-paper) 88%, var(--accent-light)) !important;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent) !important;
+  box-shadow: none;
+}
+
+:root :is(.cozy-app-icon, .desktop-icon-art .cozy-app-icon, .dock .desktop-icon-art .cozy-app-icon) {
+  filter: none !important;
+}
+
+:root :is(.desktop-icon-name, .dock .desktop-icon-name) {
+  text-shadow: none !important;
+}
+
+:root[data-theme-mode="dark"] :is(.desktop-icon-art, .desktop-widget, .status-cute-pill, .dock, .settings-card, .theme-center-card, .theme-center-hero) {
+  box-shadow: none;
+}

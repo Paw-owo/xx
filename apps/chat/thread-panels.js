@@ -2,7 +2,7 @@
 // imports:
 //   from '../../core/ui.js': showBottomSheet, hideBottomSheet, showToast, createIcon
 //   from './thread-tools.js': createThreadToolsGrid
-//   from './thread-settings.js': mountThreadSettings, unmountThreadSettings
+//   from './thread-settings.js': unmountThreadSettings
 //   from './thread-call.js': mountThreadCall, unmountThreadCall
 //   from './thread-actions.js': sendThreadMessage, sendCardMessage
 
@@ -14,7 +14,7 @@ import {
 import { createChatIcon } from './icons.js';
 
 import { createThreadToolsGrid } from './thread-tools.js';
-import { mountThreadSettings, unmountThreadSettings } from './thread-settings.js';
+import { unmountThreadSettings } from './thread-settings.js';
 import { mountThreadCall, unmountThreadCall } from './thread-call.js';
 import { sendThreadMessage, sendCardMessage } from './thread-actions.js';
 
@@ -128,49 +128,24 @@ export function closeThreadToolsPanel() {
 
 export function openThreadSettingsPanel(state, options) {
   if (!options) options = {};
-  injectStyle();
-  panelState.lastState = state || null;
+  const appState = options.settings?.appState || state?.appState || null;
+  const characterId = String(state?.characterId || options.settings?.characterId || '').trim();
 
   if (state?.mode === 'group') return;
 
-  if (!state?.characterId) {
-    showToast('这个聊天还没有角色');
+  if (!characterId) {
+    showToast('这个聊天还没有可以调整的设置');
     return;
   }
 
-  closeThreadToolsPanel();
-  closeThreadCallPanel();
-  closeThreadSettingsPanel();
+  if (typeof appState?.openThreadSettings === 'function') {
+    appState.openThreadSettings(characterId, {
+      fromRoute: typeof appState.getRoute === 'function' ? appState.getRoute() : null
+    });
+    return;
+  }
 
-  var sheet = document.createElement('div');
-  sheet.className = 'chat-settings-sheet';
-  var top = document.createElement('div');
-  top.className = 'chat-settings-sheet-top';
-
-  var close = buttonIcon('close', '关闭设置');
-  close.addEventListener('click', function() { closeThreadSettingsPanel(); });
-
-  var title = document.createElement('div');
-  title.className = 'chat-settings-sheet-title';
-  title.textContent = '聊天设置';
-
-  var spacer = document.createElement('div');
-  spacer.className = 'chat-settings-sheet-spacer';
-
-  top.append(close, title, spacer);
-
-  var host = document.createElement('div');
-  host.className = 'chat-settings-host';
-  sheet.append(top, host);
-
-  panelState.settingsSheetEl = sheet;
-  showBottomSheet(sheet);
-
-  mountThreadSettings(host, {
-    characterId: state.characterId,
-    appState: state.appState,
-    ...options.settings
-  });
+  showToast('设置页还没铺好，稍后再试一下');
 }
 
 export function closeThreadSettingsPanel() {
