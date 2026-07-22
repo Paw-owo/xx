@@ -2048,14 +2048,31 @@ body {
 .cozy-app-icon .soft { fill: var(--icon-paper); }
 .cozy-app-icon .highlight { fill: var(--icon-highlight); }
 .cozy-app-icon .charm,
-.cozy-app-icon .accent,
-.cozy-app-icon .sparkle { fill: var(--icon-charm); }
+.cozy-app-icon .accent { fill: var(--icon-charm); }
+.cozy-app-icon .ribbon { fill: var(--icon-ribbon-theme, var(--icon-charm)); }
+.cozy-app-icon .patch,
+.cozy-app-icon .paw { fill: var(--icon-paw-theme, var(--icon-highlight)); }
+.cozy-app-icon .sparkle { fill: var(--icon-star-theme, var(--icon-charm)); }
+.cozy-app-icon .awning { fill: var(--icon-ribbon-theme, var(--icon-charm)); }
 .cozy-app-icon .line-only { fill: none; }
 .cozy-app-icon .face { fill: var(--icon-line); stroke: none; }
 .cozy-app-icon .blush { stroke: var(--icon-charm); }
-.cozy-app-icon .badge-paper { fill: var(--icon-paper); stroke: var(--icon-line); }
+.cozy-app-icon .badge-paper { fill: color-mix(in srgb, var(--icon-paper) 82%, transparent); stroke: var(--icon-line); }
 .cozy-app-icon .badge-stitch { fill: none; stroke: color-mix(in srgb, var(--icon-line) 46%, transparent); stroke-dasharray: 4 6; }
 .cozy-app-icon .cookie-dot { fill: var(--icon-charm); stroke: color-mix(in srgb, var(--icon-line) 55%, transparent); }
+
+
+/* 六套默认主题只调小面积图标变量，主体线稿保持稳定。 */
+:root[data-theme="cream-bell"] .cozy-app-icon,
+:root[data-theme="cloud-soda"] .cozy-app-icon,
+:root[data-theme="peach-pudding"] .cozy-app-icon,
+:root[data-theme="cocoa-night"] .cozy-app-icon,
+:root[data-theme="teddy-nest"] .cozy-app-icon,
+:root[data-theme="blueberry-moon"] .cozy-app-icon {
+  --icon-ribbon-theme: var(--accent-strong);
+  --icon-paw-theme: var(--decor-pink);
+  --icon-star-theme: var(--decor-yellow);
+}
 
 /* 默认隐藏甜点主题 SVG 外框，只在默认甜点主题打开。 */
 .cozy-app-icon .icon-badge-frame { display: none; }
@@ -2164,7 +2181,7 @@ body {
 :root[data-theme="cream-bell"] .cozy-app-icon .face { fill: var(--text-primary); stroke: none; }
 :root[data-theme="cream-bell"] .cozy-app-icon .blush { stroke: var(--decor-pink); }
 :root[data-theme="cream-bell"] .cozy-app-icon .sparkle { fill: var(--decor-yellow); stroke: var(--accent-dark); }
-:root[data-theme="cream-bell"] .cozy-app-icon .bow { fill: var(--accent-dark); stroke: var(--text-primary); }
+:root[data-theme="cream-bell"] .cozy-app-icon .ribbon { fill: var(--accent-dark); stroke: var(--text-primary); }
 :root[data-theme="cream-bell"] .cozy-app-icon .bell { display: none; }
 
 :root[data-theme="cream-bell"] .dock {
@@ -2479,7 +2496,7 @@ body {
 :root[data-theme="cream-bell"] .cozy-app-icon .badge-paper { fill: var(--icon-soft); stroke: var(--icon-line); }
 :root[data-theme="cream-bell"] .cozy-app-icon .badge-stitch { stroke: var(--caramel-stitch); stroke-dasharray: 4 6; fill: none; }
 :root[data-theme="cream-bell"] .cozy-app-icon .cookie-dot { fill: var(--cookie-dot); stroke: none; }
-:root[data-theme="cream-bell"] .cozy-app-icon .icon-decoration .bow,
+:root[data-theme="cream-bell"] .cozy-app-icon .icon-decoration .ribbon,
 :root[data-theme="cream-bell"] .cozy-app-icon .icon-decoration .bell { display: none; }
 
 :root[data-theme="cream-bell"] :is(.desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon), .dock .desktop-icon-art:not(.has-custom-image):has(.cozy-app-icon)) {
