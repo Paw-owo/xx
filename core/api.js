@@ -1,6 +1,6 @@
 // core/api.js
 // imports: getData, setData, getAllDB, setDB, deleteDB, getNow, generateId from './storage.js'
-// exports: streamMessage, silentRequest, fetchModels, smartModelsUrl, buildHeaders, parseErrorResponse, getFallbackSources, callAPI, getMergedPoolModels, testPoolEndpoint, testAllPoolEndpoints, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, getApiPoolItems, getApiEndpointMetas, getPoolGroups, setPoolGroups
+// exports: streamMessage, silentRequest, fetchModels, smartModelsUrl, buildHeaders, parseErrorResponse, getFallbackSources, callAPI, getMergedPoolModels, testPoolEndpoint, testPoolEndpointByData, testAllPoolEndpoints, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, getApiPoolItems, getApiEndpointMetas, getPoolGroups, setPoolGroups
 
 import { getData, setData, getAllDB, setDB, deleteDB, getNow, generateId } from './storage.js';
 
@@ -1718,17 +1718,18 @@ export async function fetchModels(endpointId, timeout = DEFAULT_TIMEOUT) {
 // 【轮换池测试】
 // ═══════════════════════════════════════
 
-export async function testPoolEndpoint(poolId) {
-  const items = await getApiPoolItems();
-  const target = items.find((item) => String(item.id) === String(poolId));
-  if (!target) return { ok: false, message: '找不到这条接口', latencyMs: 0, models: [] };
-  const normalized = normalizePoolItem(target);
+// 内部共享：用一份归一化后的 endpoint 配置发起 chat completions 探测请求。
+//   persistStatus=true  → 命中已保存条目时回写 lastSuccess/lastError（testPoolEndpoint 用）
+//   persistStatus=false → 不写池状态（testPoolEndpointByData 用，条目尚未入池）
+// 两者走完全相同的请求与错误归一化逻辑，避免「测试池/轮换池」两套口径。
+async function runPoolConnectionTest(normalized, { persistStatus } = {}) {
   const key = normalized.keys[0] || '';
   const model = normalized.model || normalized.models[0] || '';
   if (!normalized.endpoint) return { ok: false, message: '地址没填', latencyMs: 0, models: normalized.models };
   if (!model && normalized.provider !== 'gemini') return { ok: false, message: '模型名没填', latencyMs: 0, models: normalized.models };
+  // poolId 仅在需要回写状态时填真实 id；草稿测试传空串，markPoolSourceSuccess/Error 内部也会因 !poolId 提前返回
   const source = {
-    id: normalized.id, poolId: normalized.id, groupType: normalized.groupType,
+    id: normalized.id, poolId: persistStatus ? normalized.id : '', groupType: normalized.groupType,
     name: normalized.name, endpoint: normalized.endpoint, provider: normalized.provider,
     apiKey: key, model, isUser: normalized.groupType === 'paid', isAnonymous: normalized.source === 'anonymous'
   };
@@ -1739,15 +1740,30 @@ export async function testPoolEndpoint(poolId) {
       timeout: 15000, temperature: 0.1, maxTokens: 32
     });
     const latencyMs = Date.now() - startedAt;
-    await markPoolSourceSuccess(source, latencyMs);
+    if (persistStatus) await markPoolSourceSuccess(source, latencyMs);
     return { ok: true, message: '连接成功', latencyMs, models: normalized.models, response: result.content };
   } catch (error) {
     const latencyMs = Date.now() - startedAt;
     const normalizedError = isBrowserBlockedError(error) ? createNetworkError(error, source) : error;
     const message = normalizeApiError(normalizedError, '连接失败');
-    await markPoolSourceError(source, message, latencyMs);
+    if (persistStatus) await markPoolSourceError(source, message, latencyMs);
     return { ok: false, message, latencyMs, models: normalized.models };
   }
+}
+
+export async function testPoolEndpoint(poolId) {
+  const items = await getApiPoolItems();
+  const target = items.find((item) => String(item.id) === String(poolId));
+  if (!target) return { ok: false, message: '找不到这条接口', latencyMs: 0, models: [] };
+  return runPoolConnectionTest(normalizePoolItem(target), { persistStatus: true });
+}
+
+// 对未保存的表单数据做连通测试：新增接口「先测试再入组」专用。
+//   不查池、不写池状态，纯粹用表单里的 endpoint/key/model/provider 探测一次。
+//   成功返回 ok:true，失败返回 ok:false + 明确原因，由设置页决定是否入组。
+export async function testPoolEndpointByData(data) {
+  const normalized = normalizePoolItem({ ...(data || {}), id: (data && data.id) || 'draft' });
+  return runPoolConnectionTest(normalized, { persistStatus: false });
 }
 
 export async function testAllPoolEndpoints() {

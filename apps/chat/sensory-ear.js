@@ -508,23 +508,16 @@ export async function transcribeAudio(audioBlob, opts = {}) {
 //   返回 { ok, message, latencyMs } 供设置页 toast
 // ═══════════════════════════════════════
 
-/**
- * 测试耳朵接口连通性
- * @param {string} poolId - api_pool 中的 endpoint id
- * @returns {Promise<{ok:boolean,message:string,latencyMs:number}>}
- */
-export async function testEarEndpoint(poolId) {
+// 内部共享：用一份耳朵接口配置发起静音音频 STT 探测。
+//   testEarEndpoint（已保存条目）和 testEarEndpointByData（未保存表单）走同一套逻辑，
+//   避免「测试池/轮换池」两套口径。只测连通，不测识别质量。
+async function runEarConnectionTest({ endpoint, model, keys }) {
   const startedAt = Date.now();
-  const items = await getApiPoolItems();
-  const target = items.find((item) => String(item.id) === String(poolId));
-  if (!target) return { ok: false, message: '找不到这条接口', latencyMs: 0 };
-  if (!target.endpoint) return { ok: false, message: '地址没填', latencyMs: 0 };
-
-  const model = target.model || target.models?.[0] || '';
+  if (!endpoint) return { ok: false, message: '地址没填', latencyMs: 0 };
   if (!model) return { ok: false, message: '模型名没填', latencyMs: 0 };
 
-  const url = buildWhisperUrl(target.endpoint);
-  const key = (target.keys && target.keys[0]) || '';
+  const url = buildWhisperUrl(endpoint);
+  const key = (Array.isArray(keys) && keys[0]) || '';
 
   // 生成 0.5s 静音音频 Blob（webm/opus，足够小，能被 Whisper 接口接受）
   const silenceBlob = await generateSilenceBlob(0.5);
@@ -582,6 +575,39 @@ export async function testEarEndpoint(poolId) {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * 测试耳朵接口连通性
+ * @param {string} poolId - api_pool 中的 endpoint id
+ * @returns {Promise<{ok:boolean,message:string,latencyMs:number}>}
+ */
+export async function testEarEndpoint(poolId) {
+  const items = await getApiPoolItems();
+  const target = items.find((item) => String(item.id) === String(poolId));
+  if (!target) return { ok: false, message: '找不到这条接口', latencyMs: 0 };
+  return runEarConnectionTest({
+    endpoint: target.endpoint,
+    model: target.model || target.models?.[0] || '',
+    keys: target.keys
+  });
+}
+
+/**
+ * 对未保存的耳朵接口表单数据做连通测试：新增耳朵接口「先测试再入组」专用。
+ *   不查池、不写池状态，纯粹用表单里的 endpoint/key/model 探测一次。
+ *   成功返回 ok:true，失败返回 ok:false + 明确原因，由设置页决定是否入组。
+ * @param {object} data - 表单数据 { endpoint, model, models?, keys?, apiKey? }
+ * @returns {Promise<{ok:boolean,message:string,latencyMs:number}>}
+ */
+export async function testEarEndpointByData(data) {
+  const d = data || {};
+  const keys = Array.isArray(d.keys) ? d.keys : (d.apiKey ? [String(d.apiKey).trim()].filter(Boolean) : []);
+  return runEarConnectionTest({
+    endpoint: d.endpoint || '',
+    model: d.model || (Array.isArray(d.models) ? d.models[0] : '') || '',
+    keys
+  });
 }
 
 // 生成静音音频 Blob：优先用 MediaRecorder 录 0.5s 静音轨道

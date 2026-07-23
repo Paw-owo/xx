@@ -1,8 +1,9 @@
 // apps/settings/api-pool-settings.js
 // API 轮换池设置页：付费/免费分组管理、接口增删改查、测试
+// 新增接口走「先测试再入组」：用表单数据探测一次，成功才落进分组，失败明确提示且不入组
 // imports:
-//   from '../../core/api.js': getPoolGroups, setPoolGroups, getApiPoolItems, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, testPoolEndpoint, testAllPoolEndpoints
-//   from '../chat/sensory-ear.js': testEarEndpoint（耳朵接口走 Whisper STT，不能用 chat completions 测试）
+//   from '../../core/api.js': getPoolGroups, setPoolGroups, getApiPoolItems, addPoolEndpoint, updatePoolEndpoint, deletePoolEndpoint, testPoolEndpoint, testPoolEndpointByData, testAllPoolEndpoints, fetchModelList
+//   from '../chat/sensory-ear.js': testEarEndpoint, testEarEndpointByData（耳朵接口走 Whisper STT，不能用 chat completions 测试）
 //   from '../../core/ui.js': showToast, showConfirm
 //   from '../../core/storage.js': generateId, getData, setData
 
@@ -14,10 +15,11 @@ import {
   updatePoolEndpoint,
   deletePoolEndpoint,
   testPoolEndpoint,
+  testPoolEndpointByData,
   testAllPoolEndpoints,
   fetchModelList
 } from '../../core/api.js';
-import { testEarEndpoint } from '../chat/sensory-ear.js';
+import { testEarEndpoint, testEarEndpointByData } from '../chat/sensory-ear.js';
 import { showToast, showConfirm } from '../../core/ui.js';
 import { generateId, getData, setData } from '../../core/storage.js';
 
@@ -853,6 +855,34 @@ function openEditor(item, options = {}) {
     // paid/free 不加此字段，保持现有行为完全不变
     if (selectedGroup === 'sensory_eye') {
       payload.requestFormat = provider === 'gemini' ? 'gemini' : 'openai';
+    }
+
+    // 新增接口：先测试再入组（合并「测试池/轮换池」入口，保存即落进分组）。
+    //   用当前表单数据探测一次：耳朵走 Whisper 静音测试，其余走 chat completions 探测。
+    //   测试失败 → 明确提示原因，不入组，保持弹层打开让用户修正后重试。
+    //   编辑接口：保持直接保存，用户可用条目上的「测试」按钮单独验证。
+    if (!isEdit) {
+      const originalText = saveBtn.textContent;
+      saveBtn.textContent = '测试中…';
+      saveBtn.disabled = true;
+      let testResult;
+      try {
+        if (selectedGroup === 'sensory_ear') {
+          testResult = await testEarEndpointByData(payload);
+        } else {
+          testResult = await testPoolEndpointByData(payload);
+        }
+      } catch (err) {
+        testResult = { ok: false, message: String(err?.message || '测试出错') };
+      }
+      // 弹层可能已被取消关闭，按钮不在 DOM 里了就不再后续操作
+      if (!saveBtn.isConnected) return;
+      saveBtn.textContent = originalText;
+      saveBtn.disabled = false;
+      if (!testResult.ok) {
+        showToast(`测试没通过，先不入组：${testResult.message || '连不上'}`);
+        return;
+      }
     }
 
     try {
