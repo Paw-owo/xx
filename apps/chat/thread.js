@@ -171,7 +171,7 @@ export async function mountChatThread(containerEl, options = {}) {
   state.activeTts = false;
   state.displayMode = resolveDisplayMode();
   state.reloadAndRender = reloadAndRender;
-  state.renderOnly = () => { if (state.rootEl && state.mounted) render(); };
+  state.renderOnly = () => { if (state.rootEl && state.mounted) refreshMessageAreaOnly(); };
   state.wallpaperImage = '';
   state.wallpaperOpacity = 1;
   state.settingsPageOpen = false;
@@ -1366,6 +1366,15 @@ function injectStyle() {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
+    .chat-thread-settings-full-page{
+      position:relative;
+      height:100%;
+      max-height:100%;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+
     .chat-thread-page{
       position:relative;
       height:100%;
