@@ -28,8 +28,8 @@
       --desktop-wallpaper-soft: 0;
       --desktop-card-blur: 20px;
       --desktop-soft-shadow: var(--shadow-sm);
-      --desktop-icon-art-size: 68px;
-      --desktop-icon-svg-size: 62px;
+      --desktop-icon-art-size: 60px;
+      --desktop-icon-svg-size: 38px;
     }
 
     html,
@@ -1917,7 +1917,8 @@
       const isProjectDefaultSvg = /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
       if (!isProjectDefaultSvg) return false;
       const versionMatch = decoded.match(/data-default-icon-version=["']([^"']+)["']/);
-      return !versionMatch || versionMatch[1] !== 'toy-shop-v2';
+      // 无版本标记 = 更早的历史产物；标记不等于当前版本 = 过期造型，两者都清
+      return !versionMatch || versionMatch[1] !== 'plump-v1';
     }
 
     async function clearLegacyDefaultIconBlobKey(key) {
@@ -2589,7 +2590,7 @@
     function getResolvedIconPosition(app, index) {
       const saved = getIconPositions()[app.id];
       if (saved && Number.isFinite(Number(saved.x)) && Number.isFinite(Number(saved.y))) return { page: Number(saved.page) === 1 ? 1 : 0, x: Number(saved.x), y: Number(saved.y) };
-      return { page: Number(app.page) === 1 ? 1 : 0, x: 20 + (index % 4) * 86, y: 430 + Math.floor(index / 4) * 96 };
+      return { page: Number(app.page) === 1 ? 1 : 0, x: 20 + (index % 4) * 86, y: 430 + Math.floor(index / 4) * 100 };
     }
 
     function getResolvedWidgetPosition(widget) {

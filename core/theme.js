@@ -50,6 +50,8 @@ const BASE_VARIABLES = {
   'icon-layer-stable': 'color-mix(in srgb, var(--bg-card) 88%, var(--decor-blue))',
   'icon-highlight-stable': 'color-mix(in srgb, var(--bg-card) 84%, white)',
   'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
+  'app-icon-ink': 'color-mix(in srgb, var(--text-primary) 78%, var(--accent-dark))',
+  'app-icon-fill': 'color-mix(in srgb, var(--accent-light) 82%, var(--bg-card))',
   'icon-tile-bg': 'var(--surface-paper)',
   'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
   'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
@@ -135,11 +137,11 @@ const LIGHT_SHADOWS = {
 };
 
 const DARK_SHADOWS = {
-  'shadow-sm': '0 3px 10px color-mix(in srgb, black 18%, transparent)',
-  'shadow-md': '0 6px 18px color-mix(in srgb, black 20%, transparent)',
-  'shadow-lg': '0 10px 26px color-mix(in srgb, black 22%, transparent)',
-  'shadow-card': '0 5px 14px color-mix(in srgb, black 18%, transparent)',
-  'shadow-float': '0 8px 22px color-mix(in srgb, black 20%, transparent)',
+  'shadow-sm': '0 2px 8px color-mix(in srgb, var(--shadow-color) 14%, transparent)',
+  'shadow-md': '0 4px 14px color-mix(in srgb, var(--shadow-color) 16%, transparent)',
+  'shadow-lg': '0 8px 22px color-mix(in srgb, var(--shadow-color) 18%, transparent)',
+  'shadow-card': '0 3px 10px color-mix(in srgb, var(--shadow-color) 14%, transparent)',
+  'shadow-float': '0 6px 16px color-mix(in srgb, var(--shadow-color) 16%, transparent)',
   'inner-highlight': 'none'
 };
 
@@ -170,26 +172,26 @@ const PRESETS = {
     userBubble: '#D9EFFF', userText: '#435B6B', icon: '#5E8299', iconDetail: '#52798F'
   }),
   'cocoa-night': createPreset('cocoa-night', '黑红', 'dark', {
-    background: '#1B1516', secondary: '#251B1D', card: '#302326', paper: '#3A2A2D', charm: '#453035',
-    accent: '#B9797A', accentSoft: '#56393D', accentDeep: '#E8C4C2', accentStrong: '#C98583',
-    text: '#F2E3DE', textSoft: '#CDB2AA', hint: '#9E817B', border: '#5C4243', shadow: '#0E0A0B',
-    success: '#8FA48A', danger: '#C9887D', blue: '#8EA2A8', yellow: '#C5A874', pink: '#C78B8E', green: '#91A187', lilac: '#B7A0B8',
-    userBubble: '#513439', userText: '#F5E3DD', icon: '#DAB8B2', iconDetail: '#E8C4C2'
+    background: '#2A2224', secondary: '#332A2C', card: '#3E3335', paper: '#473A3C', charm: '#523F43',
+    accent: '#D19A9C', accentSoft: '#5E464A', accentDeep: '#F2D4D2', accentStrong: '#BC8486',
+    text: '#EFE2DE', textSoft: '#CBB6B1', hint: '#9E8A86', border: '#5B4A4C', shadow: '#1A1213',
+    success: '#93A48E', danger: '#CC9088', blue: '#9CACB1', yellow: '#CDB48D', pink: '#D5A0A2', green: '#9AA68F', lilac: '#BBA6BC',
+    userBubble: '#543F42', userText: '#F4E4E0', icon: '#E0BCB8', iconDetail: '#F2D4D2'
   }),
   'teddy-nest': createPreset('teddy-nest', '奶棕', 'dark', {
-    background: '#211A15', secondary: '#2A211B', card: '#342920', paper: '#403126', charm: '#4C382A',
-    accent: '#C99E77', accentSoft: '#594536', accentDeep: '#EAD2B7', accentStrong: '#D1A071',
-    text: '#F0E1D0', textSoft: '#CBB39B', hint: '#9C7F68', border: '#604B3B', shadow: '#100C08',
-    success: '#91A27F', danger: '#C48673', blue: '#879BA0', yellow: '#C9AA72', pink: '#BE908A', green: '#96A482', lilac: '#AA98B3',
-    userBubble: '#543D2F', userText: '#F5E5D2', icon: '#DCC2A8', iconDetail: '#EAD2B7'
+    background: '#2C2622', secondary: '#352E29', card: '#403830', paper: '#4A4038', charm: '#554941',
+    accent: '#D3AC88', accentSoft: '#5F4F42', accentDeep: '#F1DCC4', accentStrong: '#BE9470',
+    text: '#EEE4D9', textSoft: '#C9B8A6', hint: '#9C8B7B', border: '#5C4F44', shadow: '#191410',
+    success: '#96A585', danger: '#C99183', blue: '#9AA9AD', yellow: '#D0B588', pink: '#CBA097', green: '#9DA98C', lilac: '#B4A5B7',
+    userBubble: '#57483B', userText: '#F3E7D9', icon: '#E2C6A8', iconDetail: '#F1DCC4'
   }),
   'blueberry-moon': createPreset('blueberry-moon', '黑粉', 'dark', {
-    background: '#1C1720', secondary: '#261E2A', card: '#302638', paper: '#3A2D40', charm: '#473347',
-    accent: '#C084A6', accentSoft: '#573E52', accentDeep: '#E8C4D6', accentStrong: '#C98CAF',
-    text: '#F1E3EA', textSoft: '#CCB1C0', hint: '#9B8190', border: '#60495B', shadow: '#0F0B12',
-    success: '#8DA08E', danger: '#C7838B', blue: '#879FAC', yellow: '#C4AA78', pink: '#C895AF', green: '#8FA08C', lilac: '#B59EC4',
-    userBubble: '#53394D', userText: '#F5E3ED', icon: '#DAB7C8', iconDetail: '#E8C4D6'
-  })
+    background: '#2B2430', secondary: '#332C39', card: '#3E3545', paper: '#473D4E', charm: '#524459',
+    accent: '#C39FC4', accentSoft: '#5D4A63', accentDeep: '#EBD6EC', accentStrong: '#AD86AF',
+    text: '#EBE2EE', textSoft: '#C6B6CA', hint: '#988A9E', border: '#584B5F', shadow: '#17111C',
+    success: '#91A392', danger: '#C68F94', blue: '#9AA7B8', yellow: '#C9B28E', pink: '#D2A3BC', green: '#98A692', lilac: '#BEA8C8',
+    userBubble: '#504058', userText: '#F0E4F2', icon: '#D6BAD8', iconDetail: '#EBD6EC'
+  }),
 };
 function createPreset(id, name, mode, palette) {
   const dark = mode === 'dark';
@@ -231,6 +233,13 @@ function createPreset(id, name, mode, palette) {
       'icon-layer-stable': 'color-mix(in srgb, var(--bg-card) 88%, var(--decor-blue))',
       'icon-highlight-stable': 'color-mix(in srgb, var(--bg-card) 86%, white)',
       'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
+      // 桌面图标双层色：深线条层 / 浅填充层，日夜各走一套推导
+      'app-icon-ink': dark
+        ? 'color-mix(in srgb, var(--accent-dark) 88%, var(--text-primary))'
+        : 'color-mix(in srgb, var(--text-primary) 78%, var(--accent-dark))',
+      'app-icon-fill': dark
+        ? 'color-mix(in srgb, var(--accent) 42%, var(--bg-card))'
+        : 'color-mix(in srgb, var(--accent-light) 82%, var(--bg-card))',
       'icon-tile-bg': 'var(--surface-paper)',
       'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
       'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',

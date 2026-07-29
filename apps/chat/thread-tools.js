@@ -388,8 +388,8 @@ async function handleToolClick(toolId, state, options, showDetail) {
       break;
     case 'github':
       closeToolsSheet(options);
-      await runToolboxSubAgent('developer-agent', { scope: SUB_AGENT_SCOPES.DEVELOPMENT, prompt: '准备打开 GitHub 开发工具' }, options);
       openGithubToolSheet();
+      runToolboxSubAgent('developer-agent', { scope: SUB_AGENT_SCOPES.DEVELOPMENT, prompt: '准备打开 GitHub 开发工具' }, options).catch(() => null);
       break;
     default:
       break;

@@ -171,7 +171,7 @@ export async function mountChatThread(containerEl, options = {}) {
   state.activeTts = false;
   state.displayMode = resolveDisplayMode();
   state.reloadAndRender = reloadAndRender;
-  state.renderOnly = () => { if (state.rootEl && state.mounted) render(); };
+  state.renderOnly = () => { if (state.rootEl && state.mounted) refreshMessageAreaOnly(); };
   state.wallpaperImage = '';
   state.wallpaperOpacity = 1;
   state.settingsPageOpen = false;
@@ -1366,6 +1366,15 @@ function injectStyle() {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
+    .chat-thread-settings-full-page{
+      position:relative;
+      height:100%;
+      max-height:100%;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+
     .chat-thread-page{
       position:relative;
       height:100%;
@@ -1373,10 +1382,7 @@ function injectStyle() {
       display:flex;
       flex-direction:column;
       overflow:hidden;
-      background:
-        radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--accent-light) 28%, transparent) 0 2px, transparent 3px),
-        linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 86%, var(--decor-blue)));
-      background-size:28px 28px, 100% 100%;
+      background: var(--bg-primary);
       color:var(--text-primary);
       transition:height 200ms ease, max-height 200ms ease;
     }

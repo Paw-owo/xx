@@ -115,9 +115,7 @@
   align-items: end;
   gap: 8px;
   padding: 12px 20px calc(14px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--bg-primary) 90%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: var(--bg-primary);
   z-index: 3;
 }
 
