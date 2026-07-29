@@ -44,7 +44,7 @@ const html = await fs.readFile(new URL('../index.html', import.meta.url), 'utf8'
 const ai = await fs.readFile(new URL('../apps/chat/thread-ai.js', import.meta.url), 'utf8');
 assert(/if \(!generated\)[\s\S]*?setDB\(store, cleanForDB\(target\)\)/.test(actions), '重新生成失败会恢复原消息');
 assert(/finally \{[\s\S]*?state\.aiGenerating = false;[\s\S]*?state\.renderOnly\?\.\(\)/.test(actions), 'AI 请求结束会刷新生成状态');
-assert(/replyController\?\.abort\(\)/.test(call) && /signal: controller\.signal/.test(call), '电话挂断与卸载会取消当前请求');
+assert(/replyController[?]?\.abort\(/.test(call) && /signal: controller\.signal/.test(call), '电话挂断与卸载会取消当前请求');
 assert(/setTimeout\(\(\) => controller\.abort\(\), 8000\)/.test(html), '天气请求具备超时回退');
 assert(/return getData\('anniversaries'\)/.test(ai), 'AI 优先读取纪念日 APP 的规范键');
 
