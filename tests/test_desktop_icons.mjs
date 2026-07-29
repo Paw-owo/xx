@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { APPS } from '../core/app-registry.js';
-import { createDefaultAppIcon, DEFAULT_APP_ICON_IDS } from '../core/default-app-icons.js';
+import {
+  createDefaultAppIcon,
+  DEFAULT_APP_ICON_IDS,
+  DEFAULT_APP_ICON_VERSION,
+  LEGACY_APP_ICON_VERSIONS
+} from '../core/default-app-icons.js';
 
 class FakeElement {
   constructor(tagName) {
@@ -9,8 +14,11 @@ class FakeElement {
     this.attributes = new Map();
     this.classList = { values: [], add: (...names) => this.classList.values.push(...names) };
     this.innerHTML = '';
+    this.children = [];
   }
   setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.has(name) ? this.attributes.get(name) : null; }
+  appendChild(child) { this.children.push(child); return child; }
 }
 
 const fakeDocument = { createElementNS: (_namespace, tagName) => new FakeElement(tagName) };
@@ -18,30 +26,54 @@ const registryIds = APPS.map(({ id }) => id);
 
 assert.equal(APPS.length, 14, 'the sole registry still contains 14 apps');
 assert.deepEqual(DEFAULT_APP_ICON_IDS, registryIds, 'the factory covers registry apps in registry order');
+assert.equal(DEFAULT_APP_ICON_VERSION, 'plump-v1', 'current default icon generation is plump-v1');
+assert.ok(
+  LEGACY_APP_ICON_VERSIONS.includes('toy-shop-v2'),
+  'the retired stroke-layer generation stays listed so its cached icons are cleaned'
+);
+assert.ok(
+  !LEGACY_APP_ICON_VERSIONS.includes(DEFAULT_APP_ICON_VERSION),
+  'the current generation is never treated as legacy'
+);
 
 const drawings = APPS.map((app) => {
   const icon = createDefaultAppIcon(app, 28, fakeDocument);
   assert.ok(icon, `${app.id} has a default icon`);
-  assert.equal(icon.attributes.get('viewBox'), '0 0 96 96');
+  assert.equal(icon.attributes.get('viewBox'), '0 0 48 48');
+  assert.ok(icon.classList.values.includes('cozy-app-icon'));
   assert.ok(icon.classList.values.includes(`cozy-app-icon-${app.id}`));
-  assert.equal(icon.attributes.get('data-default-icon-version'), 'toy-shop-v2');
-  assert.ok(icon.classList.values.some((name) => name.startsWith('cozy-app-icon-tone-')), `${app.id} has a theme-derived tone class`);
-  assert.ok(icon.classList.values.some((name) => name.startsWith('cozy-app-icon-semantic-')), `${app.id} has a semantic class`);
-  assert.match(icon.innerHTML, /class="fur"/, `${app.id} includes a complete character body`);
-  assert.match(icon.innerHTML, /class="icon-decoration/, `${app.id} keeps visible tiny decoration at desktop size`);
-  return icon.innerHTML;
+  assert.equal(icon.attributes.get('data-default-icon-version'), DEFAULT_APP_ICON_VERSION);
+  assert.equal(icon.attributes.get('aria-hidden'), 'true', `${app.id} icon is decorative for screen readers`);
+  assert.equal(icon.attributes.get('fill'), 'none');
+  const group = icon.children[0];
+  assert.ok(group, `${app.id} renders a drawing group`);
+  assert.equal(group.getAttribute('data-tiny-decoration'), 'on', `${app.id} keeps decoration at desktop size`);
+  // 双层填充体系：每个图标至少命中一个主题色槽，且不含硬编码色
+  assert.match(
+    group.innerHTML,
+    /var\(--app-icon-(?:ink|fill)\)/,
+    `${app.id} fills through the shared theme colour slots`
+  );
+  assert.doesNotMatch(group.innerHTML, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i, `${app.id} has no hard-coded colour`);
+  return group.innerHTML;
 });
 assert.equal(new Set(drawings).size, APPS.length, 'all default silhouettes are distinct');
 
-const gallery = createDefaultAppIcon(APPS.find(({ id }) => id === 'gallery'), 28, fakeDocument).innerHTML;
+// 小尺寸收起装饰
+const tiny = createDefaultAppIcon(APPS[0], 20, fakeDocument);
+assert.equal(tiny.children[0].getAttribute('data-tiny-decoration'), 'off', 'small sizes drop extra decoration');
+
+const gallery = createDefaultAppIcon(APPS.find(({ id }) => id === 'gallery'), 28, fakeDocument).children[0].innerHTML;
 assert.doesNotMatch(gallery, /<image/i, 'gallery does not use external photo imagery');
-assert.match(gallery, /badge-soft-half/, 'default icons use the preview-like cool left patch');
-assert.match(gallery, /M22 17h52c8 0 14 6 14 14v34c0 8-6 14-14 14H22c-8 0-14-6-14-14V31c0-8 6-14 14-14Z/, 'default icons use the preview-like dashed stitched inner frame');
-assert.match(gallery, /M19 25h58c5 0 9 4 9 9v39c0 5-4 9-9 9H19c-5 0-9-4-9-9V34c0-5 4-9 9-9Z/, 'gallery uses a newly redrawn simple rounded photo outline');
+assert.match(gallery, /var\(--app-icon-fill\)/, 'gallery uses the shared fill slot');
 
 const source = fs.readFileSync(new URL('../core/default-app-icons.js', import.meta.url), 'utf8');
 assert.doesNotMatch(source, /#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i, 'icon source contains no hard-coded colors');
 assert.doesNotMatch(source, /https:|data:image|base64|<image/i, 'icon source contains no external or embedded image assets');
+// 两个色槽都必须真的被用到，否则换肤会有一层不跟随
+assert.ok(source.includes('var(--app-icon-ink)'), 'icon source uses the ink slot');
+assert.ok(source.includes('var(--app-icon-fill)'), 'icon source uses the fill slot');
+
 
 const page = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 assert.match(page, /artEl\.appendChild\(createDefaultAppIcon\(app, 28\)\)/, 'desktop and Dock use the factory');
@@ -55,7 +87,7 @@ assert.match(page, /function clearLegacyDefaultIconLocalKey\(key\)[\s\S]*setData
 assert.match(page, /async function cleanupLegacyDefaultIconResidue\(app, candidateKeys\)[\s\S]*for \(const key of candidateKeys\)[\s\S]*Object\.entries\(icons\)/, 'desktop scans all alias keys and weak local icon entries for stale generated defaults');
 assert.match(page, /if \(\/user\|upload\|url\/\.test\(meta\)\) return false;/, 'user-provided svg metadata is protected from stale default cleanup while local legacy generated SVG can migrate');
 assert.match(page, /data-default-icon-version=\[\"'\]\(\[\^\"'\]\+\)\[\"'\]/, 'legacy default cleanup checks default icon version markers');
-assert.match(page, /versionMatch\[1\] !== 'toy-shop-v2'/, 'current default icon SVG cache is not cleaned as stale');
+assert.match(page, /versionMatch\[1\] !== 'plump-v1'/, 'current default icon SVG cache is not cleaned as stale');
 assert.match(page, /Object\.entries\(current\)\.filter\(\(\[field\]\) => !APP_ICON_IMAGE_FIELDS\.has\(field\)\)/, 'app_icons cleanup preserves non-image fields');
 assert.match(page, /artEl\.appendChild\(createDefaultAppIcon\(app, 28\)\)/, 'cleared stale icon records fall back to the default SVG factory');
 assert.match(page, /\.desktop-icon-art:not\(\.has-custom-image\):has\(\.cozy-app-icon\)[\s\S]*?\.icon-decoration\{display:block!important\}/, 'runtime desktop fix restores decoration only for default SVG icons');
@@ -80,12 +112,32 @@ console.log('desktop icon checks passed');
 
 const styleSource = fs.readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 assert.match(styleSource, /:root \.desktop-icon-art/, 'soft desktop icon styling is shared by all themes');
-assert.match(styleSource, /\.cozy-app-icon \.icon-badge-frame \{ display: none; \}/, 'cream-bell badge frame is hidden outside the preset');
-assert.match(styleSource, /:root \.cozy-app-icon \.icon-badge-frame/, 'badge frame is restored by the shared soft-cute layer');
-assert.match(styleSource, /badge-soft-half/, 'shared icon styling supports the preview-like half patch');
-assert.match(styleSource, /:root :is\(\.desktop-icon-art:not\(\.has-custom-image\):has\(\.cozy-app-icon\), \.dock \.desktop-icon-art:not\(\.has-custom-image\):has\(\.cozy-app-icon\), \.settings-app-icon-preview\) \.cozy-app-icon \.icon-decoration/, 'shared layer restores tiny decoration for default icons and settings previews');
-assert.ok((styleSource.match(/cozy-app-icon-tone-[\w-]+ \{ --icon-tone-left:/g) || []).length >= 14, 'all apps have multiple theme-derived tone rules instead of one flat color');
+// 双色填充体系：色槽在 theme.js 里派生，CSS 只负责关掉描边、不再维护 14 个 tone 类
+assert.match(
+  styleSource,
+  /\.cozy-app-icon g \{\s*fill: none;\s*stroke: none;\s*\}/,
+  'the plump fill体系 disables inherited stroke so icon paths keep their own fills'
+);
+assert.doesNotMatch(
+  styleSource,
+  /\.cozy-app-icon \.(?:fur|paper|face|blush|charm|highlight|badge-paper|badge-stitch|icon-badge-frame)\b/,
+  'retired stroke-layer icon rules are fully removed'
+);
 assert.doesNotMatch(styleSource, new RegExp('\n\\.desktop-icon-art::before \\{'), 'cream-bell desktop pseudo-elements do not leak globally');
+
+const themeSource = fs.readFileSync(new URL('../core/theme.js', import.meta.url), 'utf8');
+// 换肤跟随的真正保护点：两个色槽必须在基础变量和每套预设里都被派生出来
+assert.ok(
+  (themeSource.match(/'app-icon-ink':/g) || []).length >= 2,
+  'the ink slot is derived in both base variables and presets'
+);
+assert.ok(
+  (themeSource.match(/'app-icon-fill':/g) || []).length >= 2,
+  'the fill slot is derived in both base variables and presets'
+);
+assert.match(themeSource, /'app-icon-ink':[^\n]*color-mix/, 'ink slot is theme-derived, not a flat literal');
+assert.match(themeSource, /'app-icon-fill':[^\n]*color-mix/, 'fill slot is theme-derived, not a flat literal');
+assert.match(themeSource, /dark\s*\n?\s*\?[^\n]*app-icon|app-icon-ink':\s*dark/, 'icon slots branch for dark presets');
 console.log('shared soft-cute visual checks passed');
 
 const settingsSource = fs.readFileSync(new URL('../apps/settings.js', import.meta.url), 'utf8');

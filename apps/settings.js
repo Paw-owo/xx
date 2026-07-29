@@ -656,7 +656,7 @@ function askAfterTest(apiData) {
       saveSettings(settings);
       hideBottomSheet();
       showToast('已设为全局默认接口');
-      render('apiPool');", "path" string="true">/var/minis/shared/xx-repo/xx/apps/settings.js"
+      render('apiPool');
     })
   );
 
@@ -2943,7 +2943,8 @@ function isLegacyDefaultIconPreview(record) {
   const isProjectDefaultSvg = /cozy-app-icon|icon-badge-frame|cream-bell|class=["'](?:bell|bow)["']/.test(decoded);
   if (!isProjectDefaultSvg) return false;
   const versionMatch = decoded.match(/data-default-icon-version=["']([^"']+)["']/);
-  return !versionMatch || versionMatch[1] !== 'toy-shop-v2';
+  // 与 index.html 的判定保持一致：无标记或标记非当前版本，都算过期
+  return !versionMatch || versionMatch[1] !== 'plump-v1';
 }
 
 function getPresetName(id) {

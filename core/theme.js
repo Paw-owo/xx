@@ -50,6 +50,8 @@ const BASE_VARIABLES = {
   'icon-layer-stable': 'color-mix(in srgb, var(--bg-card) 88%, var(--decor-blue))',
   'icon-highlight-stable': 'color-mix(in srgb, var(--bg-card) 84%, white)',
   'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
+  'app-icon-ink': 'color-mix(in srgb, var(--text-primary) 78%, var(--accent-dark))',
+  'app-icon-fill': 'color-mix(in srgb, var(--accent-light) 82%, var(--bg-card))',
   'icon-tile-bg': 'var(--surface-paper)',
   'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
   'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
@@ -231,6 +233,13 @@ function createPreset(id, name, mode, palette) {
       'icon-layer-stable': 'color-mix(in srgb, var(--bg-card) 88%, var(--decor-blue))',
       'icon-highlight-stable': 'color-mix(in srgb, var(--bg-card) 86%, white)',
       'icon-charm-theme': 'color-mix(in srgb, var(--accent) 66%, var(--bg-card))',
+      // 桌面图标双层色：深线条层 / 浅填充层，日夜各走一套推导
+      'app-icon-ink': dark
+        ? 'color-mix(in srgb, var(--accent-dark) 88%, var(--text-primary))'
+        : 'color-mix(in srgb, var(--text-primary) 78%, var(--accent-dark))',
+      'app-icon-fill': dark
+        ? 'color-mix(in srgb, var(--accent) 42%, var(--bg-card))'
+        : 'color-mix(in srgb, var(--accent-light) 82%, var(--bg-card))',
       'icon-tile-bg': 'var(--surface-paper)',
       'icon-tile-alt-cool': 'color-mix(in srgb, var(--decor-blue) 40%, var(--bg-card))',
       'icon-tile-alt-warm': 'color-mix(in srgb, var(--decor-yellow) 44%, var(--bg-card))',
