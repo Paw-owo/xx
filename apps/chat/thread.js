@@ -1382,10 +1382,7 @@ function injectStyle() {
       display:flex;
       flex-direction:column;
       overflow:hidden;
-      background:
-        radial-gradient(circle at 16% 12%, color-mix(in srgb, var(--accent-light) 28%, transparent) 0 2px, transparent 3px),
-        linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 86%, var(--decor-blue)));
-      background-size:28px 28px, 100% 100%;
+      background: var(--bg-primary);
       color:var(--text-primary);
       transition:height 200ms ease, max-height 200ms ease;
     }

@@ -1664,10 +1664,7 @@ body {
 
 .app-screen,
 .phone-desktop {
-  background:
-    radial-gradient(circle at 16% 10%, color-mix(in srgb, var(--accent-light) 28%, transparent) 0 82px, transparent 210px),
-    radial-gradient(circle at 86% 22%, color-mix(in srgb, var(--decor-blue) 18%, transparent) 0 80px, transparent 220px),
-    linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 78%, var(--bg-secondary)));
+  background: linear-gradient(180deg, var(--bg-primary), color-mix(in srgb, var(--bg-primary) 88%, var(--bg-secondary)));
 }
 
 .nav-bar,
@@ -1839,6 +1836,41 @@ body {
 }
 
 /* ═══════════════════════════════════════ */
+/* ═══════════════════════════════════════ */
+/* 夜间模式：软萌小玩具，不要 3D 立体感 */
+/* ═══════════════════════════════════════ */
+
+/* 1. 抹掉所有内高光 —— 内高光是"塑料球体"感的来源 */
+:root[data-theme-mode="dark"] * {
+  --inner-highlight: none !important;
+}
+
+/* 2. 夜间不用多层光晕叠加装饰，只保留单色面 */
+:root[data-theme-mode="dark"] :is(.desktop-journal-layer, .desktop-soft-layer, .settings-soft-layer, .chat-soft-layer) {
+  background: none !important;
+  opacity: 0 !important;
+}
+
+/* 3. 卡片/图标/组件：圆润软边 + 极淡同色投影，不做立体凸起 */
+:root[data-theme-mode="dark"] :is(.settings-card, .desktop-widget, .desktop-icon-art, .theme-center-card, .card, .section-card, .form-card, .bottom-sheet, .chat-message-bubble) {
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--shadow-color) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 52%, transparent);
+}
+
+/* 4. 大圆角 —— 小玩具的圆润感，不要方方正正 */
+:root[data-theme-mode="dark"] :is(.settings-card, .card, .section-card, .form-card, .theme-center-card) {
+  border-radius: 22px !important;
+}
+
+:root[data-theme-mode="dark"] .desktop-widget {
+  border-radius: 26px !important;
+}
+
+/* 5. 按钮：柔和纯色，不用渐变（渐变=立体感） */
+:root[data-theme-mode="dark"] {
+  --button-primary-bg: var(--accent) !important;
+}
+
 /* 【全应用软萌组件层】所有内置 App 共用，不介入业务结构 */
 /* ═══════════════════════════════════════ */
 
@@ -1854,10 +1886,7 @@ body {
 }
 
 #app-layer > * {
-  background:
-    radial-gradient(circle at 8% 4%, color-mix(in srgb, var(--accent-light) 48%, transparent), transparent 24%),
-    radial-gradient(circle at 94% 88%, color-mix(in srgb, var(--decor-blue) 30%, transparent), transparent 26%),
-    var(--bg-primary);
+  background: var(--bg-primary);
   color: var(--text-primary);
 }
 
@@ -2586,11 +2615,12 @@ body {
 }
 
 :root :is(.phone-desktop, .app-screen, .placeholder-app, .app-page, .chat-page, .settings-page, .theme-center-page, .theme-studio-page, .chat-thread-page, #app-layer > *) {
-  background:
-    radial-gradient(circle at 14% 10%, color-mix(in srgb, var(--accent-light) 30%, transparent), transparent 180px),
-    radial-gradient(circle at 92% 22%, color-mix(in srgb, var(--decor-blue) 18%, transparent), transparent 210px),
-    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 28%, transparent), transparent 30%),
-    var(--bg-primary) !important;
+  background: var(--bg-primary) !important;
+}
+
+/* 夜间模式：去掉所有多层光晕叠加，只留一层极淡的暖雾，画面干净不朋克 */
+:root[data-theme-mode="dark"] :is(.phone-desktop, .app-screen, .placeholder-app, .app-page, .chat-page, .settings-page, .theme-center-page, .theme-studio-page, .chat-thread-page, #app-layer > *) {
+  background: var(--bg-primary) !important;
 }
 
 :root .desktop-journal-layer {
