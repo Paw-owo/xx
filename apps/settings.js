@@ -185,7 +185,7 @@ export async function mount(containerEl, context = {}) {
 
 function normalizeInitialSection(section) {
   const value = String(section || '').trim();
-  const allowed = new Set(['home', 'theme', 'display', 'apiTest', 'apiPool', 'tts', 'mcp', 'cloud', 'desktop', 'widgets', 'icons', 'data']);
+  const allowed = new Set(['home', 'theme', 'display', 'apiPool', 'tts', 'mcp', 'cloud', 'desktop', 'widgets', 'icons', 'data']);
   return allowed.has(value) ? value : '';
 }
 
@@ -242,7 +242,6 @@ async function renderBody() {
     home: renderHome,
     theme: renderThemePage,
     display: renderDisplayPage,
-    apiTest: renderApiTestPage,
     apiPool: renderApiPoolPage,
     tts: renderTtsPage,
     mcp: renderMcpPage,
@@ -272,8 +271,7 @@ function renderHome() {
       navItem('edit', '字体与显示', '字号、字体、聊天样子轻轻调', 'display')
     ]),
     group('模型与服务', [
-      navItem('settings', 'API 测试台', '临时测一个接口，通过后再决定怎么用', 'apiTest'),
-      navItem('settings', 'API 轮换池', '付费/免费分组、密钥、状态、测试', 'apiPool'),
+      navItem('settings', 'API 接口', '测试接口、分组轮换、密钥管理', 'apiPool'),
       navItem('play', 'TTS 声音屋', 'AI 说话的声音住这里', 'tts'),
       navItem('settings', 'MCP 工具箱', '给 AI 接小工具用', 'mcp'),
       navItem('upload', '云服务器', '默认关闭，主动开启才使用', 'cloud')
@@ -658,7 +656,7 @@ function askAfterTest(apiData) {
       saveSettings(settings);
       hideBottomSheet();
       showToast('已设为全局默认接口');
-      render('apiTest');
+      render('apiPool');", "path" string="true">/var/minis/shared/xx-repo/xx/apps/settings.js"
     })
   );
 
@@ -672,24 +670,92 @@ function askAfterTest(apiData) {
 async function renderApiPoolPage() {
   if (apiPoolModule) apiPoolModule.unmount();
 
+  // ── 添加接口测试（原 apiTest 页面合并至此处）──
+  const testCard = card('添加接口', '填好地址和模型测一下，通过后直接加入分组');
+  const name = inputRow('名字', '', '比如：我的主力接口');
+  const endpoint = inputRow('接口地址', '', 'https://api.xxx.com/v1');
+  const provider = selectRow('接口类型', 'openai', [
+    ['openai', '通用中转 / OpenAI 格式'],
+    ['anthropic', 'Claude / Anthropic 格式'],
+    ['gemini', 'Gemini 格式'],
+    ['ollama', '本地 Ollama']
+  ]);
+  const apiKeyRow = inputRow('API Key', '', 'sk-...');
+  const model = inputRow('当前模型', '', '例如 gpt-4o-mini');
+  testCard.append(name.wrap, endpoint.wrap, provider.wrap, apiKeyRow.wrap, model.wrap);
+
+  let draftModels = [];
+  let testSaving = false;
+  const modelArea = el('div', 'settings-editor-model-area');
+
+  function renderTestModels() {
+    modelArea.innerHTML = '';
+    modelArea.append(modelPicker({
+      models: draftModels,
+      current: model.input.value.trim(),
+      emptyText: '还没拉到模型，可以手填模型名',
+      onSelect: (value) => { model.input.value = value; renderTestModels(); showToast('已选择：' + value); }
+    }));
+  }
+  renderTestModels();
+  testCard.append(modelArea);
+
+  testCard.append(actionRow([
+    actionBtn('refresh', '拉取模型', async () => {
+      const ev = endpoint.input.value.trim();
+      if (!ev) { showToast('先填接口地址哦'); return; }
+      const pv = provider.input.value || detectProviderFromUrl(ev);
+      const key = apiKeyRow.input.value.trim();
+      showToast('正在拉取模型...');
+      try {
+        const models = await fetchModelList({ endpoint: ev, apiKey: key, provider: pv });
+        if (!models.length) { showToast('没找到模型，可以手填'); return; }
+        draftModels = models; renderTestModels();
+        showToast('拉到 ' + draftModels.length + ' 个模型啦');
+      } catch (err) { showToast(formatApiEditorError(err, '模型拉取失败')); }
+    }),
+    actionBtn('check', '测试并保存', async () => {
+      if (testSaving) return;
+      const ev = endpoint.input.value.trim();
+      if (!ev) { showToast('先填接口地址哦'); return; }
+      const pv = provider.input.value || detectProviderFromUrl(ev);
+      const mv = model.input.value.trim();
+      const key = apiKeyRow.input.value.trim();
+      if (pv !== 'gemini' && !mv) { showToast('先填模型名哦'); return; }
+      testSaving = true; showToast('正在测试...');
+      try {
+        await testApiByChat({ endpoint: ev, apiKey: key, provider: pv, model: mv });
+        const finalName = name.input.value.trim() || '未命名接口';
+        const groupType = key ? 'paid' : 'free';
+        const groupsNow = getPoolGroups();
+        await addPoolEndpoint({
+          id: generateId('pool'), groupType,
+          groupName: groupType === 'free' ? (groupsNow.free?.name || '免费组') : (groupsNow.paid?.name || '付费组'),
+          name: finalName, endpoint: ev, provider: pv,
+          keys: key ? [key] : [], model: mv, models: draftModels,
+          source: '', status: 'active'
+        });
+        showToast('接口已加入轮换池');
+        render('apiPool');
+      } catch (err) {
+        if (err?.code === 'DUPLICATE') { showToast('它已经在轮换池里啦'); return; }
+        showToast(formatApiEditorError(err, '保存失败'));
+      } finally { testSaving = false; }
+    })
+  ]));
+
+  // ── 已有轮换池 ──
   const module = await import('./settings/api-pool-settings.js');
   apiPoolModule = module;
-
   const wrap = page();
+  wrap.append(testCard);
   let pageEl;
-
   if (typeof module.mount === 'function') {
     pageEl = el('div', 'api-pool-host settings-page');
     apiPoolModule.mount(pageEl, { onBack: () => render('home'), onRefresh: () => render('apiPool') });
   } else if (typeof module.renderApiPoolSettings === 'function') {
-    pageEl = await module.renderApiPoolSettings({
-      onBack: () => render('home'),
-      onRefresh: () => render('apiPool')
-    });
-  } else {
-    pageEl = empty('轮换池模块加载失败');
-  }
-
+    pageEl = await module.renderApiPoolSettings({ onBack: () => render('home'), onRefresh: () => render('apiPool') });
+  } else { pageEl = empty('轮换池模块加载失败'); }
   wrap.append(pageEl);
   return wrap;
 }
@@ -2466,7 +2532,7 @@ function closeDesktop() {
 function getTitle(name) {
   return {
     home: '设置小窝', theme: '外观主题', display: '字体与显示',
-    apiTest: 'API 测试台', apiPool: 'API 轮换池', tts: 'TTS 声音屋',
+    apiPool: 'API 接口', tts: 'TTS 声音屋',
     mcp: 'MCP 工具箱', cloud: '云服务器', desktop: '桌面装扮',
     widgets: '小组件', icons: '应用图标', data: '数据小包'
   }[name] || '设置';
@@ -2475,7 +2541,7 @@ function getTitle(name) {
 function getSubtitle(name) {
   return {
     home: '慢慢调，不着急 OvO', theme: '给小手机换件衣服',
-    display: '字体和聊天样子', apiTest: '临时测接口，通过再决定',
+    display: '字体和聊天样子',
     apiPool: '分组轮换和测试都在这儿', tts: '让 AI 开口说话',
     mcp: '工具小助手集合', cloud: '默认关闭，主动开启才使用',
     desktop: '壁纸和大小', widgets: '小卡片小窝',

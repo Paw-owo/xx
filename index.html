@@ -2614,6 +2614,24 @@
       return { x: Math.max(0, Math.min(Math.max(0, rect.width - w), Number(x) || 0)), y: Math.max(0, Math.min(Math.max(0, rect.height - h), Number(y) || 0)) };
     }
 
+    function isPositionOverlapping(element, page, x, y) {
+      const layer = getLayer(page);
+      if (!layer) return false;
+      const ew = element.offsetWidth || 72;
+      const eh = element.offsetHeight || 72;
+      const siblings = layer.querySelectorAll('.desktop-item:not(.dragging):not(.settling)');
+      for (let i = 0; i < siblings.length; i++) {
+        const sib = siblings[i];
+        if (sib === element) continue;
+        const sx = parseFloat(sib.style.left || '0') || 0;
+        const sy = parseFloat(sib.style.top || '0') || 0;
+        const sw = sib.offsetWidth || 72;
+        const sh = sib.offsetHeight || 72;
+        if (!(x + ew <= sx || x >= sx + sw || y + eh <= sy || y >= sy + sh)) return true;
+      }
+      return false;
+    }
+
     function handleDesktopItemPointerDown(event, element) {
       if (event.button !== undefined && event.button !== 0) return;
       if (element.dataset.kind === 'dock') return;
@@ -2663,8 +2681,17 @@
           const localX = lastCenterX - layerRect.left - itemW / 2;
           const localY = lastCenterY - layerRect.top - itemH / 2;
           const position = clampPosition(element, Math.max(0, localX), Math.max(0, localY));
-          placeDesktopItem(element, position.x, position.y);
-          saveDesktopItemPosition(element, targetPage, position.x, position.y);
+          // 碰撞检测：放下去会压到别的组件/图标 → 退回原位置，不保存
+          if (isPositionOverlapping(element, targetPage, position.x, position.y)) {
+            element.style.position = startPos;
+            element.style.left = startLeft;
+            element.style.top = startTop;
+            if (startParent && element.parentElement !== startParent) { startParent.appendChild(element); }
+            showToast('这里已经有东西啦，换一个位置试试');
+          } else {
+            placeDesktopItem(element, position.x, position.y);
+            saveDesktopItemPosition(element, targetPage, position.x, position.y);
+          }
         } else {
           // 中断回滚：恢复起始位置与父节点，不保存数据
           element.style.position = startPos;
