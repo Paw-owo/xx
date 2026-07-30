@@ -103,7 +103,7 @@ const BASE_VARIABLES = {
   'shadow-color': '#8A5A28',
   'shadow-neu-out': 'var(--shadow-sm)',
   'shadow-neu-in': 'inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 70%, transparent)',
-  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 76%, transparent)',
+  'inner-highlight': 'none',
   'toy-border': '1px solid color-mix(in srgb, var(--border-soft) 76%, transparent)',
   'motion': 'all 240ms cubic-bezier(.2,.8,.2,1)',
   'press-scale': '0.97',
@@ -133,7 +133,7 @@ const LIGHT_SHADOWS = {
   'shadow-lg': '0 16px 38px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 12%, transparent)',
   'shadow-card': '0 7px 18px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 9%, transparent)',
   'shadow-float': '0 14px 34px color-mix(in srgb, var(--shadow-color, var(--text-primary)) 13%, transparent)',
-  'inner-highlight': 'inset 0 1px 0 color-mix(in srgb, white 76%, transparent)'
+  'inner-highlight': 'none'
 };
 
 const DARK_SHADOWS = {
@@ -263,7 +263,7 @@ function createPreset(id, name, mode, palette) {
       'illustration-fill': 'var(--surface-paper)',
       'illustration-accent': 'var(--accent-light)',
       'shadow-color': palette.shadow,
-      'inner-highlight': `inset 0 1px 0 color-mix(in srgb, white ${dark ? '12%' : '76%'}, transparent)`,
+      'inner-highlight': 'none',
       'toy-border': '1px solid color-mix(in srgb, var(--border-soft) 76%, transparent)',
       'chat-icon-line': 'var(--icon-detail)',
       'chat-icon-paper': 'var(--surface-paper)',
