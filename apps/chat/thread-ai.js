@@ -30,7 +30,7 @@ import { getIdentityCore } from './identity-core.js';
 import { getWorldbookForCharacter } from '../worldbook.js';
 import { buildMcpToolsContext, getUsableMcpTools, callMcpTool } from '../../core/mcp.js';
 import { formatWorldbookPrompt } from '../../core/worldbook-prompt.js';
-import { getActiveRelationshipLock, isStrictRelationshipLocked } from './thread-relationship.js';
+import { getActiveRelationshipLock, isStrictRelationshipLocked, checkAndProgressPunishment } from './thread-relationship.js';
 import { createTimeoutSignal } from '../../core/abort-utils.js';
 import { adjustChatUnread } from '../../core/chat-unread.js';
 import {
@@ -732,6 +732,24 @@ async function requestPrivateReply(state, options = {}) {
     userMessage = getLastUserMessage(messages);
     userProfile = loadUserProfileForCharacter(character);
     userName = getUserDisplayName(userProfile);
+
+    // 检查并推进惩罚完成进度：检测用户消息是否满足当前惩罚的解除条件
+    // （道歉/apology 或叫专属称呼/nickname），满足则递增计数，达到后自动解除锁
+    if (activeLock?.punishmentId && userMessage?.content) {
+      const punishment = await getDB('punishments', activeLock.punishmentId).catch(() => null);
+      if (punishment) {
+        const progress = await checkAndProgressPunishment(
+          characterId,
+          punishment,
+          userMessage.content,
+          character?.name || ''
+        );
+        // 惩罚已解除：重新加载锁状态，让后续 prompt 不再包含惩罚信息
+        if (progress?.fulfilled) {
+          activeLock = await getActiveRelationshipLock(characterId);
+        }
+      }
+    }
 
     if (!userMessage && !options.continue && !options.proactive) {
       finishAIJob(state, job);

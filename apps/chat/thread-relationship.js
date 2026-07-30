@@ -557,6 +557,92 @@ function injectStyle() {
   document.head.appendChild(style);
 }
 
+// ═══════════════════════════════════════
+// 【惩罚进度】检测用户动作并推进惩罚完成进度
+// ═══════════════════════════════════════
+
+/**
+ * 检查并推进惩罚完成进度。
+ * 检测用户最新消息是否满足当前惩罚的解除条件（道歉/叫专属称呼），
+ * 满足则递增 currentCount，达到 requiredCount 后自动解除关联的关系锁。
+ *
+ * @param {string} characterId - 角色ID
+ * @param {object} punishment - 当前惩罚对象（punishments store）
+ * @param {string} userText - 用户最新消息文本
+ * @param {string} characterName - 角色名称（用于 nickname 类型检测）
+ * @returns {object|null} { incremented, fulfilled, punishment }
+ */
+export async function checkAndProgressPunishment(characterId, punishment, userText, characterName) {
+  if (!punishment || punishment.status !== 'pending') return null;
+  if (!userText || typeof userText !== 'string') {
+    return { incremented: false, fulfilled: false, punishment };
+  }
+
+  const type = punishment.type;
+  if (type !== 'apology' && type !== 'nickname') {
+    return { incremented: false, fulfilled: false, punishment };
+  }
+
+  const text = userText.toLowerCase().trim();
+  if (!text) return { incremented: false, fulfilled: false, punishment };
+
+  let matched = false;
+
+  if (type === 'apology') {
+    // 道歉检测：用户消息包含道歉/认错关键词
+    const apologyWords = [
+      '对不起', '抱歉', '我错了', '道歉', '原谅', 'sorry',
+      '哄你', '别生气', '是我的错', '我不该', '下次不会',
+      '是我的问题', '我不好', '我不对', '是我的不对',
+      '给你道歉', '我认错', '我道歉', '别气了', '都怪我'
+    ];
+    matched = apologyWords.some(w => text.includes(w));
+  } else if (type === 'nickname') {
+    // 专属称呼检测：用户消息包含角色名
+    const name = String(characterName || '').toLowerCase().trim();
+    if (name) {
+      matched = text.includes(name);
+    }
+  }
+
+  if (!matched) return { incremented: false, fulfilled: false, punishment };
+
+  // — 匹配成功，递增计数 —
+  const newCount = (punishment.currentCount || 0) + 1;
+  const required = punishment.requiredCount || 1;
+  const fulfilled = newCount >= required;
+  const now = getNow();
+
+  const updatedPunishment = {
+    ...punishment,
+    currentCount: newCount,
+    updatedAt: now,
+    ...(fulfilled ? { status: 'fulfilled' } : {})
+  };
+
+  await setDB('punishments', updatedPunishment);
+
+  // 已达成：解除关联的关系锁
+  if (fulfilled && punishment.id) {
+    const locks = normalizeArray(
+      await getByIndexDB('relationship_locks', 'characterId', characterId).catch(() => [])
+    );
+    const activeLocks = locks.filter(l =>
+      l.status === 'active' && l.punishmentId === punishment.id
+    );
+
+    for (const lock of activeLocks) {
+      await setDB('relationship_locks', {
+        ...lock,
+        status: 'expired',
+        updatedAt: now
+      }).catch(() => null);
+    }
+  }
+
+  return { incremented: true, fulfilled, punishment: updatedPunishment };
+}
+
 // 改了什么：injectStyle 函数开头从"if (document.getElementById(RELATIONSHIP_STYLE_ID)) return"改为"const old = ...; if (old) old.remove()"，先删旧标签再创建新的。
 // 原来效果：关系锁样式修改后永远不生效。
 // 现在效果：每次调用都先清理旧标签再写入新样式。
