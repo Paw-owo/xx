@@ -191,6 +191,27 @@ select:focus-visible,
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-light) 28%, transparent), var(--shadow-sm);
 }
 
+/* 触摸设备不要 focus 光圈 — 椭圆框来源就是这层 outline */
+@media (pointer: coarse) {
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible,
+  .app-back:focus-visible,
+  .icon-button:focus-visible,
+  .desktop-icon:focus-visible,
+  .desktop-icon-art:focus-visible {
+    outline: 0 !important;
+    outline-offset: 0 !important;
+    box-shadow: none !important;
+  }
+  /* 桌面图标 focus 时不要摇晃 */
+  .desktop-icon:focus-visible .cozy-app-icon {
+    animation: none !important;
+  }
+}
+
 button,
 [role="button"],
 .btn-primary,
