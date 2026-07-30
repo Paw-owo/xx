@@ -5,6 +5,11 @@ import { emit, on, registerAPI } from '../core/app-bus.js';
 import { requestThreadAIReply } from './chat/thread-ai.js';
 import { promptForRemoteImage } from '../core/image-url.js';
 
+// setDB 失败时返回 null 而不抛错，统一用这个判定，跟 chat-event-bridge.js 一致
+function isDBWriteOk(result) {
+  return result !== null && result !== false && result !== undefined;
+}
+
 const STYLE_ID = 'music-app-style';
 const SONG_STORE = 'songs';
 const PLAYLIST_STORE = 'playlists';
@@ -605,7 +610,10 @@ async function sendTogetherInteraction(text, character, song) {
     characterAvatar: character.avatar || '', groupId: '', versionGroupId: '', versionStatus: 'active'
   };
   try {
-    await setDB('messages', userMessage);
+    const savedUser = await setDB('messages', userMessage);
+    // setDB 失败返回 null 不抛错，必须显式检查——否则这句没落库但界面照样显示，
+    // 切出去再回来就没了，AI 那边也丢了上下文
+    if (!isDBWriteOk(savedUser)) throw new Error('这句还没存进聊天里');
     emitTogether('message', { content: text });
     const threadState = { mode: 'private', mounted: true, characterId, character, messages: [], groupMessages: [], aiGenerating: false, isSending: false, renderOnly: () => {} };
     const reply = await requestThreadAIReply(threadState, { source: 'music-together', contextNote });
@@ -613,7 +621,10 @@ async function sendTogetherInteraction(text, character, song) {
       reply.sourceApp = 'music';
       reply.sourceType = 'music-together';
       reply.displayContent = reply.content || '';
-      await setDB('messages', reply);
+      const savedReply = await setDB('messages', reply);
+      if (!isDBWriteOk(savedReply)) {
+        console.warn('[music] together reply 落库失败，界面先显示但没存住', reply.id);
+      }
     }
     await loadTogetherMessages(reply ? [userMessage, reply] : [userMessage]);
     emit('chat:external-message', { threadId: characterId, characterId, sourceApp: 'music', sourceType: 'music-together', content: text, messageId: userMessage.id, message: userMessage });
