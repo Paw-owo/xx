@@ -9,8 +9,12 @@ assert.match(thread, /messageQueue\.push\(\{[\s\S]*?id:[\s\S]*?threadKey:[\s\S]*
 assert.match(thread, /sendImageTextMessage\(state, \{[\s\S]*?triggerAI: false[\s\S]*?\}\)/, 'queued image messages must save without starting a parallel AI job');
 assert.match(thread, /queuedMessageIds: batch\.map\(\(item\) => item\.id\)/, 'queue consumption must trigger AI from persisted queued messages without re-saving them');
 assert.match(thread, /state\.messageQueue\.filter\(\(item\) => item\?\.threadKey === getThreadQueueKey\(\)\)\.length/, 'queue status must be scoped to the active thread');
-assert.match(thread, /openThreadSettingsPanel\(state,[\s\S]*?appState: state\.appState/, 'opening thread settings should use the internal panel path');
+assert.match(thread, /mountThreadSettings\(host, \{[\s\S]*?appState: state\.appState/, 'opening thread settings should mount the full-page settings host with app state');
+assert.match(thread, /function renderSettingsFullPage\(\)/, 'thread settings must render through the dedicated full-page renderer');
 assert.doesNotMatch(thread.match(/function openSettingsPage\(\) \{[\s\S]*?\n\}/)?.[0] || '', /unmountChatThread\(/, 'opening settings must not unmount and abort an active reply');
+assert.doesNotMatch(thread.match(/function openSettingsPage\(\) \{[\s\S]*?\n\}/)?.[0] || '', /abortActiveAIJobsForUnmount|stopThreadAIReply/, 'opening settings must not abort in-flight AI jobs');
+assert.doesNotMatch(thread.match(/function renderSettingsFullPage\(\) \{[\s\S]*?\n\}/)?.[0] || '', /abortActiveAIJobsForUnmount|stopThreadAIReply|unmountChatThread\(/, 'rendering the settings page must not abort in-flight AI jobs');
+assert.doesNotMatch(thread.match(/function closeSettingsPage\(\) \{[\s\S]*?\n\}/)?.[0] || '', /abortActiveAIJobsForUnmount|stopThreadAIReply|unmountChatThread\(/, 'closing settings must not abort in-flight AI jobs');
 assert.match(thread, /repairStaleThreadPendingMessages\(state\)/, 'mount should repair stale pending assistant placeholders');
 assert.match(actions, /triggerAI !== false/, 'image text sends need an explicit triggerAI false path for queueing');
 assert.match(ai, /export async function repairStaleThreadPendingMessages/, 'stale pending repair must be exported for thread remount');
