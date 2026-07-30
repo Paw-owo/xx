@@ -30,6 +30,10 @@ function buildSourceEventId(type, data) {
   ].join('|');
 }
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 function isDuplicate(eventId) {
   if (!eventId) return false;
   return recentEventIds.has(eventId) || pendingEventIds.has(eventId);
@@ -252,8 +256,26 @@ export async function appendExternalChatMessage(payload = {}) {
   };
 
   try {
-    const saved = await setDB('messages', message);
-    if (!isDBWriteOk(saved)) throw new Error('消息还没能存进聊天里');
+    // 消息写入重试：最多 3 次，300ms 间隔，前两次失败不抛不丢事件
+    let saved = null;
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 300;
+    let lastError = null;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        saved = await setDB('messages', message);
+        if (isDBWriteOk(saved)) break;
+        lastError = new Error('消息还没能存进聊天里');
+      } catch (e) {
+        lastError = e;
+      }
+      if (attempt < MAX_RETRIES) {
+        await delay(RETRY_DELAY_MS);
+      }
+    }
+
+    if (!isDBWriteOk(saved)) throw lastError || new Error('消息还没能存进聊天里');
   } catch (error) {
     console.error('[chat-event-bridge] appendExternalChatMessage setDB failed', error);
     emitExternalMessageFailed(payload, error);
