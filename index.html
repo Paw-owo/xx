@@ -2,7 +2,7 @@
 <!-- imports:
   from './core/storage.js': initDB, getData, setData, removeData, getDB, setDB, deleteDB, getAllDB, generateId, getNow
   from './core/theme.js': loadTheme
-  from './core/ui.js': createIcon, showToast
+  from './core/ui.js': createIcon, showToast, showBottomSheet, hideBottomSheet
   from './apps/chat/thread-ai-local.js': seedDefaultCharacter
 -->
 <!doctype html>
@@ -321,7 +321,9 @@
       outline: 0;
       color: var(--text-primary);
       touch-action: none;
-      transition: all 200ms ease;
+      /* 同 .desktop-widget：位移不进过渡，否则落位会从旧位置飘过去 */
+      transition: transform 200ms ease, opacity 200ms ease,
+                  background-color 200ms ease, color 200ms ease;
     }
 
     .desktop-icon:focus,
@@ -355,11 +357,9 @@
       padding: 0;
       margin: 0;
       border-radius: calc(19px * var(--desktop-icon-scale));
-      background: color-mix(in srgb, var(--bg-card) 86%, transparent);
+      background: color-mix(in srgb, var(--surface-paper) 88%, var(--accent-light));
       color: var(--accent-dark);
       box-shadow: var(--desktop-soft-shadow);
-      backdrop-filter: blur(var(--desktop-card-blur));
-      -webkit-backdrop-filter: blur(var(--desktop-card-blur));
     }
 
     .desktop-icon-art.has-custom-image {
@@ -446,7 +446,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      text-shadow: 0 1px 12px color-mix(in srgb, var(--bg-primary) 80%, transparent);
+      text-shadow: none;
     }
 
     .desktop-delete-dot {
@@ -514,16 +514,22 @@
       overflow: hidden;
       border-radius: calc(28px * var(--desktop-widget-scale)) calc(28px * var(--desktop-widget-scale)) calc(18px * var(--desktop-widget-scale)) calc(28px * var(--desktop-widget-scale));
       border: 1px solid color-mix(in srgb, var(--border-soft) 62%, transparent);
-      background-color: color-mix(in srgb, var(--bg-card) 86%, transparent);
+      background-color: color-mix(in srgb, var(--bg-card) 96%, var(--surface-paper));
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
       color: var(--text-primary);
       box-shadow: var(--desktop-soft-shadow);
-      backdrop-filter: blur(var(--desktop-card-blur));
-      -webkit-backdrop-filter: blur(var(--desktop-card-blur));
+      /* 不用 backdrop-filter：拖拽时 position 在 fixed/absolute 间切换，
+         毛玻璃的合成层缓存跟不上，松手会留残影（WebKit 已知问题）。
+         改纯色底，顺带省掉毛玻璃的 GPU 开销。 */
       touch-action: none;
-      transition: all 200ms ease;
+      /* 不能用 transition: all —— 它会把 left/top 一起纳入过渡。
+         拖拽落位时坐标要从 fixed 视口值瞬切到 absolute 局部值，
+         若走 200ms 补间，元素会从旧位置"飘"到新位置，就是松手后的残影。
+         这里只过渡视觉属性，位移不参与过渡。 */
+      transition: transform 200ms ease, opacity 200ms ease,
+                  background-color 200ms ease, border-color 200ms ease;
     }
 
     .desktop-widget.has-image {
@@ -1439,7 +1445,6 @@
 
     .page-dot {
       background: color-mix(in srgb, var(--accent-dark) 32%, var(--bg-card));
-      box-shadow: inset 0 1px 0 color-mix(in srgb, white 72%, transparent);
     }
 
     .page-dot.active {
@@ -1533,7 +1538,7 @@
   <script type="module">
     import { initDB, getData, setData, removeData, getDB, setDB, deleteDB, getAllDB, generateId, getNow } from './core/storage.js';
     import { loadTheme } from './core/theme.js';
-    import { createIcon, showToast } from './core/ui.js';
+    import { createIcon, showToast, showBottomSheet, hideBottomSheet } from './core/ui.js';
     import { seedDefaultCharacter } from './apps/chat/thread-ai-local.js';
     import { registerAPI, getAPI, emit as busEmit, on as busOn, openApp as busOpenApp, recordExternalInteraction as busRecordExternalInteraction, subscribe as busSubscribe, UNREAD_CHANGED_EVENT } from './core/app-bus.js';
     import { initChatEventBridge } from './core/chat-event-bridge.js';
@@ -2382,9 +2387,14 @@
       }
       if (widget.id === 'weather') {
         widgetEl.id = 'weather-widget';
-        widgetEl.innerHTML = `<div class="widget-top"><div class="widget-label">天气</div><div class="widget-mark" data-weather-icon></div></div><div id="weather-value" class="weather-content" aria-live="polite"><div class="widget-value">正在读取天气</div><div class="weather-meta">请稍候</div></div>`;
+        // 右上角常驻"改地区"入口：不管当前有没有天气数据都能点，
+        // 免得只有报错时才找得到设置入口。
+        widgetEl.innerHTML = `<div class="widget-top"><div class="widget-label">天气</div><button class="weather-city-entry" type="button" data-act="city" aria-label="改天气地区">改地区</button></div><div id="weather-value" class="weather-content" aria-live="polite"><div class="widget-value">正在读取天气</div><div class="weather-meta">请稍候</div></div>`;
         widgetEl.addEventListener('click', (event) => {
-          if (editing || dragState || clickSuppressor.consume() || event.target.closest('button')) return;
+          if (editing || dragState || clickSuppressor.consume()) return;
+          // 点右上角"改地区" → 直接开城市弹窗
+          if (event.target.closest('[data-act="city"]')) { openWeatherSettings(); return; }
+          if (event.target.closest('button')) return;
           if (widgetEl.dataset.weatherAction === 'settings') openWeatherSettings();
           else if (widgetEl.dataset.weatherAction === 'retry') updateWeather({ force: true });
           else updateWeather({ force: true });
@@ -2718,11 +2728,19 @@
           element.style.position = 'fixed';
         }
 
-        // 始终用视口坐标定位，跟随手指/鼠标
+        // 始终用视口坐标定位，跟随手指/鼠标。
+        // 夹取范围用目标 layer 的视口矩形，而不是整个 window——落位阶段
+        // clampPosition 也按 layer 计算，两处保持同一边界，避免拖到屏幕
+        // 上/下边缘（状态栏 58px、Dock 108px 之外）松手时位置回跳。
         const vx = moveEvent.clientX - itemW / 2;
         const vy = moveEvent.clientY - itemH / 2;
-        element.style.left = `${Math.max(0, Math.min(window.innerWidth - itemW, vx))}px`;
-        element.style.top = `${Math.max(0, Math.min(window.innerHeight - itemH, vy))}px`;
+        const bounds = (getLayer(currentPage) || pagesEl).getBoundingClientRect();
+        const minX = bounds.left;
+        const minY = bounds.top;
+        const maxX = Math.max(minX, bounds.right - itemW);
+        const maxY = Math.max(minY, bounds.bottom - itemH);
+        element.style.left = `${Math.max(minX, Math.min(maxX, vx))}px`;
+        element.style.top = `${Math.max(minY, Math.min(maxY, vy))}px`;
         // 边缘翻页：进入热区并停留才翻，离开立即取消；首末页不越界
         edgeScheduler.schedule(moveEvent.clientX, window.innerWidth, (dir) => {
           flipDesktopPage(dir);
@@ -3002,6 +3020,11 @@
           renderWeather(cache);
           return cache;
         } catch (error) {
+          // 没填城市：不重试（重试也没用），直接给出可点的填写入口
+          if (error?.name === 'WeatherCityMissing') {
+            renderWeatherStatus('还没告诉我看哪里', '点一下填个城市，想看哪儿看哪儿', openWeatherSettings);
+            return null;
+          }
           if (!retry && error?.name !== 'AbortError') {
             renderWeatherStatus('天气还在路上', '稍等一下，小手机会再试一次；点这里也能马上重试', () => updateWeather({ force: true }));
             window.setTimeout(() => updateWeather({ force: true, retry: true }).catch(() => {}), 1200);
@@ -3053,22 +3076,16 @@
         setData(configRecord.key, { ...config, ...resolved, updatedAt: getNow() });
         return resolved;
       }
-      return getBrowserWeatherLocation(signal);
+      // 未配城市：WebView 拿不到定位权限，直接引导填城市，不做无谓的定位尝试
+      return Promise.reject(requireWeatherCityHint());
     }
 
-    function getBrowserWeatherLocation(signal) {
-      return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) { reject(new Error('geolocation unavailable')); return; }
-        if (signal.aborted) { reject(new DOMException('Aborted', 'AbortError')); return; }
-        const onAbort = () => reject(new DOMException('Aborted', 'AbortError'));
-        signal.addEventListener('abort', onAbort, { once: true });
-        navigator.geolocation.getCurrentPosition((position) => {
-          signal.removeEventListener('abort', onAbort);
-          resolve({ cityName: '', latitude: position.coords.latitude, longitude: position.coords.longitude, timezone: '' });
-        }, (error) => {
-          signal.removeEventListener('abort', onAbort); reject(error);
-        }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 1000 * 60 * 30 });
-      });
+    // WebView 里 navigator.geolocation 拿不到权限，这里给出可操作的提示，
+    // 而不是让 updateWeather 抛一个用户看不懂的定位错误。
+    function requireWeatherCityHint() {
+      const error = new Error('weather city not configured');
+      error.name = 'WeatherCityMissing';
+      return error;
     }
 
     function formatWeatherPrimary(weather) {
@@ -3154,9 +3171,77 @@
       getAPI('music')?.openPlayer?.();
     }
 
-    async function openWeatherSettings() {
-      showToast('去设置里补一下天气小卡片');
-      await openApp('settings', { section: 'widgets', focus: 'weather' });
+    // 天气城市设置：底部弹窗直接填城市名，走 open-meteo geocoding 换经纬度。
+    // 之前只能跳设置页，且未配城市时 fallback 到 navigator.geolocation ——
+    // 小手机跑在 WebView 里拿不到定位权限，必然失败，这是"天气总失效"的根因。
+    function openWeatherSettings() {
+      const config = getWeatherConfigRecord().value || {};
+      const currentCity = String(config.cityName || config.city || config.location || '').trim();
+
+      const root = document.createElement('div');
+      root.className = 'weather-city-sheet';
+      root.innerHTML = `
+        <div class="weather-city-head">
+          <div class="weather-city-title">天气看哪里</div>
+          <div class="weather-city-hint">填城市名就行，想看哪儿填哪儿</div>
+        </div>
+        <input class="weather-city-input" type="text" inputmode="text"
+          placeholder="上海 / Tokyo / Paris" value="${currentCity.replace(/"/g, '&quot;')}"
+          aria-label="城市名称" autocomplete="off" spellcheck="false">
+        <div class="weather-city-state" role="status" aria-live="polite"></div>
+        <div class="weather-city-actions">
+          <button class="weather-city-btn ghost" type="button" data-act="cancel">先不填</button>
+          <button class="weather-city-btn solid" type="button" data-act="save">就看这里</button>
+        </div>`;
+
+      const input = root.querySelector('.weather-city-input');
+      const state = root.querySelector('.weather-city-state');
+      const saveBtn = root.querySelector('[data-act="save"]');
+
+      const setState = (text, tone = '') => {
+        state.textContent = text || '';
+        state.dataset.tone = tone;
+      };
+
+      const save = async () => {
+        const cityName = input.value.trim();
+        if (!cityName) { setState('先写个城市名', 'warn'); input.focus(); return; }
+
+        saveBtn.disabled = true;
+        setState('正在找这个地方…');
+        try {
+          const response = await fetch(buildOpenMeteoGeocodingUrl(cityName), { cache: 'no-store' });
+          if (!response.ok) throw new Error(`geocoding ${response.status}`);
+          const match = (await response.json())?.results?.[0];
+          // 查不到当场说，不落库 —— 免得你以为填成功了结果一直没天气
+          if (!match) { setState('没找到这个地方，换个写法试试', 'warn'); saveBtn.disabled = false; return; }
+
+          const record = getWeatherConfigRecord();
+          setData(record.key, {
+            ...record.value,
+            cityName: match.name || cityName,
+            latitude: Number(match.latitude),
+            longitude: Number(match.longitude),
+            timezone: match.timezone || '',
+            updatedAt: getNow()
+          });
+          removeData('app_weather_cache');
+          removeData('weather_cache');
+          hideBottomSheet();
+          showToast(`天气改成看${match.name || cityName}了`);
+          updateWeather({ force: true }).catch(() => {});
+        } catch (_) {
+          setState('网络没接上，等会儿再试', 'warn');
+          saveBtn.disabled = false;
+        }
+      };
+
+      root.querySelector('[data-act="cancel"]').addEventListener('click', () => hideBottomSheet());
+      saveBtn.addEventListener('click', save);
+      input.addEventListener('keydown', (event) => { if (event.key === 'Enter') save(); });
+
+      showBottomSheet(root);
+      requestAnimationFrame(() => { input.focus(); input.select(); });
     }
 
     function updateVinylWidget() {
