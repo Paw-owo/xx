@@ -3545,15 +3545,13 @@ body {
 }
 
 :root :is(
-  button,
-  [role="button"],
+  button:not(.desktop-icon),
+  [role="button"]:not(.desktop-icon),
   .btn-primary,
   .btn-ghost,
   .icon-button,
   .app-back,
   .card-action,
-  .desktop-icon,
-  .desktop-icon-art,
   .chat-thread-tool-card,
   .settings-nav-item,
   .segmented button,
@@ -3565,6 +3563,13 @@ body {
   transition-duration: var(--motion-handmade-fast);
   transform: translateY(1px) scale(var(--motion-press-soft));
   border-color: var(--motion-press-border) !important;
+}
+
+/* 桌面图标按压：只要位移缩放，不要边框高亮。
+   .desktop-icon-art 是圆角小方块，按下时边框亮起来看着像多了个小框框。 */
+:root :is(.desktop-icon, .desktop-icon-art):active {
+  transition-duration: var(--motion-handmade-fast);
+  transform: translateY(1px) scale(var(--motion-press-soft));
 }
 
 :root :is(
@@ -3609,7 +3614,6 @@ body {
 
 :root :is(.desktop-icon):active .desktop-icon-art {
   transform: translateY(1px) scale(.93) rotate(-1deg);
-  border-color: var(--motion-press-border) !important;
 }
 
 @media (prefers-reduced-motion: no-preference) {
